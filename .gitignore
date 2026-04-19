@@ -1,0 +1,51 @@
+# Build
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+TestResults/
+coverage/
+*.user
+*.suo
+
+# Packages / generated
+packages/
+artifacts/
+publish/
+dist/
+out/
+
+# Models and large runtime assets
+models/
+model-cache/
+*.onnx
+*.onnx_data
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+
+# Media/artifacts
+*.mp4
+*.mkv
+*.mov
+*.wav
+*.flac
+*.aac
+*.mp3
+*.srt
+*.vtt
+*.babelstudio/
+projects/
+
+# Logs/temp
+logs/
+temp/
+tmp/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
