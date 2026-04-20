@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "The tool wants to edit a file. Check if the file path in tool_input contains 'Directory.Packages.props' or 'Directory.Build.props'. If yes, block and explain these are central versioning files that affect all projects — the user must confirm explicitly before editing. Otherwise allow.",
+            "if": "Edit(Directory*)"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; echo \"$f\" | grep -q '\\.csproj$' && dotnet build D:/Dev/BabelStudio/BabelStudio.sln --no-restore -v q 2>&1 || true; }",
+            "statusMessage": "Building solution..."
+          }
+        ]
+      }
+    ]
+  }
+}

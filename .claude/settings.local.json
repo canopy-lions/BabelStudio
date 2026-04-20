@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where chrome *)",
+      "Bash(where chromium *)",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Google/Chrome/Application/**)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/playwright install *)",
+      "Bash(.venv/Scripts/python -c \"from playwright.sync_api import sync_playwright; print\\('playwright ok'\\)\")",
+      "Bash(.venv/Scripts/python -c \"from PIL import Image; print\\('Pillow ok'\\)\")",
+      "Bash(.venv/Scripts/python -c \"import jinja2; print\\('jinja2 ok'\\)\")",
+      "Bash(.venv/Scripts/python scripts/screenshot.py templates/social-preview.html --output output/social-preview.png --width 1280 --height 640)"
+    ]
+  }
+}
