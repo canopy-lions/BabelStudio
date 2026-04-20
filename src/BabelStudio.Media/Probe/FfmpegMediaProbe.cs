@@ -11,14 +11,12 @@ public sealed class FfmpegMediaProbe : IMediaProbe
     private readonly IProcessRunner processRunner;
     private readonly FfmpegToolResolver toolResolver;
 
-    public FfmpegMediaProbe(string? ffmpegPath = null, string? ffprobePath = null)
-        : this(new ProcessRunner(), ffmpegPath, ffprobePath)
+    public FfmpegMediaProbe(
+        string? ffmpegPath = null,
+        string? ffprobePath = null,
+        IProcessRunner? processRunner = null)
     {
-    }
-
-    internal FfmpegMediaProbe(IProcessRunner processRunner, string? ffmpegPath = null, string? ffprobePath = null)
-    {
-        this.processRunner = processRunner;
+        this.processRunner = processRunner ?? new ProcessRunner();
         toolResolver = new FfmpegToolResolver(ffmpegPath, ffprobePath);
     }
 

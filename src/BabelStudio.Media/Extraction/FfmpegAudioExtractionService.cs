@@ -9,14 +9,11 @@ public sealed class FfmpegAudioExtractionService : IAudioExtractionService
     private readonly IProcessRunner processRunner;
     private readonly FfmpegToolResolver toolResolver;
 
-    public FfmpegAudioExtractionService(string? ffmpegPath = null)
-        : this(new ProcessRunner(), ffmpegPath)
+    public FfmpegAudioExtractionService(
+        string? ffmpegPath = null,
+        IProcessRunner? processRunner = null)
     {
-    }
-
-    internal FfmpegAudioExtractionService(IProcessRunner processRunner, string? ffmpegPath = null)
-    {
-        this.processRunner = processRunner;
+        this.processRunner = processRunner ?? new ProcessRunner();
         toolResolver = new FfmpegToolResolver(ffmpegPath);
     }
 
