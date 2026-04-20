@@ -1,9 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
     <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
     <ProjectReference Include="..\BabelStudio.Inference.Onnx\BabelStudio.Inference.Onnx.csproj" />
+    <ProjectReference Include="..\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
+    <ProjectReference Include="..\BabelStudio.Media\BabelStudio.Media.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
