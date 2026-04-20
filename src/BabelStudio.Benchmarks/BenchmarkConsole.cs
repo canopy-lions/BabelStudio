@@ -9,7 +9,18 @@ public static class BenchmarkConsole
         writer.WriteLine("BabelStudio.Benchmarks");
         writer.WriteLine();
         writer.WriteLine("Usage:");
+        writer.WriteLine("  BabelStudio.Benchmarks ingest --project <path> [--name <project-name> --media <path> | --open] [--ffmpeg <path>] [--ffprobe <path>]");
+        writer.WriteLine("  BabelStudio.Benchmarks ingest --help");
+        writer.WriteLine("  BabelStudio.Benchmarks --help");
         writer.WriteLine("  BabelStudio.Benchmarks --model <path-or-scope> [--variant <name> | --all-variants] [--output <path>] [--provider cpu|auto|dml] [--runs <n>] [--format console|json|both]");
+        writer.WriteLine();
+        writer.WriteLine("Ingest command:");
+        writer.WriteLine("  --project <path>    Required project root, typically ending in .babelstudio.");
+        writer.WriteLine("  --name <name>       Required for create mode. Project display name.");
+        writer.WriteLine("  --media <path>      Required for create mode. Source media file to ingest.");
+        writer.WriteLine("  --open              Open an existing project and report source/artifact status.");
+        writer.WriteLine("  --ffmpeg <path>     Optional explicit ffmpeg executable path.");
+        writer.WriteLine("  --ffprobe <path>    Optional explicit ffprobe executable path.");
         writer.WriteLine();
         writer.WriteLine("Options:");
         writer.WriteLine("  --model <path-or-scope>  Required ONNX model path or scoped model reference under ./models.");
