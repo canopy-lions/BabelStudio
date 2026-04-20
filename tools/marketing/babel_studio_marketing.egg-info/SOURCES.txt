@@ -1,0 +1,6 @@
+pyproject.toml
+babel_studio_marketing.egg-info/PKG-INFO
+babel_studio_marketing.egg-info/SOURCES.txt
+babel_studio_marketing.egg-info/dependency_links.txt
+babel_studio_marketing.egg-info/requires.txt
+babel_studio_marketing.egg-info/top_level.txt

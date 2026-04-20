@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: babel-studio-marketing
+Version: 0.1.0
+Summary: Developer marketing tooling — GitHub social previews, screenshots, brand assets
+Requires-Python: >=3.11
+Requires-Dist: google-generativeai>=0.8.0
+Requires-Dist: Pillow>=11.0.0
+Requires-Dist: playwright>=1.49.0
+Requires-Dist: jinja2>=3.1.0
+Provides-Extra: dev
+Requires-Dist: ruff>=0.8.0; extra == "dev"
