@@ -1,0 +1,28 @@
+{
+  "Scenario": "onnx-model",
+  "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx",
+  "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-fp16.json",
+  "Status": "Completed",
+  "RequestedProvider": "cpu",
+  "SelectedProvider": "cpu",
+  "RunCount": 1,
+  "SupportsExecution": true,
+  "ModelSizeBytes": 1153003,
+  "Measurements": {
+    "ColdLoadMilliseconds": 41.424,
+    "WarmupMilliseconds": 0.6763,
+    "WarmLatencyAverageMilliseconds": 0.2674,
+    "WarmLatencyMinimumMilliseconds": 0.2674,
+    "WarmLatencyMaximumMilliseconds": 0.2674,
+    "AudioDurationSeconds": 0.032,
+    "RealTimeFactorAverage": 0.00835625
+  },
+  "FailureReason": null,
+  "Notes": [
+    "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+    "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx\u0027.",
+    "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx\u0027.",
+    "Provider route: explicit CPU execution provider."
+  ],
+  "GeneratedAtUtc": "2026-04-20T02:27:15.2069708+00:00"
+}
