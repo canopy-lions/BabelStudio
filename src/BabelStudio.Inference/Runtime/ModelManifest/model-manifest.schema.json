@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://babelstudio.local/schemas/model-manifest.schema.json",
+  "title": "BabelStudio Model Manifest",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/catalog"
+    },
+    {
+      "$ref": "#/$defs/model"
+    }
+  ],
+  "$defs": {
+    "catalog": {
+      "type": "object",
+      "required": [ "models" ],
+      "properties": {
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/model"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "model_id",
+        "task",
+        "license",
+        "commercial_allowed",
+        "redistribution_allowed",
+        "requires_attribution",
+        "requires_user_consent",
+        "voice_cloning",
+        "commercial_safe_mode",
+        "source_url",
+        "revision",
+        "sha256",
+        "variants"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task": {
+          "type": "string",
+          "enum": [ "asr", "translation", "tts", "diarization", "vad", "separation" ]
+        },
+        "license": {
+          "type": "string",
+          "enum": [ "MIT", "Apache-2.0", "CC-BY-4.0", "custom", "unknown", "non-commercial" ]
+        },
+        "commercial_allowed": {
+          "type": "boolean"
+        },
+        "redistribution_allowed": {
+          "type": "boolean"
+        },
+        "requires_attribution": {
+          "type": "boolean"
+        },
+        "requires_user_consent": {
+          "type": "boolean"
+        },
+        "voice_cloning": {
+          "type": "boolean"
+        },
+        "commercial_safe_mode": {
+          "type": "boolean"
+        },
+        "source_url": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "root_path": {
+          "type": [ "string", "null" ]
+        },
+        "benchmark_entry": {
+          "type": [ "string", "null" ]
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variant"
+          }
+        },
+        "hash_verification": {
+          "$ref": "#/$defs/hashVerification"
+        }
+      },
+      "additionalProperties": false
+    },
+    "variant": {
+      "type": "object",
+      "required": [ "alias", "entry_path" ],
+      "properties": {
+        "alias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "hashVerification": {
+      "type": "object",
+      "required": [ "mode" ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [ "none", "verify-if-sha-present", "required" ]
+        },
+        "algorithm": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

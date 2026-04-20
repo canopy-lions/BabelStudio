@@ -1,0 +1,150 @@
+{
+  "models": [
+    {
+      "model_id": "onnx-community/silero-vad",
+      "task": "vad",
+      "license": "MIT",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": false,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/onnx-community/silero-vad",
+      "revision": "",
+      "sha256": "",
+      "aliases": [ "silero-vad", "silero" ],
+      "root_path": "../../../../models/silero-vad",
+      "benchmark_entry": "onnx/model.onnx",
+      "variants": [
+        { "alias": "fp16", "entry_path": "onnx/model_fp16.onnx" },
+        { "alias": "int8", "entry_path": "onnx/model_int8.onnx" },
+        { "alias": "q4", "entry_path": "onnx/model_q4.onnx" },
+        { "alias": "q4f16", "entry_path": "onnx/model_q4f16.onnx" },
+        { "alias": "quantized", "entry_path": "onnx/model_quantized.onnx" },
+        { "alias": "uint8", "entry_path": "onnx/model_uint8.onnx" },
+        { "alias": "bnb4", "entry_path": "onnx/model_bnb4.onnx" }
+      ]
+    },
+    {
+      "model_id": "onnx-community/whisper-tiny",
+      "task": "asr",
+      "license": "unknown",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "requires_attribution": false,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": false,
+      "source_url": "https://huggingface.co/onnx-community/whisper-tiny",
+      "revision": "",
+      "sha256": "",
+      "aliases": [ "whisper-tiny", "whisper-tiny-local" ],
+      "root_path": "../../../../models/whisper-tiny",
+      "benchmark_entry": "onnx/encoder_model.onnx",
+      "variants": [
+        { "alias": "fp16", "entry_path": "onnx/encoder_model_fp16.onnx" },
+        { "alias": "int8", "entry_path": "onnx/encoder_model_int8.onnx" },
+        { "alias": "q4", "entry_path": "onnx/encoder_model_q4.onnx" },
+        { "alias": "quantized", "entry_path": "onnx/encoder_model_quantized.onnx" },
+        { "alias": "uint8", "entry_path": "onnx/encoder_model_uint8.onnx" },
+        { "alias": "bnb4", "entry_path": "onnx/encoder_model_bnb4.onnx" }
+      ]
+    },
+    {
+      "model_id": "onnx-community/whisper-tiny",
+      "task": "asr",
+      "license": "unknown",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "requires_attribution": false,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": false,
+      "source_url": "https://huggingface.co/onnx-community/whisper-tiny",
+      "revision": "",
+      "sha256": "",
+      "aliases": [ "whisper-tiny-onnx" ],
+      "root_path": "../../../../models/whisper-tiny-onnx",
+      "benchmark_entry": "onnx/encoder_model.onnx",
+      "variants": [
+        { "alias": "fp16", "entry_path": "onnx/encoder_model_fp16.onnx" },
+        { "alias": "int8", "entry_path": "onnx/encoder_model_int8.onnx" },
+        { "alias": "q4", "entry_path": "onnx/encoder_model_q4.onnx" },
+        { "alias": "q4f16", "entry_path": "onnx/encoder_model_q4f16.onnx" },
+        { "alias": "quantized", "entry_path": "onnx/encoder_model_quantized.onnx" },
+        { "alias": "uint8", "entry_path": "onnx/encoder_model_uint8.onnx" },
+        { "alias": "bnb4", "entry_path": "onnx/encoder_model_bnb4.onnx" }
+      ]
+    },
+    {
+      "model_id": "onnx-community/Kokoro-82M-ONNX",
+      "task": "tts",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/onnx-community/Kokoro-82M-ONNX",
+      "revision": "",
+      "sha256": "",
+      "aliases": [ "kokoro-onnx", "kokoro" ],
+      "root_path": "../../../../models/kokoro-onnx",
+      "benchmark_entry": "onnx/model.onnx",
+      "variants": [
+        { "alias": "fp16", "entry_path": "onnx/model_fp16.onnx" },
+        { "alias": "q4", "entry_path": "onnx/model_q4.onnx" },
+        { "alias": "q4f16", "entry_path": "onnx/model_q4f16.onnx" },
+        { "alias": "q8f16", "entry_path": "onnx/model_q8f16.onnx" },
+        { "alias": "quantized", "entry_path": "onnx/model_quantized.onnx" },
+        { "alias": "uint8", "entry_path": "onnx/model_uint8.onnx" },
+        { "alias": "uint8f16", "entry_path": "onnx/model_uint8f16.onnx" }
+      ]
+    },
+    {
+      "model_id": "ResembleAI/chatterbox-turbo",
+      "task": "tts",
+      "license": "MIT",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": false,
+      "requires_user_consent": true,
+      "voice_cloning": true,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/ResembleAI/chatterbox-turbo",
+      "revision": "",
+      "sha256": "",
+      "aliases": [ "chatterbox-turbo-onnx", "chatterbox-turbo" ],
+      "root_path": "../../../../models/chatterbox-turbo-onnx",
+      "benchmark_entry": "onnx/speech_encoder.onnx",
+      "variants": [
+        { "alias": "fp16", "entry_path": "onnx/speech_encoder_fp16.onnx" },
+        { "alias": "q4", "entry_path": "onnx/speech_encoder_q4.onnx" },
+        { "alias": "q4f16", "entry_path": "onnx/speech_encoder_q4f16.onnx" },
+        { "alias": "quantized", "entry_path": "onnx/speech_encoder_quantized.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-en-es",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-en-es",
+      "revision": "",
+      "sha256": "",
+      "aliases": [ "opus-en-es", "helsinki-opus-en-es" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-en-es",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    }
+  ]
+}
