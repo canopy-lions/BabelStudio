@@ -70,6 +70,8 @@ WinUI 3 + Windows App SDK
 C#
 ```
 
+See [ADR-0001](docs/adr/ADR-0001-winui3-windows-ml.md) for the rationale and boundaries behind this choice.
+
 Why:
 
 - Native Windows UI and app lifecycle.
@@ -145,6 +147,8 @@ Dapper
 project-local artifact store
 global model cache
 ```
+
+See [ADR-0002](docs/adr/ADR-0002-sqlite-project-persistence.md) for the project-versus-machine persistence split.
 
 SQLite owns structured project state. The filesystem owns large artifacts.
 
@@ -246,6 +250,8 @@ BabelStudio.Benchmarks
 
 The application layer coordinates work. Concrete implementation layers do not mutate project state directly.
 
+When Infrastructure or Media reference `BabelStudio.Application`, that dependency should stay limited to application-defined interfaces or DTOs. Those projects should not call use cases back into the coordinator.
+
 ---
 
 ## 6. Pipeline overview
@@ -324,15 +330,15 @@ Purpose:
 - Probe container/stream metadata.
 - Create project folder and database.
 - Register source media.
-- Extract canonical working audio.
+- Extract a project-local ingest audio artifact without applying downstream normalization rules yet.
 
 Outputs:
 
 ```text
 MediaAsset
 Project
-normalized_audio.wav
-waveform summary
+source-reference.json
+ingest_audio.wav
 media metadata
 artifact records
 ```
@@ -342,6 +348,7 @@ Rules:
 - Reference original media by default.
 - Offer a later option to bundle media into the project.
 - Store media fingerprints so moved/changed source files can be detected.
+- Do not collapse ingest and normalization into one irreversible step.
 
 ---
 
@@ -366,6 +373,7 @@ Rules:
 
 - Internal timing should prefer sample-accurate or integer millisecond representation.
 - Avoid floating-point drift in long media.
+- Stage 2 owns normalization, derivative generation, and waveform summaries.
 
 ---
 
@@ -631,7 +639,7 @@ ProjectName.babelstudio/
 ├── manifest.json
 ├── media/
 │   ├── source-reference.json
-│   └── normalized_audio.wav
+│   └── ingest_audio.wav
 ├── artifacts/
 │   ├── stems/
 │   ├── vad/
@@ -645,12 +653,12 @@ ProjectName.babelstudio/
 └── temp/
 ```
 
-### 8.2 Global app data
+### 8.2 Machine-local app data
 
-Recommended global layout:
+Recommended machine-local layout:
 
 ```text
-%AppData%/BabelStudio/
+%LocalAppData%/BabelStudio/
 ├── settings.json
 ├── models/
 ├── model-cache/
@@ -658,13 +666,13 @@ Recommended global layout:
 └── logs/
 ```
 
-Project artifacts and global model cache should remain separate.
+Project artifacts and machine-local caches should remain separate. Model cache data and benchmark history should not roam with the user's profile by default.
 
 ---
 
-## 9. Core database tables
+## 9. Core project database tables
 
-Suggested initial SQLite tables:
+Suggested initial SQLite tables for `babel.db`:
 
 ```text
 Projects
@@ -682,18 +690,18 @@ VoiceAssignments
 TtsTakes
 MixPlans
 Exports
-ModelCache
-BenchmarkRuns
 ConsentRecords
 SchemaVersion
 ```
+
+Global model cache inventory and cross-project benchmark history belong in the machine-local data root, not in each project's `babel.db`.
 
 Every artifact record should include:
 
 ```text
 artifact_id
 artifact_kind
-path
+project_relative_path
 sha256
 size_bytes
 duration
@@ -707,6 +715,8 @@ execution_provider
 settings_hash
 warnings_json
 ```
+
+Use project-relative locations or storage keys in domain records. Infrastructure resolves those keys to absolute filesystem paths at runtime.
 
 ---
 
@@ -763,6 +773,7 @@ BabelStudio/
 ├── Directory.Packages.props
 ├── README.md
 ├── ARCHITECTURE.md
+├── MILESTONE.md
 ├── LICENSE
 ├── COMMERCIAL-LICENSE.md
 ├── CONTRIBUTOR-LICENSE-AGREEMENT.md

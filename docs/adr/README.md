@@ -8,6 +8,11 @@ Architecture Decision Records.
 
 One decision per file with context, decision, alternatives, consequences.
 
+## Current ADRs
+
+- `ADR-0001-winui3-windows-ml.md`
+- `ADR-0002-sqlite-project-persistence.md`
+
 ## What should not go here
 
 Long essays or implementation tickets.

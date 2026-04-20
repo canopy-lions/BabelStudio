@@ -1,0 +1,61 @@
+{
+  "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero_vad.onnx",
+  "ReportPath": "D:\\Dev\\BabelStudio\\benchmark-report.json",
+  "RequestedProvider": "dml",
+  "SelectedProvider": "DmlExecutionProvider",
+  "DeviceId": 0,
+  "InputSource": "dummy",
+  "ColdLoadMilliseconds": 472.9538,
+  "WarmupMilliseconds": 169.9743,
+  "WarmLatencyMilliseconds": 0.9829,
+  "Inputs": [
+    {
+      "Name": "input",
+      "ElementType": "Float",
+      "Dimensions": [
+        1,
+        512
+      ],
+      "ElementCount": 512
+    },
+    {
+      "Name": "state",
+      "ElementType": "Float",
+      "Dimensions": [
+        2,
+        1,
+        128
+      ],
+      "ElementCount": 256
+    },
+    {
+      "Name": "sr",
+      "ElementType": "Int64",
+      "Dimensions": [],
+      "ElementCount": 1
+    }
+  ],
+  "Outputs": [
+    {
+      "Name": "output",
+      "ElementType": "Float",
+      "Dimensions": [
+        -1,
+        1
+      ]
+    },
+    {
+      "Name": "stateN",
+      "ElementType": "Float",
+      "Dimensions": [
+        -1,
+        -1,
+        -1
+      ]
+    }
+  ],
+  "Warnings": [
+    "Applied built-in dummy input profile: silero-vad."
+  ],
+  "GeneratedAtUtc": "2026-04-19T20:16:47.9039575+00:00"
+}
