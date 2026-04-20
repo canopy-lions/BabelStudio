@@ -213,12 +213,14 @@ public sealed class SqliteProjectSpineTests
 
         public SqliteDatabaseMigrator Migrator { get; }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
-            DeleteIfPresent(DatabasePath);
-            DeleteIfPresent($"{DatabasePath}-wal");
-            DeleteIfPresent($"{DatabasePath}-shm");
-            return ValueTask.CompletedTask;
+            await Task.Run(() =>
+            {
+                DeleteIfPresent(DatabasePath);
+                DeleteIfPresent($"{DatabasePath}-wal");
+                DeleteIfPresent($"{DatabasePath}-shm");
+            }).ConfigureAwait(false);
         }
 
         private static void DeleteIfPresent(string path)

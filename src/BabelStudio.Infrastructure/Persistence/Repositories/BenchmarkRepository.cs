@@ -8,12 +8,13 @@ namespace BabelStudio.Infrastructure.Persistence.Repositories;
 
 public sealed class BenchmarkRepository : IBenchmarkRepository
 {
-    public Task AddAsync(
+    public async Task AddAsync(
         DbConnection connection,
         BenchmarkRunRecord run,
         DbTransaction? transaction = null,
-        CancellationToken cancellationToken = default) =>
-        connection.ExecuteAsync(new CommandDefinition(
+        CancellationToken cancellationToken = default)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO BenchmarkRuns (
                 Id,
@@ -70,7 +71,8 @@ public sealed class BenchmarkRepository : IBenchmarkRepository
                 GeneratedAtUtc = SqliteValueConverters.ToDbValue(run.GeneratedAtUtc)
             },
             transaction,
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
 
     public async Task<IReadOnlyList<BenchmarkRunRecord>> ListByModelIdAsync(
         DbConnection connection,
@@ -101,7 +103,7 @@ public sealed class BenchmarkRepository : IBenchmarkRepository
             ORDER BY GeneratedAtUtc, Id;
             """,
             new { ModelId = modelId },
-            cancellationToken: cancellationToken))).AsList();
+            cancellationToken: cancellationToken)).ConfigureAwait(false)).AsList();
 
         return rows
             .Select(row => new BenchmarkRunRecord(

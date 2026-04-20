@@ -8,6 +8,11 @@ namespace BabelStudio.Media.Probe;
 
 public sealed class FfmpegMediaProbe : IMediaProbe
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly IProcessRunner processRunner;
     private readonly FfmpegToolResolver toolResolver;
 
@@ -50,7 +55,7 @@ public sealed class FfmpegMediaProbe : IMediaProbe
 
         FfprobePayload? payload = JsonSerializer.Deserialize<FfprobePayload>(
             result.StandardOutput,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            JsonOptions);
 
         if (payload?.Format is null)
         {

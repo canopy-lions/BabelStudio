@@ -13,7 +13,13 @@ public sealed class Sha256FileFingerprintService : IFileFingerprintService
             throw new FileNotFoundException("File was not found for fingerprinting.", fullPath);
         }
 
-        await using FileStream stream = File.OpenRead(fullPath);
+        await using var stream = new FileStream(
+            fullPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4096,
+            options: FileOptions.Asynchronous | FileOptions.SequentialScan);
         byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
         var fileInfo = new FileInfo(fullPath);
 

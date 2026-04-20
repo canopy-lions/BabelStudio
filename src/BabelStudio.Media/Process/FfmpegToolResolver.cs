@@ -20,6 +20,7 @@ internal sealed class FfmpegToolResolver
     public string ResolveFfprobePath()
     {
         string ffmpegPath = ResolveFfmpegPath();
+        string preferredFfprobeName = OperatingSystem.IsWindows() ? "ffprobe.exe" : "ffprobe";
         string? ffprobePath = TryResolveExecutable(
             explicitFfprobePath,
             "BABELSTUDIO_FFPROBE_PATH",
@@ -35,7 +36,8 @@ internal sealed class FfmpegToolResolver
                  {
                      Path.Combine(ffmpegDirectory, "ffprobe.exe"),
                      Path.Combine(ffmpegDirectory, "ffprobe"),
-                     Path.Combine(Directory.GetParent(ffmpegDirectory)?.FullName ?? ffmpegDirectory, "ffprobe.exe")
+                     Path.Combine(Directory.GetParent(ffmpegDirectory)?.FullName ?? ffmpegDirectory, "ffprobe.exe"),
+                     Path.Combine(Directory.GetParent(ffmpegDirectory)?.FullName ?? ffmpegDirectory, "ffprobe")
                  })
         {
             if (File.Exists(candidate))
@@ -56,15 +58,19 @@ internal sealed class FfmpegToolResolver
                      .Where(static value => !string.IsNullOrWhiteSpace(value))
                      .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            string? discovered = SearchRecursively(root, "ffprobe.exe");
-            if (!string.IsNullOrWhiteSpace(discovered))
+            string alternateFfprobeName = preferredFfprobeName == "ffprobe.exe" ? "ffprobe" : "ffprobe.exe";
+            foreach (string candidateName in new[] { preferredFfprobeName, alternateFfprobeName })
             {
-                return discovered;
+                string? discovered = SearchRecursively(root, candidateName);
+                if (!string.IsNullOrWhiteSpace(discovered))
+                {
+                    return discovered;
+                }
             }
         }
 
         throw new InvalidOperationException(
-            "Unable to locate ffprobe.exe. Configure BABELSTUDIO_FFPROBE_PATH or install FFmpeg with ffprobe.");
+            "Unable to locate ffprobe. Configure BABELSTUDIO_FFPROBE_PATH or install FFmpeg with ffprobe.");
     }
 
     private static string ResolveExecutable(

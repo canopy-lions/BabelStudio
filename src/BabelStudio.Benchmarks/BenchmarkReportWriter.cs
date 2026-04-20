@@ -31,8 +31,14 @@ public static class BenchmarkReportWriter
             Directory.CreateDirectory(directory);
         }
 
-        await using var stream = File.Create(report.ReportPath);
-        await JsonSerializer.SerializeAsync(stream, report, SerializerOptions, cancellationToken);
+        await using var stream = new FileStream(
+            report.ReportPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            options: FileOptions.Asynchronous);
+        await JsonSerializer.SerializeAsync(stream, report, SerializerOptions, cancellationToken).ConfigureAwait(false);
     }
 
     public static async Task WriteAsync(
@@ -51,7 +57,13 @@ public static class BenchmarkReportWriter
             Directory.CreateDirectory(directory);
         }
 
-        await using var stream = File.Create(report.ReportPath);
-        await JsonSerializer.SerializeAsync(stream, report, SerializerOptions, cancellationToken);
+        await using var stream = new FileStream(
+            report.ReportPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            options: FileOptions.Asynchronous);
+        await JsonSerializer.SerializeAsync(stream, report, SerializerOptions, cancellationToken).ConfigureAwait(false);
     }
 }

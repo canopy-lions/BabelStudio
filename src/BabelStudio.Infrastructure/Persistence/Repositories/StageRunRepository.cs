@@ -8,19 +8,21 @@ namespace BabelStudio.Infrastructure.Persistence.Repositories;
 
 public sealed class StageRunRepository : IStageRunRepository
 {
-    public Task CreateAsync(
+    public async Task CreateAsync(
         DbConnection connection,
         StageRunRecord stageRun,
         DbTransaction? transaction = null,
-        CancellationToken cancellationToken = default) =>
-        connection.ExecuteAsync(new CommandDefinition(
+        CancellationToken cancellationToken = default)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO StageRuns (Id, ProjectId, StageName, Status, StartedAtUtc, CompletedAtUtc, FailureReason)
             VALUES (@Id, @ProjectId, @StageName, @Status, @StartedAtUtc, @CompletedAtUtc, @FailureReason);
             """,
             ToParameters(stageRun),
             transaction,
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
 
     public async Task<StageRunRecord?> GetAsync(
         DbConnection connection,
@@ -34,17 +36,18 @@ public sealed class StageRunRepository : IStageRunRepository
             WHERE Id = @Id;
             """,
             new { Id = SqliteValueConverters.ToDbValue(stageRunId) },
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
 
         return row is null ? null : ToDomain(row);
     }
 
-    public Task CompleteAsync(
+    public async Task CompleteAsync(
         DbConnection connection,
         StageRunRecord stageRun,
         DbTransaction? transaction = null,
-        CancellationToken cancellationToken = default) =>
-        connection.ExecuteAsync(new CommandDefinition(
+        CancellationToken cancellationToken = default)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE StageRuns
             SET Status = @Status,
@@ -54,7 +57,8 @@ public sealed class StageRunRepository : IStageRunRepository
             """,
             ToParameters(stageRun),
             transaction,
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
 
     private static object ToParameters(StageRunRecord stageRun) => new
     {

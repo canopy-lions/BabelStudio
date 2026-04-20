@@ -23,8 +23,6 @@ public sealed class SqliteProjectDatabase
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
             """
-            PRAGMA foreign_keys = ON;
-
             CREATE TABLE IF NOT EXISTS projects (
                 id TEXT NOT NULL PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -72,13 +70,23 @@ public sealed class SqliteProjectDatabase
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = new SqliteConnection($"Data Source={databasePath}");
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            ForeignKeys = true,
+            Pooling = false
+        };
 
-        await using SqliteCommand pragma = connection.CreateCommand();
-        pragma.CommandText = "PRAGMA foreign_keys = ON;";
-        await pragma.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        return connection;
+        var connection = new SqliteConnection(builder.ConnectionString);
+        try
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 }

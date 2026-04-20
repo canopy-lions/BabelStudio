@@ -84,7 +84,13 @@ public sealed class FileSystemArtifactStore : IArtifactStore
             return default;
         }
 
-        await using var stream = File.OpenRead(path);
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4096,
+            options: FileOptions.Asynchronous);
         return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
     }
 
