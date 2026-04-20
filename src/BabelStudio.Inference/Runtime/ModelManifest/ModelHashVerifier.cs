@@ -4,12 +4,15 @@ namespace BabelStudio.Inference.Runtime.ModelManifest;
 
 public sealed class ModelHashVerifier
 {
-    public HashVerificationResult Verify(ModelManifest manifest, string filePath)
+    public async Task<HashVerificationResult> VerifyAsync(
+        ModelManifest manifest,
+        string filePath,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        string expectedHash = manifest.Sha256.Trim();
+        string? expectedHash = manifest.Sha256?.Trim();
         if (manifest.HashVerificationPolicy.Mode is HashVerificationMode.None)
         {
             return new HashVerificationResult(true, false, null, null, "Hash verification disabled by policy.");
@@ -25,7 +28,7 @@ public sealed class ModelHashVerifier
             return new HashVerificationResult(true, false, null, null, "Manifest does not define sha256; verification skipped.");
         }
 
-        string actualHash = ComputeSha256(filePath);
+        string actualHash = await ComputeSha256Async(filePath, cancellationToken).ConfigureAwait(false);
         bool isMatch = actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase);
         return new HashVerificationResult(
             IsValid: isMatch,
@@ -35,10 +38,16 @@ public sealed class ModelHashVerifier
             FailureReason: isMatch ? null : "Computed file hash did not match manifest sha256.");
     }
 
-    private static string ComputeSha256(string filePath)
+    private static async Task<string> ComputeSha256Async(string filePath, CancellationToken cancellationToken)
     {
-        using FileStream stream = File.OpenRead(Path.GetFullPath(filePath));
-        byte[] hash = SHA256.HashData(stream);
+        await using FileStream stream = new(
+            Path.GetFullPath(filePath),
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }

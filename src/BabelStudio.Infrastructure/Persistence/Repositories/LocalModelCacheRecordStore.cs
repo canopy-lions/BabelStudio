@@ -25,11 +25,17 @@ public sealed class LocalModelCacheRecordStore
             return [];
         }
 
-        await using FileStream stream = File.OpenRead(storagePaths.ModelCacheIndexPath);
+        await using var stream = new FileStream(
+            storagePaths.ModelCacheIndexPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4096,
+            options: FileOptions.Asynchronous);
         LocalModelCacheRecord[]? records = await JsonSerializer.DeserializeAsync<LocalModelCacheRecord[]>(
             stream,
             SerializerOptions,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         return records ?? [];
     }
@@ -41,7 +47,13 @@ public sealed class LocalModelCacheRecordStore
         ArgumentNullException.ThrowIfNull(records);
 
         Directory.CreateDirectory(storagePaths.ModelCacheDirectory);
-        await using FileStream stream = File.Create(storagePaths.ModelCacheIndexPath);
-        await JsonSerializer.SerializeAsync(stream, records, SerializerOptions, cancellationToken);
+        await using var stream = new FileStream(
+            storagePaths.ModelCacheIndexPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            options: FileOptions.Asynchronous);
+        await JsonSerializer.SerializeAsync(stream, records, SerializerOptions, cancellationToken).ConfigureAwait(false);
     }
 }
