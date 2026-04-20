@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\BabelStudio.Application\BabelStudio.Application.csproj" />
-    <ProjectReference Include="..\..\src\BabelStudio.Domain\BabelStudio.Domain.csproj" />
-    <ProjectReference Include="..\..\src\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
-  </ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector">
@@ -23,11 +24,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BabelStudio.Application\BabelStudio.Application.csproj" />
+    <ProjectReference Include="..\..\src\BabelStudio.Domain\BabelStudio.Domain.csproj" />
+    <ProjectReference Include="..\..\src\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
+  </ItemGroup>
 
 </Project>
