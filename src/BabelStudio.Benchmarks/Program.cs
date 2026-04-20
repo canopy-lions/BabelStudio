@@ -16,6 +16,12 @@ public static class Program
         TextWriter error,
         CancellationToken cancellationToken)
     {
+        if (args.Length > 0 &&
+            string.Equals(args[0], "ingest", StringComparison.OrdinalIgnoreCase))
+        {
+            return await MediaIngestCommand.RunAsync(args[1..], output, error, cancellationToken).ConfigureAwait(false);
+        }
+
         if (!BenchmarkOptions.TryParse(args, error, out var options))
         {
             BenchmarkConsole.WriteUsage(error);
