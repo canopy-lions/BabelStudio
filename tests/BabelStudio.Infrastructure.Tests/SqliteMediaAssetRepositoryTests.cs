@@ -33,8 +33,9 @@ public sealed class SqliteMediaAssetRepositoryTests
         Assert.NotNull(reopenedAsset);
         Assert.Equal(project.Name, reopenedProject!.Name);
         Assert.Equal(mediaAsset.SourceFileName, reopenedAsset!.SourceFileName);
-        Assert.Equal(2, reopenedArtifacts.Count);
-        Assert.Contains(reopenedArtifacts, artifact => artifact.Kind == ArtifactKind.NormalizedAudio);
-        Assert.Contains(reopenedArtifacts, artifact => artifact.Kind == ArtifactKind.WaveformSummary);
+        Assert.Collection(
+            reopenedArtifacts,
+            artifact => Assert.Equal(ArtifactKind.NormalizedAudio, artifact.Kind),
+            artifact => Assert.Equal(ArtifactKind.WaveformSummary, artifact.Kind));
     }
 }

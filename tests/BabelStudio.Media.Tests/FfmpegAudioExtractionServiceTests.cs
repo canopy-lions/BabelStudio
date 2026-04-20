@@ -17,11 +17,14 @@ public sealed class FfmpegAudioExtractionServiceTests
         var result = await service.ExtractNormalizedAudioAsync(sourcePath, outputPath, CancellationToken.None);
         var waveform = await waveformGenerator.GenerateAsync(outputPath, CancellationToken.None);
 
+        WavePcm16Info waveInfo = WavePcm16.ReadInfo(outputPath);
         Assert.True(File.Exists(outputPath));
         Assert.Equal(outputPath, result.OutputPath);
         Assert.Equal(48000, result.SampleRate);
         Assert.Equal(1, result.ChannelCount);
         Assert.True(result.DurationSeconds > 1d);
+        Assert.Equal(48000, waveInfo.SampleRate);
+        Assert.Equal(1, waveInfo.ChannelCount);
         Assert.Equal(16, waveform.BucketCount);
         Assert.Equal(48000, waveform.SampleRate);
         Assert.Equal(1, waveform.ChannelCount);
