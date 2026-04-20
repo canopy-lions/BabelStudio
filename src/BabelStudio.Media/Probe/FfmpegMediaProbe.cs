@@ -141,4 +141,8 @@ public sealed class FfmpegMediaProbe : IMediaProbe
         [property: JsonPropertyName("avg_frame_rate")] string? AverageFrameRate,
         [property: JsonPropertyName("width")] int? Width,
         [property: JsonPropertyName("height")] int? Height);
+<<<<<<< Updated upstream
 }
+=======
+}
+>>>>>>> Stashed changes

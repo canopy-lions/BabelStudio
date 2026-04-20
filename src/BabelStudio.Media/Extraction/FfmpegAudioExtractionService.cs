@@ -19,7 +19,6 @@ public sealed class FfmpegAudioExtractionService : IAudioExtractionService
         this.processRunner = processRunner;
         toolResolver = new FfmpegToolResolver(ffmpegPath);
     }
-
     public async Task<AudioExtractionResult> ExtractNormalizedAudioAsync(
         string sourcePath,
         string destinationPath,
