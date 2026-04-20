@@ -1,13 +1,5 @@
-<<<<<<< HEAD
 <Project Sdk="Microsoft.NET.Sdk">
 
-<<<<<<< HEAD
-=======
-﻿<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
-  </ItemGroup>
->>>>>>> codex/phase-4-media-ingest
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,9 +9,5 @@
   <ItemGroup>
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
   </ItemGroup>
-<<<<<<< HEAD
-=======
-</Project>
->>>>>>> codex/phase-4-media-ingest
 
 </Project>
