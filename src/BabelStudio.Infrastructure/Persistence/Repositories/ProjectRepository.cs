@@ -1,0 +1,62 @@
+using System.Data.Common;
+using BabelStudio.Application.Persistence;
+using BabelStudio.Domain;
+using BabelStudio.Infrastructure.Persistence.Sqlite;
+using Dapper;
+
+namespace BabelStudio.Infrastructure.Persistence.Repositories;
+
+public sealed class ProjectRepository : IProjectRepository
+{
+    public Task CreateAsync(
+        DbConnection connection,
+        ProjectRecord project,
+        DbTransaction? transaction = null,
+        CancellationToken cancellationToken = default) =>
+        connection.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO Projects (Id, Name, RootPath, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (@Id, @Name, @RootPath, @CreatedAtUtc, @UpdatedAtUtc);
+            """,
+            new
+            {
+                Id = SqliteValueConverters.ToDbValue(project.Id),
+                project.Name,
+                project.RootPath,
+                CreatedAtUtc = SqliteValueConverters.ToDbValue(project.CreatedAtUtc),
+                UpdatedAtUtc = SqliteValueConverters.ToDbValue(project.UpdatedAtUtc)
+            },
+            transaction,
+            cancellationToken: cancellationToken));
+
+    public async Task<ProjectRecord?> GetAsync(
+        DbConnection connection,
+        Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        ProjectRow? row = await connection.QuerySingleOrDefaultAsync<ProjectRow>(new CommandDefinition(
+            """
+            SELECT Id, Name, RootPath, CreatedAtUtc, UpdatedAtUtc
+            FROM Projects
+            WHERE Id = @Id;
+            """,
+            new { Id = SqliteValueConverters.ToDbValue(projectId) },
+            cancellationToken: cancellationToken));
+
+        return row is null
+            ? null
+            : new ProjectRecord(
+                SqliteValueConverters.ParseGuid(row.Id),
+                row.Name,
+                row.RootPath,
+                SqliteValueConverters.ParseDateTimeOffset(row.CreatedAtUtc),
+                SqliteValueConverters.ParseDateTimeOffset(row.UpdatedAtUtc));
+    }
+
+    private sealed record ProjectRow(
+        string Id,
+        string Name,
+        string RootPath,
+        string CreatedAtUtc,
+        string UpdatedAtUtc);
+}
