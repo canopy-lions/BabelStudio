@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -15,5 +16,25 @@
     <PackageReference Include="Dapper" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
   </ItemGroup>
+=======
+﻿<Project Sdk="Microsoft.NET.Sdk">
+>>>>>>> 5aebd68 (Setup core BabelStudio projects)
 
+<<<<<<< HEAD
+=======
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
+    <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+>>>>>>> codex/phase-4-media-ingest
 </Project>
