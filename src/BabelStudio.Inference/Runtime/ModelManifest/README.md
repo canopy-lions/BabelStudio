@@ -8,6 +8,13 @@ Model manifests.
 
 License metadata, task metadata, hashes, variants.
 
+Current files:
+
+- `model-manifest.schema.json` for the manifest document contract
+- `ModelManifest*` types and loaders for parsing and validation
+- `CommercialSafeEvaluator` for policy evaluation
+- `bundled-models.manifest.json` for committed aliases and benchmark entry points for bundled models
+
 ## What should not go here
 
 Binary model files.
