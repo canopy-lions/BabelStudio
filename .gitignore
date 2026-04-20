@@ -49,3 +49,11 @@ tmp/
 # OS
 .DS_Store
 Thumbs.db
+
+# Marketing tooling (dev-only, never shipped)
+tools/marketing/.venv/
+tools/marketing/output/
+
+
+#Ignore insiders AI rules
+.github\instructions\codacy.instructions.md
