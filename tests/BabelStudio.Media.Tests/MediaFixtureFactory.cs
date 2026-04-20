@@ -41,7 +41,7 @@ internal static class MediaFixtureFactory
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = System.Diagnostics.Process.Start(startInfo)!;
+        using var process = Process.Start(startInfo)!;
         string error = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
         await process.WaitForExitAsync().ConfigureAwait(false);
         Assert.True(process.ExitCode == 0, $"ffmpeg failed to create test media: {error}");
