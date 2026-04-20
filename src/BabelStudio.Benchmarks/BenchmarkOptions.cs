@@ -1,12 +1,15 @@
+using BabelStudio.Domain;
+
 namespace BabelStudio.Benchmarks;
 
-internal sealed record BenchmarkOptions(
+public sealed record BenchmarkOptions(
     string ModelPath,
     string OutputPath,
-    string? FixturePath,
     BenchmarkProviderPreference ProviderPreference,
-    int DeviceId,
     int RunCount,
+    string? Variant,
+    bool AllVariants,
+    ReportFormat ReportFormat,
     bool ShowHelp)
 {
     public static bool TryParse(
@@ -15,11 +18,12 @@ internal sealed record BenchmarkOptions(
         out BenchmarkOptions options)
     {
         string? modelPath = null;
-        string outputPath = Path.Combine(Environment.CurrentDirectory, "benchmark-report.json");
-        string? fixturePath = null;
+        var outputPath = Path.Combine(Environment.CurrentDirectory, "benchmark-report.json");
         var providerPreference = BenchmarkProviderPreference.Cpu;
-        var deviceId = 0;
-        var runCount = 10;
+        var runCount = 5;
+        string? variant = null;
+        var allVariants = false;
+        var reportFormat = ReportFormat.Both;
         var showHelp = false;
 
         for (var index = 0; index < args.Count; index++)
@@ -44,17 +48,7 @@ internal sealed record BenchmarkOptions(
                     break;
 
                 case "--output":
-                    if (!TryReadValue(args, ref index, arg, errorWriter, out string outputPathValue))
-                    {
-                        options = DefaultWithHelp();
-                        return false;
-                    }
-
-                    outputPath = outputPathValue;
-                    break;
-
-                case "--fixture":
-                    if (!TryReadValue(args, ref index, arg, errorWriter, out fixturePath))
+                    if (!TryReadValue(args, ref index, arg, errorWriter, out outputPath))
                     {
                         options = DefaultWithHelp();
                         return false;
@@ -78,22 +72,6 @@ internal sealed record BenchmarkOptions(
 
                     break;
 
-                case "--device-id":
-                    if (!TryReadValue(args, ref index, arg, errorWriter, out string deviceIdText))
-                    {
-                        options = DefaultWithHelp();
-                        return false;
-                    }
-
-                    if (!int.TryParse(deviceIdText, out deviceId) || deviceId < 0)
-                    {
-                        errorWriter.WriteLine($"Invalid device id '{deviceIdText}'.");
-                        options = DefaultWithHelp();
-                        return false;
-                    }
-
-                    break;
-
                 case "--runs":
                     if (!TryReadValue(args, ref index, arg, errorWriter, out string runCountText))
                     {
@@ -110,6 +88,36 @@ internal sealed record BenchmarkOptions(
 
                     break;
 
+                case "--variant":
+                    if (!TryReadValue(args, ref index, arg, errorWriter, out variant))
+                    {
+                        options = DefaultWithHelp();
+                        return false;
+                    }
+
+                    variant = variant.Trim();
+                    break;
+
+                case "--all-variants":
+                    allVariants = true;
+                    break;
+
+                case "--format":
+                    if (!TryReadValue(args, ref index, arg, errorWriter, out string formatText))
+                    {
+                        options = DefaultWithHelp();
+                        return false;
+                    }
+
+                    if (!Enum.TryParse(formatText, ignoreCase: true, out reportFormat))
+                    {
+                        errorWriter.WriteLine($"Unknown format '{formatText}'. Expected console, json, or both.");
+                        options = DefaultWithHelp();
+                        return false;
+                    }
+
+                    break;
+
                 default:
                     errorWriter.WriteLine($"Unknown argument '{arg}'.");
                     options = DefaultWithHelp();
@@ -119,31 +127,39 @@ internal sealed record BenchmarkOptions(
 
         if (showHelp)
         {
-            options = new BenchmarkOptions(string.Empty, outputPath, fixturePath, providerPreference, deviceId, runCount, ShowHelp: true);
+            options = new BenchmarkOptions(string.Empty, outputPath, providerPreference, runCount, variant, allVariants, reportFormat, ShowHelp: true);
             return true;
         }
 
         if (string.IsNullOrWhiteSpace(modelPath))
         {
-            errorWriter.WriteLine("Missing required argument --model <path>.");
+            errorWriter.WriteLine("Missing required argument --model <path-or-scope>.");
+            options = DefaultWithHelp();
+            return false;
+        }
+
+        if (allVariants && !string.IsNullOrWhiteSpace(variant))
+        {
+            errorWriter.WriteLine("Cannot combine --variant with --all-variants.");
             options = DefaultWithHelp();
             return false;
         }
 
         options = new BenchmarkOptions(
-            Path.GetFullPath(modelPath),
+            modelPath.Trim(),
             Path.GetFullPath(outputPath),
-            fixturePath is null ? null : Path.GetFullPath(fixturePath),
             providerPreference,
-            deviceId,
             runCount,
+            string.IsNullOrWhiteSpace(variant) ? null : variant,
+            allVariants,
+            reportFormat,
             ShowHelp: false);
 
         return true;
     }
 
     private static BenchmarkOptions DefaultWithHelp() =>
-        new(string.Empty, Path.Combine(Environment.CurrentDirectory, "benchmark-report.json"), null, BenchmarkProviderPreference.Cpu, 0, 10, ShowHelp: true);
+        new(string.Empty, Path.Combine(Environment.CurrentDirectory, "benchmark-report.json"), BenchmarkProviderPreference.Cpu, 5, null, false, ReportFormat.Both, ShowHelp: true);
 
     private static bool TryReadValue(
         IReadOnlyList<string> args,
@@ -164,9 +180,9 @@ internal sealed record BenchmarkOptions(
     }
 }
 
-internal enum BenchmarkProviderPreference
+public enum ReportFormat
 {
-    Auto,
-    Cpu,
-    Dml
+    Console,
+    Json,
+    Both
 }
