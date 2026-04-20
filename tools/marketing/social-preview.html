@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0a0b0f;
+    color: #fff;
+  }
+
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(99,102,241,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .glow {
+    position: absolute;
+    width: 900px;
+    height: 700px;
+    left: -100px;
+    top: -80px;
+    background: radial-gradient(ellipse at 35% 45%,
+      rgba(99,102,241,0.18) 0%,
+      rgba(139,92,246,0.10) 35%,
+      transparent 70%
+    );
+    pointer-events: none;
+  }
+
+  .glow2 {
+    position: absolute;
+    width: 600px;
+    height: 500px;
+    right: -60px;
+    bottom: -80px;
+    background: radial-gradient(ellipse at 60% 70%,
+      rgba(16,185,129,0.12) 0%,
+      transparent 65%
+    );
+    pointer-events: none;
+  }
+
+  .layout {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 88px;
+    gap: 64px;
+    z-index: 10;
+  }
+
+  .brand {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    max-width: 560px;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .logo-icon {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 20px rgba(99,102,241,0.5));
+  }
+
+  .logo-icon img {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+  }
+
+  .wordmark {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+
+  .wordmark span { color: #a78bfa; }
+
+  .tagline {
+    font-size: 23px;
+    line-height: 1.45;
+    color: #94a3b8;
+    font-weight: 400;
+    max-width: 520px;
+  }
+
+  .tagline-accent {
+    color: #a78bfa;
+    font-weight: 600;
+  }
+
+  .pills {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+
+  .pill.indigo  { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.3); color: #a5b4fc; }
+  .pill.violet  { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
+  .pill.emerald { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+  .pill.slate   { background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.2); color: #94a3b8; }
+
+  .pill-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.8;
+  }
+
+  /* Pipeline card */
+  .pipeline-card {
+    flex: 1;
+    max-width: 480px;
+    background: rgba(18,21,34,0.88);
+    border: 1px solid rgba(99,102,241,0.38);
+    border-radius: 20px;
+    padding: 28px 32px;
+    backdrop-filter: blur(12px);
+    box-shadow:
+      0 0 0 1px rgba(99,102,241,0.12),
+      0 24px 64px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.07);
+  }
+
+  .card-header {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 20px;
+  }
+
+  .stage {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .stage:last-child { border-bottom: none; }
+
+  .stage-num {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .stage-num.done   { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
+  .stage-num.active { background: rgba(99,102,241,0.2); color: #818cf8; border: 1px solid rgba(99,102,241,0.4); box-shadow: 0 0 12px rgba(99,102,241,0.3); }
+  .stage-num.pending { background: rgba(51,65,85,0.5); color: #7a8fa8; border: 1px solid rgba(100,116,139,0.4); }
+
+  .stage-label { flex: 1; font-size: 14px; font-weight: 500; }
+  .stage-label.done    { color: #94a3b8; }
+  .stage-label.active  { color: #f1f5f9; }
+  .stage-label.pending { color: #7a8fa8; }
+
+  .stage-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .badge-model { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2); }
+  .badge-onnx  { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.2); }
+  .badge-local { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+  .badge-onnx.dim, .badge-model.dim, .badge-local.dim { opacity: 0.55; }
+
+  .waveform {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 28px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .bar {
+    width: 3px;
+    border-radius: 2px;
+    background: linear-gradient(to top, #6366f1, #a78bfa);
+  }
+
+  .bottom {
+    position: absolute;
+    bottom: 32px;
+    left: 88px;
+    z-index: 10;
+  }
+
+  .bottom-badge {
+    font-size: 14px;
+    color: #64748b;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="glow"></div>
+  <div class="glow2"></div>
+
+  <div class="layout">
+    <div class="brand">
+      <div class="logo-row">
+        <div class="logo-icon">
+          <img src="../../assets/branding/logo.png" alt="Babel Studio">
+        </div>
+        <div class="wordmark">Babel<span>Studio</span></div>
+      </div>
+
+      <div class="tagline">
+        Transcribe, translate, and synthesize speech<br>
+        <span class="tagline-accent">entirely on-device.</span>
+      </div>
+
+      <div class="pills">
+        <div class="pill emerald"><div class="pill-dot"></div>Local</div>
+        <div class="pill indigo"><div class="pill-dot"></div>Windows ML</div>
+        <div class="pill indigo"><div class="pill-dot"></div>DirectML</div>
+        <div class="pill violet"><div class="pill-dot"></div>TensorRT-RTX</div>
+        <div class="pill violet"><div class="pill-dot"></div>OpenVINO</div>
+        <div class="pill violet"><div class="pill-dot"></div>MIGraphX</div>
+        <div class="pill slate"><div class="pill-dot"></div>.NET 10 · C#</div>
+        <div class="pill slate"><div class="pill-dot"></div>GPL-3.0</div>
+      </div>
+    </div>
+
+    <div class="pipeline-card">
+      <div class="card-header">Dubbing Pipeline</div>
+
+      <div class="stage">
+        <div class="stage-num done">✓</div>
+        <div class="stage-label done">Audio preparation</div>
+        <div class="stage-badge badge-local">local</div>
+      </div>
+      <div class="stage">
+        <div class="stage-num done">✓</div>
+        <div class="stage-label done">Voice activity detection</div>
+        <div class="stage-badge badge-onnx">Silero VAD</div>
+      </div>
+      <div class="stage">
+        <div class="stage-num active">▶</div>
+        <div class="stage-label active">Transcription</div>
+        <div class="stage-badge badge-model">Whisper</div>
+      </div>
+      <div class="stage">
+        <div class="stage-num pending">4</div>
+        <div class="stage-label pending">Translation</div>
+        <div class="stage-badge badge-onnx dim">Opus-MT</div>
+      </div>
+      <div class="stage">
+        <div class="stage-num pending">5</div>
+        <div class="stage-label pending">Speech synthesis</div>
+        <div class="stage-badge badge-onnx dim">Kokoro</div>
+      </div>
+      <div class="stage">
+        <div class="stage-num pending">6</div>
+        <div class="stage-label pending">Mix &amp; export</div>
+        <div class="stage-badge badge-local dim">FFmpeg</div>
+      </div>
+
+      <div class="waveform" id="wave"></div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="bottom-badge">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      canopy-lions/BabelStudio
+    </div>
+  </div>
+
+  <script>
+    const wave = document.getElementById('wave');
+    const heights = [6,10,16,22,18,28,20,14,24,18,12,26,20,16,10,22,18,28,14,20,16,10,24,18,22,14,20,16,12,18,24,20,16,10,22,18,14,26,20,16];
+    heights.forEach(h => {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.height = h + 'px';
+      bar.style.opacity = (0.5 + (h / 28) * 0.5).toFixed(2);
+      wave.appendChild(bar);
+    });
+  </script>
+</body>
+</html>
