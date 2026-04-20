@@ -1,0 +1,28 @@
+{
+  "Scenario": "onnx-model",
+  "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx",
+  "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-scope.json",
+  "Status": "Completed",
+  "RequestedProvider": "cpu",
+  "SelectedProvider": "cpu",
+  "RunCount": 5,
+  "SupportsExecution": true,
+  "ModelSizeBytes": 2243022,
+  "Measurements": {
+    "ColdLoadMilliseconds": 127.426,
+    "WarmupMilliseconds": 12.5307,
+    "WarmLatencyAverageMilliseconds": 0.22435999999999998,
+    "WarmLatencyMinimumMilliseconds": 0.1843,
+    "WarmLatencyMaximumMilliseconds": 0.3235,
+    "AudioDurationSeconds": 0.032,
+    "RealTimeFactorAverage": 0.007011249999999999
+  },
+  "FailureReason": null,
+  "Notes": [
+    "Resolved model scope \u0027silero-vad\u0027 within model store \u0027D:\\Dev\\BabelStudio\\models\u0027.",
+    "Resolved model directory \u0027silero-vad\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx\u0027.",
+    "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx\u0027.",
+    "Provider route: explicit CPU execution provider."
+  ],
+  "GeneratedAtUtc": "2026-04-20T02:02:54.1739658+00:00"
+}
