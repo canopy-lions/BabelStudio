@@ -1,0 +1,25 @@
+{
+  "Scenario": "onnx-model",
+  "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx",
+  "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-file.json",
+  "Status": "Failed",
+  "RequestedProvider": "cpu",
+  "SelectedProvider": "cpu",
+  "RunCount": 5,
+  "SupportsExecution": false,
+  "ModelSizeBytes": 0,
+  "Measurements": {
+    "ColdLoadMilliseconds": null,
+    "WarmupMilliseconds": null,
+    "WarmLatencyAverageMilliseconds": null,
+    "WarmLatencyMinimumMilliseconds": null,
+    "WarmLatencyMaximumMilliseconds": null,
+    "AudioDurationSeconds": null,
+    "RealTimeFactorAverage": null
+  },
+  "FailureReason": "Model path does not exist.",
+  "Notes": [
+    "Benchmark failed: FileNotFoundException"
+  ],
+  "GeneratedAtUtc": "2026-04-20T01:53:19.8058955+00:00"
+}
