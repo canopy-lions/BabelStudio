@@ -1,0 +1,231 @@
+{
+  "RequestedReference": "silero-vad",
+  "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants.json",
+  "Results": [
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-default.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 2243022,
+      "Measurements": {
+        "ColdLoadMilliseconds": 115.4975,
+        "WarmupMilliseconds": 10.9767,
+        "WarmLatencyAverageMilliseconds": 0.1738,
+        "WarmLatencyMinimumMilliseconds": 0.1738,
+        "WarmLatencyMaximumMilliseconds": 0.1738,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.00543125
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.1289838+00:00"
+    },
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-fp16.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 1153003,
+      "Measurements": {
+        "ColdLoadMilliseconds": 41.424,
+        "WarmupMilliseconds": 0.6763,
+        "WarmLatencyAverageMilliseconds": 0.2674,
+        "WarmLatencyMinimumMilliseconds": 0.2674,
+        "WarmLatencyMaximumMilliseconds": 0.2674,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.00835625
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_fp16.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.2069708+00:00"
+    },
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_int8.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-int8.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 639383,
+      "Measurements": {
+        "ColdLoadMilliseconds": 48.3236,
+        "WarmupMilliseconds": 0.6411,
+        "WarmLatencyAverageMilliseconds": 0.3084,
+        "WarmLatencyMinimumMilliseconds": 0.3084,
+        "WarmLatencyMaximumMilliseconds": 0.3084,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.0096375
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_int8.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_int8.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_int8.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.2598927+00:00"
+    },
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-q4.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 2243039,
+      "Measurements": {
+        "ColdLoadMilliseconds": 48.2239,
+        "WarmupMilliseconds": 0.5716,
+        "WarmLatencyAverageMilliseconds": 0.2294,
+        "WarmLatencyMinimumMilliseconds": 0.2294,
+        "WarmLatencyMaximumMilliseconds": 0.2294,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.00716875
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.3118193+00:00"
+    },
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4f16.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-q4f16.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 1153020,
+      "Measurements": {
+        "ColdLoadMilliseconds": 57.0807,
+        "WarmupMilliseconds": 0.7848,
+        "WarmLatencyAverageMilliseconds": 0.3821,
+        "WarmLatencyMinimumMilliseconds": 0.3821,
+        "WarmLatencyMaximumMilliseconds": 0.3821,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.011940625
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4f16.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4f16.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_q4f16.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.3728341+00:00"
+    },
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_quantized.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-quantized.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 639335,
+      "Measurements": {
+        "ColdLoadMilliseconds": 48.4957,
+        "WarmupMilliseconds": 0.4684,
+        "WarmLatencyAverageMilliseconds": 0.2285,
+        "WarmLatencyMinimumMilliseconds": 0.2285,
+        "WarmLatencyMaximumMilliseconds": 0.2285,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.007140624999999999
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_quantized.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_quantized.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_quantized.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.4246352+00:00"
+    },
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_uint8.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-uint8.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 639335,
+      "Measurements": {
+        "ColdLoadMilliseconds": 48.036,
+        "WarmupMilliseconds": 0.3933,
+        "WarmLatencyAverageMilliseconds": 0.2057,
+        "WarmLatencyMinimumMilliseconds": 0.2057,
+        "WarmLatencyMaximumMilliseconds": 0.2057,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.006428125
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_uint8.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_uint8.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_uint8.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.4754378+00:00"
+    },
+    {
+      "Scenario": "onnx-model",
+      "ModelPath": "D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_bnb4.onnx",
+      "ReportPath": "D:\\Dev\\BabelStudio\\reports\\silero-all-variants-bnb4.json",
+      "Status": "Completed",
+      "RequestedProvider": "cpu",
+      "SelectedProvider": "cpu",
+      "RunCount": 1,
+      "SupportsExecution": true,
+      "ModelSizeBytes": 2243039,
+      "Measurements": {
+        "ColdLoadMilliseconds": 32.2608,
+        "WarmupMilliseconds": 0.575,
+        "WarmLatencyAverageMilliseconds": 0.1854,
+        "WarmLatencyMinimumMilliseconds": 0.1854,
+        "WarmLatencyMaximumMilliseconds": 0.1854,
+        "AudioDurationSeconds": 0.032,
+        "RealTimeFactorAverage": 0.00579375
+      },
+      "FailureReason": null,
+      "Notes": [
+        "Resolved model alias \u0027silero-vad\u0027 using manifest \u0027D:\\Dev\\BabelStudio\\src\\BabelStudio.Inference\\Runtime\\ModelManifest\\bundled-models.manifest.json\u0027.",
+        "Resolved model file \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_bnb4.onnx\u0027 to \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_bnb4.onnx\u0027.",
+        "Model file discovered at \u0027D:\\Dev\\BabelStudio\\models\\silero-vad\\onnx\\model_bnb4.onnx\u0027.",
+        "Provider route: explicit CPU execution provider."
+      ],
+      "GeneratedAtUtc": "2026-04-20T02:27:15.5113853+00:00"
+    }
+  ],
+  "GeneratedAtUtc": "2026-04-20T02:27:15.511826+00:00"
+}
