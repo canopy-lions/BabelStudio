@@ -15,7 +15,8 @@
       "Bash(ls \"D:\\\\\\\\Dev\\\\\\\\BabelStudio\\\\\\\\tools\\\\\\\\marketing\\\\\\\\templates\\\\\\\\\")",
       "Bash(cmd *)",
       "Bash(powershell -Command \"Get-ChildItem D:\\\\Dev\\\\BabelStudio\\\\tools\\\\marketing -Recurse -File | Select-Object FullName\")",
-      "Bash(powershell *)"
+      "Bash(powershell *)",
+      "Bash(.venv/Scripts/python scripts/screenshot.py social-preview.html --output output/social-preview.png --width 1280 --height 640)"
     ]
   }
 }
