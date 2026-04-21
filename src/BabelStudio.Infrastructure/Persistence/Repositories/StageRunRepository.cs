@@ -16,8 +16,34 @@ public sealed class StageRunRepository : IStageRunRepository
     {
         await connection.ExecuteAsync(new CommandDefinition(
             """
-            INSERT INTO StageRuns (Id, ProjectId, StageName, Status, StartedAtUtc, CompletedAtUtc, FailureReason)
-            VALUES (@Id, @ProjectId, @StageName, @Status, @StartedAtUtc, @CompletedAtUtc, @FailureReason);
+            INSERT INTO StageRuns (
+                Id,
+                ProjectId,
+                StageName,
+                Status,
+                StartedAtUtc,
+                CompletedAtUtc,
+                FailureReason,
+                RequestedProvider,
+                SelectedProvider,
+                RuntimeModelId,
+                RuntimeModelAlias,
+                RuntimeModelVariant,
+                BootstrapDetail)
+            VALUES (
+                @Id,
+                @ProjectId,
+                @StageName,
+                @Status,
+                @StartedAtUtc,
+                @CompletedAtUtc,
+                @FailureReason,
+                @RequestedProvider,
+                @SelectedProvider,
+                @RuntimeModelId,
+                @RuntimeModelAlias,
+                @RuntimeModelVariant,
+                @BootstrapDetail);
             """,
             ToParameters(stageRun),
             transaction,
@@ -31,7 +57,20 @@ public sealed class StageRunRepository : IStageRunRepository
     {
         StageRunRow? row = await connection.QuerySingleOrDefaultAsync<StageRunRow>(new CommandDefinition(
             """
-            SELECT Id, ProjectId, StageName, Status, StartedAtUtc, CompletedAtUtc, FailureReason
+            SELECT
+                Id,
+                ProjectId,
+                StageName,
+                Status,
+                StartedAtUtc,
+                CompletedAtUtc,
+                FailureReason,
+                RequestedProvider,
+                SelectedProvider,
+                RuntimeModelId,
+                RuntimeModelAlias,
+                RuntimeModelVariant,
+                BootstrapDetail
             FROM StageRuns
             WHERE Id = @Id;
             """,
@@ -48,7 +87,20 @@ public sealed class StageRunRepository : IStageRunRepository
     {
         IEnumerable<StageRunRow> rows = await connection.QueryAsync<StageRunRow>(new CommandDefinition(
             """
-            SELECT Id, ProjectId, StageName, Status, StartedAtUtc, CompletedAtUtc, FailureReason
+            SELECT
+                Id,
+                ProjectId,
+                StageName,
+                Status,
+                StartedAtUtc,
+                CompletedAtUtc,
+                FailureReason,
+                RequestedProvider,
+                SelectedProvider,
+                RuntimeModelId,
+                RuntimeModelAlias,
+                RuntimeModelVariant,
+                BootstrapDetail
             FROM StageRuns
             WHERE ProjectId = @ProjectId
             ORDER BY StartedAtUtc, Id;
@@ -70,7 +122,13 @@ public sealed class StageRunRepository : IStageRunRepository
             UPDATE StageRuns
             SET Status = @Status,
                 CompletedAtUtc = @CompletedAtUtc,
-                FailureReason = @FailureReason
+                FailureReason = @FailureReason,
+                RequestedProvider = @RequestedProvider,
+                SelectedProvider = @SelectedProvider,
+                RuntimeModelId = @RuntimeModelId,
+                RuntimeModelAlias = @RuntimeModelAlias,
+                RuntimeModelVariant = @RuntimeModelVariant,
+                BootstrapDetail = @BootstrapDetail
             WHERE Id = @Id;
             """,
             ToParameters(stageRun),
@@ -86,7 +144,13 @@ public sealed class StageRunRepository : IStageRunRepository
         Status = stageRun.Status.ToString(),
         StartedAtUtc = SqliteValueConverters.ToDbValue(stageRun.StartedAtUtc),
         CompletedAtUtc = stageRun.CompletedAtUtc is DateTimeOffset completedAtUtc ? SqliteValueConverters.ToDbValue(completedAtUtc) : null,
-        stageRun.FailureReason
+        stageRun.FailureReason,
+        RequestedProvider = stageRun.RuntimeInfo?.RequestedProvider,
+        SelectedProvider = stageRun.RuntimeInfo?.SelectedProvider,
+        RuntimeModelId = stageRun.RuntimeInfo?.ModelId,
+        RuntimeModelAlias = stageRun.RuntimeInfo?.ModelAlias,
+        RuntimeModelVariant = stageRun.RuntimeInfo?.ModelVariant,
+        BootstrapDetail = stageRun.RuntimeInfo?.BootstrapDetail
     };
 
     private static StageRunRecord ToDomain(StageRunRow row) =>
@@ -97,7 +161,16 @@ public sealed class StageRunRepository : IStageRunRepository
             Enum.Parse<StageRunStatus>(row.Status, ignoreCase: false),
             SqliteValueConverters.ParseDateTimeOffset(row.StartedAtUtc),
             string.IsNullOrWhiteSpace(row.CompletedAtUtc) ? null : SqliteValueConverters.ParseDateTimeOffset(row.CompletedAtUtc),
-            row.FailureReason);
+            row.FailureReason,
+            string.IsNullOrWhiteSpace(row.RequestedProvider) || string.IsNullOrWhiteSpace(row.SelectedProvider)
+                ? null
+                : new StageRunRuntimeInfo(
+                    row.RequestedProvider,
+                    row.SelectedProvider,
+                    row.RuntimeModelId,
+                    row.RuntimeModelAlias,
+                    row.RuntimeModelVariant,
+                    row.BootstrapDetail));
 
     private sealed record StageRunRow(
         string Id,
@@ -106,5 +179,11 @@ public sealed class StageRunRepository : IStageRunRepository
         string Status,
         string StartedAtUtc,
         string? CompletedAtUtc,
-        string? FailureReason);
+        string? FailureReason,
+        string? RequestedProvider,
+        string? SelectedProvider,
+        string? RuntimeModelId,
+        string? RuntimeModelAlias,
+        string? RuntimeModelVariant,
+        string? BootstrapDetail);
 }
