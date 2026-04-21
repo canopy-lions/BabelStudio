@@ -11,6 +11,10 @@
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="MathNet.Numerics" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows10.0.19041.0'">
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
   </ItemGroup>
