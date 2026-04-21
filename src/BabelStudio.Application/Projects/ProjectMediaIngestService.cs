@@ -157,6 +157,9 @@ public sealed class ProjectMediaIngestService
             throw new InvalidOperationException("Project database does not contain a project record.");
         }
 
+        ProjectManifest? manifest = await artifactStore.ReadJsonAsync<ProjectManifest>(
+            ProjectArtifactPaths.ManifestRelativePath,
+            cancellationToken).ConfigureAwait(false);
         SourceMediaReference? sourceReference = await artifactStore.ReadJsonAsync<SourceMediaReference>(
             ProjectArtifactPaths.SourceReferenceRelativePath,
             cancellationToken).ConfigureAwait(false);
@@ -171,7 +174,8 @@ public sealed class ProjectMediaIngestService
             sourceReference,
             status,
             message,
-            artifacts);
+            artifacts,
+            manifest?.TranscriptLanguage);
     }
 
     private async Task<(SourceMediaStatus Status, string? Message)> ResolveSourceStatusAsync(

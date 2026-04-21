@@ -21,4 +21,5 @@ public sealed record OpenProjectResult(
     SourceMediaReference? SourceReference,
     SourceMediaStatus SourceStatus,
     string? SourceStatusMessage,
-    IReadOnlyList<ProjectArtifact> Artifacts);
+    IReadOnlyList<ProjectArtifact> Artifacts,
+    string? TranscriptLanguage);
