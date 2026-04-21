@@ -10,7 +10,7 @@ The main rule for this plan:
 
 The product is ambitious enough that the biggest risk is not UI polish. The biggest risks are model/runtime viability, artifact integrity, media sync, licensing, and avoiding false readiness.
 
----
+\---
 
 ## Milestone philosophy
 
@@ -23,16 +23,16 @@ Each milestone should produce one of these:
 
 Each milestone should have:
 
-- a goal
-- acceptance criteria
-- non-goals
-- risks
-- agent task boundaries
-- tests or validation steps
+* a goal
+* acceptance criteria
+* non-goals
+* risks
+* agent task boundaries
+* tests or validation steps
 
 Do not move to feature expansion until the previous milestone has a boring, repeatable success path.
 
----
+\---
 
 ## Windows ML package rule
 
@@ -40,39 +40,39 @@ Do not move to feature expansion until the previous milestone has a boring, repe
 
 Add it like this:
 
-- Pin the version in `Directory.Packages.props`.
-- Add `<PackageReference Include="Microsoft.WindowsAppSDK.ML" />` only in the project that actually executes ONNX through the Windows ML path.
-- Keep Windows ML bootstrap and provider registration inside `src/BabelStudio.Inference.Onnx/`.
-- Current C# bootstrap path should follow Microsoft Learn's `ExecutionProviderCatalog` APIs:
-  `var catalog = ExecutionProviderCatalog.GetDefault();`
-  then `await catalog.EnsureAndRegisterCertifiedAsync();` for the default online path, or `await catalog.RegisterCertifiedAsync();` when only already-installed providers should be registered.
-- Current C# prerequisites from Microsoft Learn are `.NET 8` or greater plus a Windows-specific target framework such as `net8.0-windows10.0.19041.0` or greater.
-- For unpackaged executable hosts, add `<WindowsPackageType>None</WindowsPackageType>` so the Windows App SDK bootstrapper is enabled.
-- For harness-style local execution where you want the runtime carried with the executable, set `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>`.
-- The executable host should reference `Microsoft.WindowsAppSDK` so the Windows App SDK runtime/bootstrap path is present. `Microsoft.WindowsAppSDK.ML` alone is not enough for an unpackaged host to run correctly.
-- If the repo still targets plain `net10.0`, keep any `WindowsMlExecutionProviderBootstrapper` scaffold in `BabelStudio.Inference.Onnx` as a non-executing shim until the Milestone 6 Windows-targeted TFM step is taken.
-- Smallest safe TFM change for Milestone 6:
-  multi-target `src/BabelStudio.Inference.Onnx/` as `net10.0;net10.0-windows10.0.19041.0`.
-  Put the real `ExecutionProviderCatalog` implementation only in the Windows target, and keep the base `net10.0` target as a deferred shim so non-Windows-specific consumers do not get forced onto Windows APIs too early.
-- Only widen the Windows-specific TFM to `src/BabelStudio.Benchmarks/` when that project needs to actually execute the Windows ML bootstrap path.
+* Pin the version in `Directory.Packages.props`.
+* Add `<PackageReference Include="Microsoft.WindowsAppSDK.ML" />` only in the project that actually executes ONNX through the Windows ML path.
+* Keep Windows ML bootstrap and provider registration inside `src/BabelStudio.Inference.Onnx/`.
+* Current C# bootstrap path should follow Microsoft Learn's `ExecutionProviderCatalog` APIs:
+`var catalog = ExecutionProviderCatalog.GetDefault();`
+then `await catalog.EnsureAndRegisterCertifiedAsync();` for the default online path, or `await catalog.RegisterCertifiedAsync();` when only already-installed providers should be registered.
+* Current C# prerequisites from Microsoft Learn are `.NET 8` or greater plus a Windows-specific target framework such as `net8.0-windows10.0.19041.0` or greater.
+* For unpackaged executable hosts, add `<WindowsPackageType>None</WindowsPackageType>` so the Windows App SDK bootstrapper is enabled.
+* For harness-style local execution where you want the runtime carried with the executable, set `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>`.
+* The executable host should reference `Microsoft.WindowsAppSDK` so the Windows App SDK runtime/bootstrap path is present. `Microsoft.WindowsAppSDK.ML` alone is not enough for an unpackaged host to run correctly.
+* If the repo still targets plain `net10.0`, keep any `WindowsMlExecutionProviderBootstrapper` scaffold in `BabelStudio.Inference.Onnx` as a non-executing shim until the Milestone 6 Windows-targeted TFM step is taken.
+* Smallest safe TFM change for Milestone 6:
+multi-target `src/BabelStudio.Inference.Onnx/` as `net10.0;net10.0-windows10.0.19041.0`.
+Put the real `ExecutionProviderCatalog` implementation only in the Windows target, and keep the base `net10.0` target as a deferred shim so non-Windows-specific consumers do not get forced onto Windows APIs too early.
+* Only widen the Windows-specific TFM to `src/BabelStudio.Benchmarks/` when that project needs to actually execute the Windows ML bootstrap path.
 
 Do not add it to:
 
-- `src/BabelStudio.Domain/`
-- `src/BabelStudio.Application/`
-- `src/BabelStudio.Inference/`
-- `src/BabelStudio.Infrastructure/`
-- the WinUI app shell
+* `src/BabelStudio.Domain/`
+* `src/BabelStudio.Application/`
+* `src/BabelStudio.Inference/`
+* `src/BabelStudio.Infrastructure/`
+* the WinUI app shell
 
 Milestone timing:
 
-- Milestone 1 may reference `Microsoft.Windows.AI.MachineLearning` in the harness only if needed to prove Windows ML viability on real hardware.
-- Milestone 5 must not reference or execute `Microsoft.Windows.AI.MachineLearning`; the planner should reason only about `ExecutionProviderKind` and runtime requirements.
-- Milestone 6 is the first real product milestone where `Microsoft.Windows.AI.MachineLearning` should become a product dependency, and it should be introduced through `src/BabelStudio.Inference.Onnx/`.
+* Milestone 1 may reference `Microsoft.Windows.AI.MachineLearning` in the harness only if needed to prove Windows ML viability on real hardware.
+* Milestone 5 must not reference or execute `Microsoft.Windows.AI.MachineLearning`; the planner should reason only about `ExecutionProviderKind` and runtime requirements.
+* Milestone 6 is the first real product milestone where `Microsoft.Windows.AI.MachineLearning` should become a product dependency, and it should be introduced through `src/BabelStudio.Inference.Onnx/`.
 
 If the repo has already passed Milestone 5, add `Microsoft.Windows.AI.MachineLearning` in the first Milestone 6 commit that introduces real stage execution in `BabelStudio.Inference.Onnx`.
 
----
+\---
 
 ## Milestone 0 — Repository and architecture foundation
 
@@ -82,36 +82,36 @@ Create the repo foundation, document architectural boundaries, and prevent codin
 
 ### Deliverables
 
-- Root `README.md`
-- `ARCHITECTURE.md`
-- `MILESTONE.md`
-- `AGENTS.md`
-- `LICENSE`
-- `COMMERCIAL-LICENSE.md`
-- `CONTRIBUTOR-LICENSE-AGREEMENT.md`
-- `MODEL_LICENSE_POLICY.md`
-- `THIRD_PARTY_NOTICES.md`
-- `.gitignore`
-- `Directory.Build.props`
-- `Directory.Packages.props`
-- starter directory layout
-- README files in important directories
+* Root `README.md`
+* `ARCHITECTURE.md`
+* `MILESTONE.md`
+* `AGENTS.md`
+* `LICENSE`
+* `COMMERCIAL-LICENSE.md`
+* `CONTRIBUTOR-LICENSE-AGREEMENT.md`
+* `MODEL\\\_LICENSE\\\_POLICY.md`
+* `THIRD\\\_PARTY\\\_NOTICES.md`
+* `.gitignore`
+* `Directory.Build.props`
+* `Directory.Packages.props`
+* starter directory layout
+* README files in important directories
 
 ### Acceptance criteria
 
-- Repo clearly states this is early architecture/prototype work.
-- GPLv3 + commercial dual-license intent is documented.
-- Agent guardrails exist.
-- Model license policy exists before any model is added.
-- Directory boundaries are clear enough that Codex/Claude Code can be given scoped tasks.
+* Repo clearly states this is early architecture/prototype work.
+* GPLv3 + commercial dual-license intent is documented.
+* Agent guardrails exist.
+* Model license policy exists before any model is added.
+* Directory boundaries are clear enough that Codex/Claude Code can be given scoped tasks.
 
 ### Non-goals
 
-- No app UI.
-- No model execution.
-- No installer.
-- No cloud provider work.
-- No monetization implementation.
+* No app UI.
+* No model execution.
+* No installer.
+* No cloud provider work.
+* No monetization implementation.
 
 ### Agent tasks
 
@@ -132,7 +132,7 @@ Implement the whole pipeline.
 Create the full WinUI app.
 ```
 
----
+\---
 
 ## Milestone 1 — Runtime viability harness
 
@@ -155,15 +155,15 @@ src/BabelStudio.Domain/
 
 Harness features:
 
-- Load a single ONNX model from disk.
-- Select or report execution provider.
-- Run cold-load measurement.
-- Run warm inference measurement.
-- Measure wall-clock latency.
-- Measure real-time factor where applicable.
-- Record success/failure.
-- Emit JSON report.
-- Emit console summary.
+* Load a single ONNX model from disk.
+* Select or report execution provider.
+* Run cold-load measurement.
+* Run warm inference measurement.
+* Measure wall-clock latency.
+* Measure real-time factor where applicable.
+* Record success/failure.
+* Emit JSON report.
+* Emit console summary.
 
 Initial target models:
 
@@ -175,33 +175,33 @@ Initial target models:
 
 ### Acceptance criteria
 
-- Harness runs from command line.
-- At least one model loads and runs from C#.
-- Harness reports provider, load time, inference time, and failure reason.
-- Failed model/provider combinations are reported clearly, not swallowed.
-- No UI project exists yet.
+* Harness runs from command line.
+* At least one model loads and runs from C#.
+* Harness reports provider, load time, inference time, and failure reason.
+* Failed model/provider combinations are reported clearly, not swallowed.
+* No UI project exists yet.
 
 ### Non-goals
 
-- No WinUI.
-- No project database.
-- No video ingest.
-- No full pipeline.
-- No voice cloning UX.
+* No WinUI.
+* No project database.
+* No video ingest.
+* No full pipeline.
+* No voice cloning UX.
 
 ### Risks
 
-- Windows ML / ONNX provider availability differs across machines.
-- Some ONNX exports may require unsupported ops or custom preprocessing.
-- Tokenizer/model glue may be more complex than model loading.
-- TTS models may be much heavier than expected.
+* Windows ML / ONNX provider availability differs across machines.
+* Some ONNX exports may require unsupported ops or custom preprocessing.
+* Tokenizer/model glue may be more complex than model loading.
+* TTS models may be much heavier than expected.
 
 ### Tests
 
-- Unit tests for result formatting.
-- Smoke test for one tiny ONNX model.
-- Harness regression test using a local fixture model if available.
-- Golden report format test.
+* Unit tests for result formatting.
+* Smoke test for one tiny ONNX model.
+* Harness regression test using a local fixture model if available.
+* Golden report format test.
 
 ### Agent tasks
 
@@ -211,7 +211,7 @@ Good agent prompt:
 Implement BabelStudio.Benchmarks as a .NET console app that loads a supplied ONNX model path, runs one inference call with dummy or fixture input, reports provider, cold load time, warm latency, and writes benchmark-report.json. Do not create UI.
 ```
 
----
+\---
 
 ## Milestone 2 — Model manifest and commercial-safe policy
 
@@ -231,66 +231,66 @@ tests/BabelStudio.Inference.Tests/
 
 Features:
 
-- `ModelManifest` type
-- manifest JSON schema
-- model task enum
-- license metadata
-- commercial-safe evaluator
-- local model cache record
-- hash verification policy
-- model variant metadata
-- required consent flags
-- attribution flags
+* `ModelManifest` type
+* manifest JSON schema
+* model task enum
+* license metadata
+* commercial-safe evaluator
+* local model cache record
+* hash verification policy
+* model variant metadata
+* required consent flags
+* attribution flags
 
 Example manifest fields:
 
 ```json
 {
-  "model_id": "example/model",
+  "model\\\_id": "example/model",
   "task": "asr",
   "license": "MIT",
-  "commercial_allowed": true,
-  "redistribution_allowed": true,
-  "requires_attribution": false,
-  "requires_user_consent": false,
-  "voice_cloning": false,
-  "commercial_safe_mode": true,
-  "source_url": "",
+  "commercial\\\_allowed": true,
+  "redistribution\\\_allowed": true,
+  "requires\\\_attribution": false,
+  "requires\\\_user\\\_consent": false,
+  "voice\\\_cloning": false,
+  "commercial\\\_safe\\\_mode": true,
+  "source\\\_url": "",
   "revision": "",
   "sha256": "",
-  "variants": []
+  "variants": \\\[]
 }
 ```
 
 ### Acceptance criteria
 
-- Unknown-license models are not commercial-safe.
-- Non-commercial models are not commercial-safe.
-- Voice-cloning models require consent.
-- Manifests can be loaded and validated.
-- Invalid manifests produce useful errors.
-- Tests cover commercial-safe logic.
+* Unknown-license models are not commercial-safe.
+* Non-commercial models are not commercial-safe.
+* Voice-cloning models require consent.
+* Manifests can be loaded and validated.
+* Invalid manifests produce useful errors.
+* Tests cover commercial-safe logic.
 
 ### Non-goals
 
-- No model downloading yet.
-- No UI model manager yet.
-- No legal finalization.
-- No automatic Hugging Face lookup yet.
+* No model downloading yet.
+* No UI model manager yet.
+* No legal finalization.
+* No automatic Hugging Face lookup yet.
 
 ### Risks
 
-- License metadata can become stale.
-- Model cards vary in clarity.
-- Exported ONNX models may have different terms than source repos.
+* License metadata can become stale.
+* Model cards vary in clarity.
+* Exported ONNX models may have different terms than source repos.
 
 ### Tests
 
-- Valid manifest test.
-- Invalid license test.
-- Non-commercial exclusion test.
-- Voice-cloning consent-required test.
-- Attribution-required test.
+* Valid manifest test.
+* Invalid license test.
+* Non-commercial exclusion test.
+* Voice-cloning consent-required test.
+* Attribution-required test.
 
 ### Agent tasks
 
@@ -300,7 +300,7 @@ Good agent prompt:
 Implement ModelManifest parsing and CommercialSafeEvaluator. Add tests proving unknown and non-commercial licenses are rejected in commercial-safe mode. Do not add real model downloads.
 ```
 
----
+\---
 
 ## Milestone 3 — SQLite project spine
 
@@ -346,45 +346,45 @@ ConsentRecords
 
 Core services:
 
-- database migrator
-- connection factory
-- project repository
-- artifact repository
-- stage run repository
-- model cache repository
-- benchmark repository
+* database migrator
+* connection factory
+* project repository
+* artifact repository
+* stage run repository
+* model cache repository
+* benchmark repository
 
 ### Acceptance criteria
 
-- Database can be created from scratch.
-- Migrations apply in order.
-- Project can be created.
-- Stage run can be created and completed.
-- Artifact can be registered with hash/path/kind/provenance.
-- Project can be reopened.
-- Tests use temporary SQLite files.
+* Database can be created from scratch.
+* Migrations apply in order.
+* Project can be created.
+* Stage run can be created and completed.
+* Artifact can be registered with hash/path/kind/provenance.
+* Project can be reopened.
+* Tests use temporary SQLite files.
 
 ### Non-goals
 
-- No UI.
-- No media extraction yet.
-- No real ONNX inference.
-- No export.
+* No UI.
+* No media extraction yet.
+* No real ONNX inference.
+* No export.
 
 ### Risks
 
-- Schema gets too broad too early.
-- Missing artifact provenance causes rework later.
-- Destructive migrations create project corruption risk.
+* Schema gets too broad too early.
+* Missing artifact provenance causes rework later.
+* Destructive migrations create project corruption risk.
 
 ### Tests
 
-- Migration test.
-- Project repository test.
-- StageRun repository test.
-- Artifact repository test.
-- Transaction rollback test.
-- Schema version test.
+* Migration test.
+* Project repository test.
+* StageRun repository test.
+* Artifact repository test.
+* Transaction rollback test.
+* Schema version test.
 
 ### Agent tasks
 
@@ -394,7 +394,7 @@ Good agent prompt:
 Implement SQLite migration runner and repositories for Projects, StageRuns, Artifacts, and ModelCache using Dapper. Tests must use temporary database files. Do not create UI.
 ```
 
----
+\---
 
 ## Milestone 4 — Media ingest and artifact store
 
@@ -415,14 +415,14 @@ tests/BabelStudio.Media.Tests/
 
 Features:
 
-- media probe abstraction
-- FFmpeg/ffprobe wrapper
-- normalized audio extraction
-- source media fingerprinting
-- waveform summary generation
-- artifact folder layout
-- atomic artifact writes
-- media asset repository integration
+* media probe abstraction
+* FFmpeg/ffprobe wrapper
+* normalized audio extraction
+* source media fingerprinting
+* waveform summary generation
+* artifact folder layout
+* atomic artifact writes
+* media asset repository integration
 
 Project artifact layout:
 
@@ -432,7 +432,7 @@ ProjectName.babelstudio/
 ├── manifest.json
 ├── media/
 │   ├── source-reference.json
-│   └── normalized_audio.wav
+│   └── normalized\\\_audio.wav
 ├── artifacts/
 │   ├── audio/
 │   └── waveform/
@@ -442,35 +442,35 @@ ProjectName.babelstudio/
 
 ### Acceptance criteria
 
-- Local video/audio can be probed.
-- Source media metadata is stored.
-- Working audio is extracted.
-- Audio artifact is registered with hash and duration.
-- Waveform summary is generated and registered.
-- Project can be reopened and artifacts found.
-- Missing source file is reported clearly.
+* Local video/audio can be probed.
+* Source media metadata is stored.
+* Working audio is extracted.
+* Audio artifact is registered with hash and duration.
+* Waveform summary is generated and registered.
+* Project can be reopened and artifacts found.
+* Missing source file is reported clearly.
 
 ### Non-goals
 
-- No video editor UI.
-- No ASR yet.
-- No final export.
-- No stem separation.
+* No video editor UI.
+* No ASR yet.
+* No final export.
+* No stem separation.
 
 ### Risks
 
-- FFmpeg availability and licensing.
-- Weird media containers.
-- Variable frame rate and stream start offsets.
-- Long path issues on Windows.
+* FFmpeg availability and licensing.
+* Weird media containers.
+* Variable frame rate and stream start offsets.
+* Long path issues on Windows.
 
 ### Tests
 
-- Probe fixture media.
-- Extract fixture audio.
-- Hash verification.
-- Missing media recovery.
-- Artifact atomic write test.
+* Probe fixture media.
+* Extract fixture audio.
+* Hash verification.
+* Missing media recovery.
+* Artifact atomic write test.
 
 ### Agent tasks
 
@@ -480,7 +480,7 @@ Good agent prompt:
 Implement MediaProbe and AudioExtractionService using FFmpeg process execution. Store outputs through IArtifactStore. Add tests using tiny sample media. Do not add ASR.
 ```
 
----
+\---
 
 ## Milestone 5 — Runtime planner and model cache
 
@@ -500,55 +500,55 @@ tests/BabelStudio.Inference.Tests/
 
 Features:
 
-- hardware profile
-- execution provider discovery abstraction
-- model variant selector
-- model cache records
-- runtime plan record
-- stage runtime requirements
-- smoke-test interface
-- fallback explanation
+* hardware profile
+* execution provider discovery abstraction
+* model variant selector
+* model cache records
+* runtime plan record
+* stage runtime requirements
+* smoke-test interface
+* fallback explanation
 
 Example runtime plan:
 
 ```json
 {
   "stage": "ASR",
-  "model_id": "whisper-large-v3-turbo",
+  "model\\\_id": "whisper-large-v3-turbo",
   "variant": "fp16",
-  "execution_provider": "DirectML",
-  "fallback_reason": null,
-  "warnings": []
+  "execution\\\_provider": "DirectML",
+  "fallback\\\_reason": null,
+  "warnings": \\\[]
 }
 ```
 
 ### Acceptance criteria
 
-- Planner can choose between GPU and CPU variants.
-- Planner explains fallback reasons.
-- Missing model produces a download-needed state.
-- Commercial-safe mode affects model selection.
-- Runtime plan is serializable for logs/stage runs.
+* Planner can choose between GPU and CPU variants.
+* Planner explains fallback reasons.
+* Missing model produces a download-needed state.
+* Commercial-safe mode affects model selection.
+* Runtime plan is serializable for logs/stage runs.
 
 ### Non-goals
 
-- No actual model download UI.
-- No full benchmark-based preset yet.
-- No cloud providers.
+* No actual model download UI.
+* No full benchmark-based preset yet.
+* No cloud providers.
 
 ### Risks
 
-- Planner becomes speculative and too complex.
-- Provider availability is confused with model compatibility.
-- Users see “GPU ready” before a real model passes.
+* Planner becomes speculative and too complex.
+* Provider availability is confused with model compatibility.
+* Users see “GPU ready” before a real model passes.
 
 ### Tests
 
-- GPU available plan test.
-- CPU fallback plan test.
-- missing model test.
-- commercial-safe exclusion test.
-- provider smoke-test failure test.
+* GPU available plan test.
+* CPU fallback plan test.
+* missing model test.
+* commercial-safe exclusion test.
+* provider smoke-test failure test.
 
 ### Agent tasks
 
@@ -558,7 +558,7 @@ Good agent prompt:
 Implement RuntimePlanner using fake hardware/model providers. It should produce a StageRuntimePlan with fallback explanations and commercial-safe filtering. Add tests. Do not load real ONNX models.
 ```
 
----
+\---
 
 ## Milestone 6 — Transcript-only vertical slice
 
@@ -581,52 +581,52 @@ src/BabelStudio.Infrastructure/
 
 Features:
 
-- minimal WinUI shell
-- open media command
-- project creation
-- media ingest
-- VAD stage
-- ASR stage
-- transcript segment storage
-- transcript list UI
-- manual transcript editing
-- stage status display
-- reopen project with transcript
+* minimal WinUI shell
+* open media command
+* project creation
+* media ingest
+* VAD stage
+* ASR stage
+* transcript segment storage
+* transcript list UI
+* manual transcript editing
+* stage status display
+* reopen project with transcript
 
 ### Acceptance criteria
 
-- User can open a media file.
-- App creates project.
-- App extracts audio.
-- App runs VAD/ASR through validated path or test/fake engine.
-- Transcript segments appear.
-- User can edit transcript text.
-- Edits persist.
-- Project reopens without recomputing.
-- Stage run and artifact provenance are stored.
+* User can open a media file.
+* App creates project.
+* App extracts audio.
+* App runs VAD/ASR through validated path or test/fake engine.
+* Transcript segments appear.
+* User can edit transcript text.
+* Edits persist.
+* Project reopens without recomputing.
+* Stage run and artifact provenance are stored.
 
 ### Non-goals
 
-- No translation.
-- No TTS.
-- No voice cloning.
-- No fancy timeline.
-- No final export.
+* No translation.
+* No TTS.
+* No voice cloning.
+* No fancy timeline.
+* No final export.
 
 ### Risks
 
-- UI is built too wide too early.
-- ASR wrapper not stable.
-- Transcript edits overwrite generated provenance.
-- Long-running tasks block UI.
+* UI is built too wide too early.
+* ASR wrapper not stable.
+* Transcript edits overwrite generated provenance.
+* Long-running tasks block UI.
 
 ### Tests
 
-- Application use case tests with fake ASR.
-- Transcript persistence test.
-- Stage-run commit test.
-- UI smoke test if practical.
-- Manual end-to-end test on tiny media.
+* Application use case tests with fake ASR.
+* Transcript persistence test.
+* Stage-run commit test.
+* UI smoke test if practical.
+* Manual end-to-end test on tiny media.
 
 ### Agent tasks
 
@@ -636,56 +636,58 @@ Good agent prompt:
 Build a minimal WinUI transcript slice: open existing project, display TranscriptSegments from repository, allow editing text, persist edits. Use fake data first. Do not add translation or TTS.
 ```
 
----
+\---
 
 ## Milestone 7 — Translation slice
 
 ### Goal
 
-Translate transcript segments and persist editable translation revisions.
+Translate English transcript segments into editable Spanish draft revisions in the WinUI shell.
 
 ### Deliverables
 
 Features:
 
-- target language selection
-- translation runtime plan
-- translation model resolver
-- translation stage run
-- translated segment storage
-- translation editor
-- stale marker when transcript changes
-- commercial-safe model filtering
+* transcript language selection (`English` or `Spanish`)
+* fixed Milestone 7 translation target (`Spanish`)
+* translation runtime plan
+* translation model resolver
+* translation stage run
+* translated segment storage
+* translation editor
+* `Needs Refresh` state when transcript changes
+* commercial-safe model filtering
 
 ### Acceptance criteria
 
-- User can translate transcript segments.
-- Translation results are stored as a revision.
-- User can edit translated text.
-- Transcript edit marks affected translation stale.
-- Reopen preserves translation.
-- Model/provider used is recorded.
+* User can translate English transcript segments to Spanish.
+* Translation results are stored as a revision.
+* User can edit translated text.
+* Transcript edit marks affected translation `Needs Refresh`.
+* Reopen preserves translation.
+* Model/provider used is recorded.
 
 ### Non-goals
 
-- No TTS.
-- No multi-language full automation unless direct.
-- No cloud providers.
-- No glossary yet.
+* No TTS.
+* No free-form target language picker.
+* No multi-language full automation unless direct.
+* No cloud providers.
+* No glossary yet.
 
 ### Risks
 
-- Opus-MT pair availability gaps.
-- Tokenizer implementation complexity.
-- Pivot translation quality issues.
-- Users expect perfect translation.
+* Opus-MT pair availability gaps.
+* Tokenizer implementation complexity.
+* Pivot translation quality issues.
+* Users expect perfect translation.
 
 ### Tests
 
-- Translation use case with fake translator.
-- Stale marker test.
-- Provider metadata test.
-- Commercial-safe filtering test.
+* Translation use case with fake translator.
+* Stale marker test.
+* Provider metadata test.
+* Commercial-safe filtering test.
 
 ### Agent tasks
 
@@ -695,7 +697,7 @@ Good agent prompt:
 Implement TranslationRevision and TranslatedSegment persistence. Add StartTranslationStageHandler using ITranslationEngine fake. Mark translation stale when source transcript segment changes.
 ```
 
----
+\---
 
 ## Milestone 8 — Stock voice TTS slice
 
@@ -707,45 +709,45 @@ Generate dubbed speech using stock voices before attempting voice cloning.
 
 Features:
 
-- voice catalog
-- speaker-to-stock-voice assignment
-- TTS runtime plan
-- per-segment TTS generation
-- TTS take storage
-- audio artifact registration
-- basic playback of generated take
-- stale marker when translated text or voice assignment changes
+* voice catalog
+* speaker-to-stock-voice assignment
+* TTS runtime plan
+* per-segment TTS generation
+* TTS take storage
+* audio artifact registration
+* basic playback of generated take
+* stale marker when translated text or voice assignment changes
 
 ### Acceptance criteria
 
-- User can select a stock voice.
-- User can generate TTS for translated segments.
-- TTS audio artifacts are stored.
-- User can audition a segment.
-- Reopen preserves takes.
-- Translation edit marks affected takes stale.
-- Voice assignment change marks affected takes stale.
+* User can select a stock voice.
+* User can generate TTS for translated segments.
+* TTS audio artifacts are stored.
+* User can audition a segment.
+* Reopen preserves takes.
+* Translation edit marks affected takes stale.
+* Voice assignment change marks affected takes stale.
 
 ### Non-goals
 
-- No voice cloning yet.
-- No full dubbed mix.
-- No timing stretch yet.
-- No final export.
+* No voice cloning yet.
+* No full dubbed mix.
+* No timing stretch yet.
+* No final export.
 
 ### Risks
 
-- TTS model quality.
-- TTS model runtime size.
-- Audio format inconsistencies.
-- Segment text too long for original timing.
+* TTS model quality.
+* TTS model runtime size.
+* Audio format inconsistencies.
+* Segment text too long for original timing.
 
 ### Tests
 
-- Fake TTS use case.
-- TTS artifact persistence.
-- Stale marker tests.
-- Audio duration metadata test.
+* Fake TTS use case.
+* TTS artifact persistence.
+* Stale marker tests.
+* Audio duration metadata test.
 
 ### Agent tasks
 
@@ -755,7 +757,7 @@ Good agent prompt:
 Implement TtsTake persistence and StartTtsStageHandler using a fake ITtsEngine that writes short WAV fixtures. Add stale invalidation tests for translated text and voice assignment changes.
 ```
 
----
+\---
 
 ## Milestone 9 — Preview mix slice
 
@@ -767,42 +769,42 @@ Preview generated dubbed speech against the original media in context.
 
 Features:
 
-- mix plan domain model
-- source/original audio lane
-- dubbed speech lane
-- simple gain controls
-- preview range render
-- playback of range with video
-- warnings for missing/stale TTS
+* mix plan domain model
+* source/original audio lane
+* dubbed speech lane
+* simple gain controls
+* preview range render
+* playback of range with video
+* warnings for missing/stale TTS
 
 ### Acceptance criteria
 
-- User can preview a short range.
-- Generated TTS aligns to segment start times.
-- Original audio can be ducked or muted.
-- Preview uses the same MixPlan representation intended for export.
-- Stale/missing segments are visible.
+* User can preview a short range.
+* Generated TTS aligns to segment start times.
+* Original audio can be ducked or muted.
+* Preview uses the same MixPlan representation intended for export.
+* Stale/missing segments are visible.
 
 ### Non-goals
 
-- No final export yet.
-- No advanced DAW controls.
-- No per-word alignment.
-- No perfect dialogue removal.
+* No final export yet.
+* No advanced DAW controls.
+* No per-word alignment.
+* No perfect dialogue removal.
 
 ### Risks
 
-- Preview/export drift.
-- Timing representation bugs.
-- Audio gaps or overlaps.
-- Media playback format issues.
+* Preview/export drift.
+* Timing representation bugs.
+* Audio gaps or overlaps.
+* Media playback format issues.
 
 ### Tests
 
-- Mix plan construction.
-- Range render with fake clips.
-- Timing conversion tests.
-- Missing/stale clip warning tests.
+* Mix plan construction.
+* Range render with fake clips.
+* Timing conversion tests.
+* Missing/stale clip warning tests.
 
 ### Agent tasks
 
@@ -812,7 +814,7 @@ Good agent prompt:
 Implement MixPlan and PreviewRangeRenderer using existing WAV artifacts. It should place clips by segment start time and produce a preview WAV for a selected range. Do not build full export.
 ```
 
----
+\---
 
 ## Milestone 10 — Export slice
 
@@ -824,41 +826,41 @@ Export a usable dubbed output.
 
 Features:
 
-- full mix render
-- mux output with source video
-- optional subtitle export
-- export metadata
-- export manifest
-- output verification
+* full mix render
+* mux output with source video
+* optional subtitle export
+* export metadata
+* export manifest
+* output verification
 
 ### Acceptance criteria
 
-- User can export final dubbed audio/video.
-- Video stream is copied when possible.
-- Output duration is checked.
-- Export metadata indicates AI-dubbed output where appropriate.
-- Export manifest records source project, stages, models, and warnings.
-- Export fails with clear reasons.
+* User can export final dubbed audio/video.
+* Video stream is copied when possible.
+* Output duration is checked.
+* Export metadata indicates AI-dubbed output where appropriate.
+* Export manifest records source project, stages, models, and warnings.
+* Export fails with clear reasons.
 
 ### Non-goals
 
-- No cloud render.
-- No advanced codec UI.
-- No multi-version render queue.
+* No cloud render.
+* No advanced codec UI.
+* No multi-version render queue.
 
 ### Risks
 
-- FFmpeg command complexity.
-- Container compatibility.
-- A/V sync drift.
-- Licensing around bundled FFmpeg builds.
+* FFmpeg command complexity.
+* Container compatibility.
+* A/V sync drift.
+* Licensing around bundled FFmpeg builds.
 
 ### Tests
 
-- Mux command builder tests.
-- Export manifest tests.
-- Tiny video export smoke test.
-- Missing source recovery test.
+* Mux command builder tests.
+* Export manifest tests.
+* Tiny video export smoke test.
+* Missing source recovery test.
 
 ### Agent tasks
 
@@ -868,7 +870,7 @@ Good agent prompt:
 Implement ExportPlan and MuxWriter for a source video plus final audio WAV. Preserve video stream where possible and write an export manifest. Add command-builder tests.
 ```
 
----
+\---
 
 ## Milestone 11 — Diarization and speaker workflow
 
@@ -880,42 +882,42 @@ Add speaker detection and editable speaker assignment.
 
 Features:
 
-- diarization engine abstraction
-- speaker turn persistence
-- speaker panel
-- merge/split/rename speakers
-- assign voice per speaker
-- reference clip candidate extraction
-- diarization confidence/warnings
+* diarization engine abstraction
+* speaker turn persistence
+* speaker panel
+* merge/split/rename speakers
+* assign voice per speaker
+* reference clip candidate extraction
+* diarization confidence/warnings
 
 ### Acceptance criteria
 
-- Diarization can produce speaker turns.
-- User can rename speakers.
-- User can merge/split speakers.
-- Speaker assignment affects TTS routing.
-- Diarization output is editable and not treated as truth.
-- Single-speaker/manual workflow still works.
+* Diarization can produce speaker turns.
+* User can rename speakers.
+* User can merge/split speakers.
+* Speaker assignment affects TTS routing.
+* Diarization output is editable and not treated as truth.
+* Single-speaker/manual workflow still works.
 
 ### Non-goals
 
-- No mandatory voice cloning.
-- No promise of identifying real people.
-- No hard block on diarization failure.
+* No mandatory voice cloning.
+* No promise of identifying real people.
+* No hard block on diarization failure.
 
 ### Risks
 
-- Diarization model license/terms.
-- More than supported number of speakers.
-- Overlapping speech.
-- Noisy source material.
+* Diarization model license/terms.
+* More than supported number of speakers.
+* Overlapping speech.
+* Noisy source material.
 
 ### Tests
 
-- Fake diarization use case.
-- Merge/split/rename tests.
-- Speaker assignment invalidation tests.
-- Reference clip extraction tests.
+* Fake diarization use case.
+* Merge/split/rename tests.
+* Speaker assignment invalidation tests.
+* Reference clip extraction tests.
 
 ### Agent tasks
 
@@ -925,7 +927,7 @@ Good agent prompt:
 Implement speaker turn persistence and speaker merge/rename use cases. Use fake diarization data. Do not add real SortFormer wrapper yet.
 ```
 
----
+\---
 
 ## Milestone 12 — Optional stem separation
 
@@ -937,41 +939,41 @@ Add vocal/instrumental stem separation as an optional quality step.
 
 Features:
 
-- stem separation engine abstraction
-- Demucs/other ONNX wrapper spike
-- vocals artifact
-- instrumental artifact
-- stage warnings
-- option to bypass separation
-- mix uses instrumental where available
+* stem separation engine abstraction
+* Demucs/other ONNX wrapper spike
+* vocals artifact
+* instrumental artifact
+* stage warnings
+* option to bypass separation
+* mix uses instrumental where available
 
 ### Acceptance criteria
 
-- User can run or skip stem separation.
-- Vocals/instrumental artifacts are stored.
-- ASR can use vocals if available.
-- Mix can use instrumental if available.
-- UI makes it clear stems are estimates.
+* User can run or skip stem separation.
+* Vocals/instrumental artifacts are stored.
+* ASR can use vocals if available.
+* Mix can use instrumental if available.
+* UI makes it clear stems are estimates.
 
 ### Non-goals
 
-- No promise of clean dialogue removal.
-- No mandatory stem separation.
-- No advanced source separation UI.
+* No promise of clean dialogue removal.
+* No mandatory stem separation.
+* No advanced source separation UI.
 
 ### Risks
 
-- Model size and memory.
-- Separation artifacts.
-- Slow CPU fallback.
-- Poor results on some media.
+* Model size and memory.
+* Separation artifacts.
+* Slow CPU fallback.
+* Poor results on some media.
 
 ### Tests
 
-- Fake separation test.
-- Artifact registration test.
-- bypass path test.
-- mix path with instrumental test.
+* Fake separation test.
+* Artifact registration test.
+* bypass path test.
+* mix path with instrumental test.
 
 ### Agent tasks
 
@@ -981,7 +983,7 @@ Good agent prompt:
 Add StemSeparationStage with fake IStemSeparationEngine. It should produce vocals/instrumental artifact records and allow bypass. Do not require it for transcript pipeline.
 ```
 
----
+\---
 
 ## Milestone 13 — Voice cloning experiment
 
@@ -993,45 +995,45 @@ Add opt-in, consent-gated voice cloning after stock voice TTS is stable.
 
 Features:
 
-- voice cloning consent dialog/state
-- per-session voice cloning warning
-- reference clip selection
-- reference clip replacement
-- Chatterbox/clone-capable model wrapper spike
-- cloned TTS take type
-- export metadata
-- commercial-safe filtering
+* voice cloning consent dialog/state
+* per-session voice cloning warning
+* reference clip selection
+* reference clip replacement
+* Chatterbox/clone-capable model wrapper spike
+* cloned TTS take type
+* export metadata
+* commercial-safe filtering
 
 ### Acceptance criteria
 
-- Voice cloning cannot run without consent.
-- Voice cloning model must be license-manifested.
-- User can choose/replace reference clip.
-- Cloned TTS produces a take artifact.
-- Export metadata marks voice cloning use.
-- Commercial-safe mode enforces allowed models only.
+* Voice cloning cannot run without consent.
+* Voice cloning model must be license-manifested.
+* User can choose/replace reference clip.
+* Cloned TTS produces a take artifact.
+* Export metadata marks voice cloning use.
+* Commercial-safe mode enforces allowed models only.
 
 ### Non-goals
 
-- No default voice cloning.
-- No celebrity/public figure detection.
-- No guarantee of voice identity.
-- No perfect emotion transfer.
+* No default voice cloning.
+* No celebrity/public figure detection.
+* No guarantee of voice identity.
+* No perfect emotion transfer.
 
 ### Risks
 
-- Legal/ethical misuse.
-- Model quality variance.
-- High memory use.
-- Runtime instability.
-- User expectations too high.
+* Legal/ethical misuse.
+* Model quality variance.
+* High memory use.
+* Runtime instability.
+* User expectations too high.
 
 ### Tests
 
-- consent-required test.
-- commercial-safe filtering test.
-- reference clip persistence test.
-- fake cloned TTS artifact test.
+* consent-required test.
+* commercial-safe filtering test.
+* reference clip persistence test.
+* fake cloned TTS artifact test.
 
 ### Agent tasks
 
@@ -1041,7 +1043,7 @@ Good agent prompt:
 Implement voice cloning consent state and reference clip selection persistence. Add tests proving clone-capable TTS cannot run without consent. Do not implement real Chatterbox yet.
 ```
 
----
+\---
 
 ## Milestone 14 — Hardware profiler and preset recommendation
 
@@ -1053,13 +1055,13 @@ Benchmark the user’s machine and recommend a practical quality preset.
 
 Features:
 
-- benchmark scenarios
-- benchmark database storage
-- RTF calculation
-- provider used
-- memory measurement where available
-- quality preset recommendation
-- UI hardware profiler tab
+* benchmark scenarios
+* benchmark database storage
+* RTF calculation
+* provider used
+* memory measurement where available
+* quality preset recommendation
+* UI hardware profiler tab
 
 Presets:
 
@@ -1072,31 +1074,31 @@ CPU-safe
 
 ### Acceptance criteria
 
-- User can run benchmark.
-- Results are stored.
-- App recommends preset.
-- Recommendation can be overridden.
-- Runtime plan uses benchmark history where available.
+* User can run benchmark.
+* Results are stored.
+* App recommends preset.
+* Recommendation can be overridden.
+* Runtime plan uses benchmark history where available.
 
 ### Non-goals
 
-- No public benchmark leaderboard.
-- No telemetry upload.
-- No automatic online comparison.
+* No public benchmark leaderboard.
+* No telemetry upload.
+* No automatic online comparison.
 
 ### Risks
 
-- Memory measurement difficulty.
-- Benchmarks too slow.
-- Synthetic benchmarks not representative.
-- Driver updates invalidate assumptions.
+* Memory measurement difficulty.
+* Benchmarks too slow.
+* Synthetic benchmarks not representative.
+* Driver updates invalidate assumptions.
 
 ### Tests
 
-- preset recommendation tests.
-- benchmark persistence tests.
-- fake benchmark scenario tests.
-- report formatting tests.
+* preset recommendation tests.
+* benchmark persistence tests.
+* fake benchmark scenario tests.
+* report formatting tests.
 
 ### Agent tasks
 
@@ -1106,7 +1108,7 @@ Good agent prompt:
 Implement BenchmarkResult persistence and RecommendPresetHandler using fake benchmark results. Add tests for Quality/Balanced/Turbo/CPU-safe thresholds.
 ```
 
----
+\---
 
 ## Milestone 15 — Model manager and downloads
 
@@ -1118,44 +1120,44 @@ Let users install, verify, and remove model assets safely.
 
 Features:
 
-- model list UI
-- installed/missing state
-- download queue
-- hash verification
-- license display
-- commercial-safe badges
-- delete model
-- repair model cache
+* model list UI
+* installed/missing state
+* download queue
+* hash verification
+* license display
+* commercial-safe badges
+* delete model
+* repair model cache
 
 ### Acceptance criteria
 
-- User can see required models.
-- User can download missing models.
-- Hash mismatch is detected.
-- License is visible before install.
-- Commercial-safe status is visible.
-- Broken cache can be repaired.
+* User can see required models.
+* User can download missing models.
+* Hash mismatch is detected.
+* License is visible before install.
+* Commercial-safe status is visible.
+* Broken cache can be repaired.
 
 ### Non-goals
 
-- No model marketplace.
-- No arbitrary user model plugin system yet.
-- No auto-update without user awareness.
+* No model marketplace.
+* No arbitrary user model plugin system yet.
+* No auto-update without user awareness.
 
 ### Risks
 
-- Hugging Face/network instability.
-- Model file size.
-- License drift.
-- Download interruption.
+* Hugging Face/network instability.
+* Model file size.
+* License drift.
+* Download interruption.
 
 ### Tests
 
-- manifest-driven model list test.
-- fake download test.
-- hash mismatch test.
-- license display test.
-- repair cache test.
+* manifest-driven model list test.
+* fake download test.
+* hash mismatch test.
+* license display test.
+* repair cache test.
 
 ### Agent tasks
 
@@ -1165,7 +1167,7 @@ Good agent prompt:
 Implement ModelCacheService with fake downloader and hash verifier. Add tests for installed/missing/corrupt states. Do not build marketplace/plugin system.
 ```
 
----
+\---
 
 ## Milestone 16 — Timeline/editor expansion
 
@@ -1177,41 +1179,41 @@ Expand from transcript list to real editorial workspace.
 
 Features:
 
-- waveform timeline
-- speaker lanes
-- segment selection
-- transport sync
-- subtitle overlay
-- selected segment inspector
-- edit/retranslate/re-TTS commands
-- stale indicators
+* waveform timeline
+* speaker lanes
+* segment selection
+* transport sync
+* subtitle overlay
+* selected segment inspector
+* edit/retranslate/re-TTS commands
+* stale indicators
 
 ### Acceptance criteria
 
-- Timeline displays waveform and segments.
-- Clicking segment selects transcript/translation/TTS state.
-- User can preview selected range.
-- Stale/missing artifacts visible.
-- UI remains responsive during background work.
+* Timeline displays waveform and segments.
+* Clicking segment selects transcript/translation/TTS state.
+* User can preview selected range.
+* Stale/missing artifacts visible.
+* UI remains responsive during background work.
 
 ### Non-goals
 
-- No full nonlinear video editor.
-- No arbitrary clip editing.
-- No keyframe-heavy DAW features.
+* No full nonlinear video editor.
+* No arbitrary clip editing.
+* No keyframe-heavy DAW features.
 
 ### Risks
 
-- UI complexity explodes.
-- Timeline consumes too much time before pipeline is robust.
-- Sync bugs.
+* UI complexity explodes.
+* Timeline consumes too much time before pipeline is robust.
+* Sync bugs.
 
 ### Tests
 
-- view model tests.
-- selection state tests.
-- command availability tests.
-- manual UI smoke tests.
+* view model tests.
+* selection state tests.
+* command availability tests.
+* manual UI smoke tests.
 
 ### Agent tasks
 
@@ -1221,7 +1223,7 @@ Good agent prompt:
 Implement TimelineViewModel state and selection behavior with fake segments. Do not implement custom rendering yet. Add tests for selected segment and stale indicators.
 ```
 
----
+\---
 
 ## Milestone 17 — Commercial-safe mode and licensing UI
 
@@ -1233,40 +1235,40 @@ Make model/provider/license safety visible and enforceable.
 
 Features:
 
-- commercial-safe mode toggle
-- unsafe model blocking
-- attribution requirements
-- model license panel
-- export license manifest
-- warnings for voice cloning
-- third-party notices generation
+* commercial-safe mode toggle
+* unsafe model blocking
+* attribution requirements
+* model license panel
+* export license manifest
+* warnings for voice cloning
+* third-party notices generation
 
 ### Acceptance criteria
 
-- Unsafe models are disabled in commercial-safe mode.
-- User sees why a model is blocked.
-- Export includes model/provider manifest.
-- Third-party notices can be generated.
-- Tests cover unsafe model exclusion.
+* Unsafe models are disabled in commercial-safe mode.
+* User sees why a model is blocked.
+* Export includes model/provider manifest.
+* Third-party notices can be generated.
+* Tests cover unsafe model exclusion.
 
 ### Non-goals
 
-- No legal advice engine.
-- No guarantee every use case is legally safe.
-- No automatic rights clearance.
+* No legal advice engine.
+* No guarantee every use case is legally safe.
+* No automatic rights clearance.
 
 ### Risks
 
-- Users misunderstand “commercial safe.”
-- License metadata becomes stale.
-- Provider terms vary.
+* Users misunderstand “commercial safe.”
+* License metadata becomes stale.
+* Provider terms vary.
 
 ### Tests
 
-- blocking tests.
-- export manifest tests.
-- attribution tests.
-- UI state tests.
+* blocking tests.
+* export manifest tests.
+* attribution tests.
+* UI state tests.
 
 ### Agent tasks
 
@@ -1276,7 +1278,7 @@ Good agent prompt:
 Implement CommercialSafeModeService and ExportLicenseManifest. It should block unknown and non-commercial models and include attribution-required models in output metadata.
 ```
 
----
+\---
 
 ## Milestone 18 — Packaging and clean-machine install
 
@@ -1288,40 +1290,40 @@ Make Babel Studio install and run on a clean Windows machine without developer t
 
 Features:
 
-- signed installer or MSIX
-- bundled required runtime pieces
-- FFmpeg packaging decision
-- first-run setup wizard
-- clean uninstall behavior
-- diagnostic bundle
-- repair tool
+* signed installer or MSIX
+* bundled required runtime pieces
+* FFmpeg packaging decision
+* first-run setup wizard
+* clean uninstall behavior
+* diagnostic bundle
+* repair tool
 
 ### Acceptance criteria
 
-- Fresh Windows install works without Visual Studio.
-- User does not install Python, Conda, Docker, WSL, or CUDA Toolkit.
-- First-run setup explains downloads and hardware.
-- App can create project and run transcript slice.
-- Failure modes are visible.
+* Fresh Windows install works without Visual Studio.
+* User does not install Python, Conda, Docker, WSL, or CUDA Toolkit.
+* First-run setup explains downloads and hardware.
+* App can create project and run transcript slice.
+* Failure modes are visible.
 
 ### Non-goals
 
-- No auto-updater unless packaging path is stable.
-- No enterprise deployment tooling yet.
+* No auto-updater unless packaging path is stable.
+* No enterprise deployment tooling yet.
 
 ### Risks
 
-- Windows App SDK packaging complexity.
-- FFmpeg licensing.
-- Antivirus false positives.
-- Long model downloads.
+* Windows App SDK packaging complexity.
+* FFmpeg licensing.
+* Antivirus false positives.
+* Long model downloads.
 
 ### Tests
 
-- clean VM install test.
-- no-dev-tools smoke test.
-- uninstall/reinstall test.
-- first-run failure test.
+* clean VM install test.
+* no-dev-tools smoke test.
+* uninstall/reinstall test.
+* first-run failure test.
 
 ### Agent tasks
 
@@ -1331,7 +1333,7 @@ Good agent prompt:
 Create packaging checklist and installer smoke script. Do not alter application code. Identify files required for clean-machine run.
 ```
 
----
+\---
 
 ## Milestone 19 — Public alpha
 
@@ -1341,17 +1343,17 @@ Release a limited, honest alpha for technical users.
 
 ### Minimum alpha capability
 
-- open local media
-- create/reopen project
-- extract audio
-- run transcript stage
-- edit transcript
-- run translation stage
-- run stock TTS stage
-- preview dubbed segment or range
-- export at least audio or caption output
-- diagnostics bundle
-- model/license visibility
+* open local media
+* create/reopen project
+* extract audio
+* run transcript stage
+* edit transcript
+* run translation stage
+* run stock TTS stage
+* preview dubbed segment or range
+* export at least audio or caption output
+* diagnostics bundle
+* model/license visibility
 
 ### Alpha messaging
 
@@ -1365,26 +1367,26 @@ Do not rely on it for production/commercial work without validating model licens
 
 ### Non-goals
 
-- No broad consumer marketing.
-- No paid plans yet.
-- No voice cloning as headline feature.
+* No broad consumer marketing.
+* No paid plans yet.
+* No voice cloning as headline feature.
 
 ### Risks
 
-- Users expect finished product.
-- Model downloads are too large.
-- Runtime failures are underdiagnosed.
-- Support burden spikes.
+* Users expect finished product.
+* Model downloads are too large.
+* Runtime failures are underdiagnosed.
+* Support burden spikes.
 
 ### Tests
 
-- public release smoke script.
-- clean install.
-- project reopen.
-- diagnostics export.
-- common failure paths.
+* public release smoke script.
+* clean install.
+* project reopen.
+* diagnostics export.
+* common failure paths.
 
----
+\---
 
 ## Milestone 20 — Beta and monetization readiness
 
@@ -1394,16 +1396,16 @@ Prepare for serious user adoption and optional monetization.
 
 ### Required before monetization
 
-- stable installer
-- stable project persistence
-- export works
-- diagnostics works
-- commercial-safe mode works
-- model licenses audited
-- contribution licensing handled
-- support channel established
-- privacy policy
-- terms/commercial license draft
+* stable installer
+* stable project persistence
+* export works
+* diagnostics works
+* commercial-safe mode works
+* model licenses audited
+* contribution licensing handled
+* support channel established
+* privacy policy
+* terms/commercial license draft
 
 ### Monetization options
 
@@ -1419,22 +1421,22 @@ Support contracts for businesses
 
 Do not monetize:
 
-- save/reopen
-- export
-- diagnostics
-- license visibility
-- privacy controls
-- basic local transcript path
+* save/reopen
+* export
+* diagnostics
+* license visibility
+* privacy controls
+* basic local transcript path
 
 ### Acceptance criteria
 
-- Clear public license posture.
-- Commercial license draft exists.
-- CLA process exists for contributors.
-- Model license manifest is complete for included models.
-- Public docs explain limitations.
+* Clear public license posture.
+* Commercial license draft exists.
+* CLA process exists for contributors.
+* Model license manifest is complete for included models.
+* Public docs explain limitations.
 
----
+\---
 
 ## Milestone dependency map
 
@@ -1493,7 +1495,7 @@ M18 Packaging can begin after M6.
 
 But do not let overlap become chaos. The first real gate is still the transcript vertical slice.
 
----
+\---
 
 ## Final rule
 
