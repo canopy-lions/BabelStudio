@@ -114,6 +114,39 @@ public sealed class OnnxTranscriptEnginesTests
         Assert.Equal("merged-decoder", engine.LastExecutionSummary.ModelVariant);
     }
 
+    [Fact]
+    public async Task OpusMtTranslationEngine_RunsBundledReverseModelOnTinySpanishFixture()
+    {
+        var engine = new OpusMtTranslationEngine(
+            new StubRuntimePlanner(new StageRuntimePlan
+            {
+                Stage = RuntimeStage.Translation,
+                Status = StageRuntimePlanStatus.Ready,
+                ModelId = "onnx-community/opus-mt-es-en",
+                ModelAlias = "opus-es-en",
+                Variant = "merged-decoder",
+                ExecutionProvider = ExecutionProviderKind.Cpu
+            }),
+            BenchmarkModelPathResolver.CreateDefault());
+
+        IReadOnlyList<TranslatedTextSegment> segments = await engine.TranslateAsync(
+            new TranslationRequest(
+                "es",
+                "en",
+                [ new TranslationInputSegment(0, 0.0, 1.0, "Hola mundo.") ],
+                CommercialSafeMode: true,
+                PreferredModelAlias: "opus-es-en"),
+            CancellationToken.None);
+
+        TranslatedTextSegment segment = Assert.Single(segments);
+        Assert.Equal(0, segment.Index);
+        Assert.False(string.IsNullOrWhiteSpace(segment.Text));
+        Assert.NotNull(engine.LastExecutionSummary);
+        Assert.Equal("cpu", engine.LastExecutionSummary!.SelectedProvider);
+        Assert.Equal("opus-es-en", engine.LastExecutionSummary.ModelAlias);
+        Assert.Equal("merged-decoder", engine.LastExecutionSummary.ModelVariant);
+    }
+
     private static string CreateSilenceWaveFile(double durationSeconds)
     {
         const int sampleRate = 48000;

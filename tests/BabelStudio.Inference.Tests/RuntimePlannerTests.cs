@@ -260,7 +260,38 @@ public sealed class RuntimePlannerTests
     }
 
     [Fact]
-    public async Task PlanAsync_TranslationEsToEn_ReturnsBlockedUnsupportedLanguagePair()
+    public async Task PlanAsync_TranslationEsToEn_ReturnsReadyBundledOpusPlan()
+    {
+        using var workspace = new RuntimePlannerTestWorkspace();
+        BundledModelManifestRegistry registry = LoadBundledRegistry();
+
+        string cacheRoot = workspace.CreateCacheRoot("onnx-community/opus-mt-es-en");
+        workspace.WriteCacheFile(cacheRoot, "encoder_model.onnx");
+        workspace.WriteCacheFile(cacheRoot, "decoder_model_merged.onnx");
+
+        RuntimePlanner planner = CreatePlanner(
+            registry,
+            [ new("onnx-community/opus-mt-es-en", cacheRoot, "main", "sha", DateTimeOffset.UtcNow) ],
+            [ new(ExecutionProviderKind.DirectMl, false, "DirectML disabled for this test.") ],
+            _ => throw new InvalidOperationException("Smoke tests should not run for CPU-only plans."));
+
+        StageRuntimePlan plan = await planner.PlanAsync(new StageRuntimePlanningRequest(
+            RuntimeStage.Translation,
+            CommercialSafeMode: true,
+            SourceLanguage: "es",
+            TargetLanguage: "en"));
+
+        Assert.Equal(StageRuntimePlanStatus.Ready, plan.Status);
+        Assert.Equal("onnx-community/opus-mt-es-en", plan.ModelId);
+        Assert.Equal("opus-es-en", plan.ModelAlias);
+        Assert.Equal("merged-decoder", plan.Variant);
+        Assert.Equal(ExecutionProviderKind.Cpu, plan.ExecutionProvider);
+        Assert.Contains(plan.Warnings, warning => warning.Code == RuntimePlanWarningCode.CommercialSafeModeActive);
+        Assert.Contains(plan.Warnings, warning => warning.Code == RuntimePlanWarningCode.AttributionRequired);
+    }
+
+    [Fact]
+    public async Task PlanAsync_TranslationUnsupportedPair_ReturnsBlockedUnsupportedLanguagePair()
     {
         RuntimePlanner planner = CreatePlanner(
             LoadBundledRegistry(),
@@ -271,8 +302,8 @@ public sealed class RuntimePlannerTests
         StageRuntimePlan plan = await planner.PlanAsync(new StageRuntimePlanningRequest(
             RuntimeStage.Translation,
             CommercialSafeMode: true,
-            SourceLanguage: "es",
-            TargetLanguage: "en"));
+            SourceLanguage: "en",
+            TargetLanguage: "fr"));
 
         Assert.Equal(StageRuntimePlanStatus.Blocked, plan.Status);
         Assert.NotNull(plan.Fallback);

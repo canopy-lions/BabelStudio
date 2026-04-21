@@ -105,6 +105,32 @@ public sealed class TranscriptProjectServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateTranslationAsync_supports_spanish_to_english()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+
+        await scope.Service.SetTranscriptLanguageAsync(
+            new SetTranscriptLanguageRequest("es"),
+            CancellationToken.None);
+        TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
+            new GenerateTranslationRequest("es", "en"),
+            CancellationToken.None);
+
+        Assert.NotNull(translated.CurrentTranslationRevision);
+        Assert.Equal("en", translated.CurrentTranslationRevision!.TargetLanguage);
+        Assert.False(translated.IsTranslationStale);
+        Assert.Equal("Generated translation 1.", translated.TranslatedSegments[0].Text);
+        Assert.Contains(translated.StageRuns, stageRun => stageRun.StageName == "translation" && stageRun.Status == StageRunStatus.Completed);
+    }
+
+    [Fact]
     public async Task SaveTranslationEditsAsync_creates_new_revision_without_overwriting_generated_translation()
     {
         string tempDirectory = CreateTempDirectory();
