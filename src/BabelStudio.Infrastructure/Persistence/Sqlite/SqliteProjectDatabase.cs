@@ -106,6 +106,29 @@ public sealed class SqliteProjectDatabase
                 FOREIGN KEY (transcript_revision_id) REFERENCES transcript_revisions(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS translation_revisions (
+                id TEXT NOT NULL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                stage_run_id TEXT NULL,
+                source_transcript_revision_id TEXT NOT NULL,
+                target_language TEXT NOT NULL,
+                revision_number INTEGER NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (stage_run_id) REFERENCES StageRuns(Id) ON DELETE SET NULL,
+                FOREIGN KEY (source_transcript_revision_id) REFERENCES transcript_revisions(id) ON DELETE RESTRICT
+            );
+
+            CREATE TABLE IF NOT EXISTS translated_segments (
+                id TEXT NOT NULL PRIMARY KEY,
+                translation_revision_id TEXT NOT NULL,
+                segment_index INTEGER NOT NULL,
+                start_seconds REAL NOT NULL,
+                end_seconds REAL NOT NULL,
+                text TEXT NOT NULL,
+                FOREIGN KEY (translation_revision_id) REFERENCES translation_revisions(id) ON DELETE CASCADE
+            );
+
             CREATE UNIQUE INDEX IF NOT EXISTS ix_artifacts_project_relative_path
                 ON artifacts (project_id, relative_path);
             CREATE INDEX IF NOT EXISTS ix_stage_runs_project_id
@@ -114,6 +137,10 @@ public sealed class SqliteProjectDatabase
                 ON transcript_revisions (project_id, revision_number);
             CREATE INDEX IF NOT EXISTS ix_transcript_segments_revision_id
                 ON transcript_segments (transcript_revision_id, segment_index);
+            CREATE INDEX IF NOT EXISTS ix_translation_revisions_project_language
+                ON translation_revisions (project_id, target_language, revision_number);
+            CREATE INDEX IF NOT EXISTS ix_translated_segments_revision_id
+                ON translated_segments (translation_revision_id, segment_index);
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
