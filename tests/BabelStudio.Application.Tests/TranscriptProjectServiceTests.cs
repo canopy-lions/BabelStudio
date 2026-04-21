@@ -481,7 +481,12 @@ public sealed class TranscriptProjectServiceTests : IDisposable
                     segment.Index,
                     segment.StartSeconds,
                     segment.EndSeconds,
-                    $"Segmento generado {segment.Index + 1}."))
+                    request.TargetLanguage switch
+                    {
+                        "es" => $"Segmento generado {segment.Index + 1}.",
+                        "en" => $"Generated translation {segment.Index + 1}.",
+                        _ => $"Translated segment {segment.Index + 1}."
+                    }))
                 .ToArray());
     }
 }

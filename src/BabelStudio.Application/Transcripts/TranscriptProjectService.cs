@@ -77,10 +77,13 @@ public sealed class TranscriptProjectService
             ? []
             : await transcriptRepository.GetSegmentsAsync(currentRevision.Id, cancellationToken).ConfigureAwait(false);
 
-        TranslationRevision? currentTranslationRevision = await translationRepository.GetCurrentRevisionAsync(
-            openResult.Project.Id,
-            SpanishLanguageCode,
-            cancellationToken).ConfigureAwait(false);
+        string? translationTargetLanguage = GetTranslationTargetLanguage(openResult.TranscriptLanguage);
+        TranslationRevision? currentTranslationRevision = translationTargetLanguage is null
+            ? null
+            : await translationRepository.GetCurrentRevisionAsync(
+                openResult.Project.Id,
+                translationTargetLanguage,
+                cancellationToken).ConfigureAwait(false);
 
         IReadOnlyList<TranslatedSegment> translatedSegments = currentTranslationRevision is null
             ? []
@@ -191,7 +194,7 @@ public sealed class TranscriptProjectService
             ?? throw new InvalidOperationException("The project does not contain a transcript revision.");
 
         string sourceLanguage = NormalizeRequiredTranscriptLanguageCode(request.SourceLanguage);
-        string targetLanguage = NormalizeSupportedTargetLanguage(request.TargetLanguage);
+        string targetLanguage = NormalizeSupportedTargetLanguage(request.TargetLanguage, sourceLanguage);
 
         if (!string.Equals(currentState.TranscriptLanguage, sourceLanguage, StringComparison.Ordinal))
         {
@@ -220,7 +223,7 @@ public sealed class TranscriptProjectService
                             segment.Text))
                         .ToArray(),
                     CommercialSafeMode: true,
-                    PreferredModelAlias: "opus-en-es"),
+                    PreferredModelAlias: ResolvePreferredTranslationModelAlias(sourceLanguage, targetLanguage)),
                 cancellationToken).ConfigureAwait(false);
 
             translationStageRun = ApplyRuntimeExecutionSummary(translationStageRun, translationEngine)
@@ -287,7 +290,9 @@ public sealed class TranscriptProjectService
             throw new InvalidOperationException("Translation edits were based on an out-of-date revision.");
         }
 
-        string targetLanguage = NormalizeSupportedTargetLanguage(request.TargetLanguage);
+        string targetLanguage = NormalizeSupportedTargetLanguage(
+            request.TargetLanguage,
+            currentState.TranscriptLanguage ?? throw new InvalidOperationException("Set the transcript language before saving translation edits."));
         if (!string.Equals(currentTranslationRevision.TargetLanguage, targetLanguage, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Translation edits were based on a different target language.");
@@ -566,15 +571,18 @@ public sealed class TranscriptProjectService
         return normalized;
     }
 
-    private static string NormalizeSupportedTargetLanguage(string targetLanguage)
+    private static string NormalizeSupportedTargetLanguage(string targetLanguage, string sourceLanguage)
     {
-        string normalized = NormalizeRequiredTranscriptLanguageCode(targetLanguage);
-        if (!string.Equals(normalized, SpanishLanguageCode, StringComparison.Ordinal))
+        string normalizedSource = NormalizeRequiredTranscriptLanguageCode(sourceLanguage);
+        string normalizedTarget = NormalizeRequiredTranscriptLanguageCode(targetLanguage);
+        string? expectedTarget = GetTranslationTargetLanguage(normalizedSource);
+        if (!string.Equals(normalizedTarget, expectedTarget, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Milestone 7 only supports Spanish translation output.");
+            throw new InvalidOperationException(
+                $"Milestone 7 only supports direct English <-> Spanish translation. Requested pair was {normalizedSource} -> {normalizedTarget}.");
         }
 
-        return normalized;
+        return normalizedTarget;
     }
 
     private static string? NormalizeTranscriptLanguageCode(string? languageCode)
@@ -590,6 +598,28 @@ public sealed class TranscriptProjectService
             EnglishLanguageCode => normalized,
             SpanishLanguageCode => normalized,
             _ => throw new InvalidOperationException("Milestone 7 only supports English or Spanish transcript language selection.")
+        };
+    }
+
+    private static string? GetTranslationTargetLanguage(string? sourceLanguage)
+    {
+        string? normalizedSource = NormalizeTranscriptLanguageCode(sourceLanguage);
+        return normalizedSource switch
+        {
+            EnglishLanguageCode => SpanishLanguageCode,
+            SpanishLanguageCode => EnglishLanguageCode,
+            _ => null
+        };
+    }
+
+    private static string ResolvePreferredTranslationModelAlias(string sourceLanguage, string targetLanguage)
+    {
+        return (NormalizeRequiredTranscriptLanguageCode(sourceLanguage), NormalizeRequiredTranscriptLanguageCode(targetLanguage)) switch
+        {
+            (EnglishLanguageCode, SpanishLanguageCode) => "opus-en-es",
+            (SpanishLanguageCode, EnglishLanguageCode) => "opus-es-en",
+            _ => throw new InvalidOperationException(
+                $"Milestone 7 only supports direct English <-> Spanish translation. Requested pair was {sourceLanguage} -> {targetLanguage}.")
         };
     }
 

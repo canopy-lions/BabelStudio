@@ -145,6 +145,26 @@
       "variants": [
         { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
       ]
+    },
+    {
+      "model_id": "onnx-community/opus-mt-es-en",
+      "task": "translation",
+      "license": "CC-BY-4.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/onnx-community/opus-mt-es-en",
+      "revision": "0ca6ea53b39356aece8a15bd92eaf7bb40035ea6",
+      "sha256": "fee8396bc1558afbcbee3f7c35a8fc4c92a6423e22b2d8e29f9371fe9e0a0bb0",
+      "aliases": [ "opus-es-en", "helsinki-opus-es-en" ],
+      "root_path": "../../../../models/opus/onnx-community-opus-mt-es-en",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
     }
   ]
 }

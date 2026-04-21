@@ -15,6 +15,7 @@ public static class ProjectArtifactPaths
         "media",
         "artifacts",
         "artifacts/audio",
+        "artifacts/translation/en",
         "artifacts/translation",
         "artifacts/translation/es",
         "artifacts/transcript",

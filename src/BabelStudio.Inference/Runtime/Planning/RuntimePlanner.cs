@@ -54,7 +54,7 @@ public sealed class RuntimePlanner : IRuntimePlanner
                 request.CommercialSafeMode,
                 new RuntimePlanFallback(
                     RuntimePlanFallbackCode.UnsupportedLanguagePair,
-                    $"Milestone 7 only supports en -> es translation. Requested pair was {sourceLanguage} -> {targetLanguage}."));
+                    $"Milestone 7 only supports direct en <-> es translation. Requested pair was {sourceLanguage} -> {targetLanguage}."));
         }
 
         HardwareProfile hardwareProfile = await hardwareProfileProvider.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
@@ -493,8 +493,12 @@ public sealed class RuntimePlanner : IRuntimePlanner
         entry.Aliases.FirstOrDefault() ?? entry.ModelId;
 
     private static bool IsSupportedTranslationPair(string? sourceLanguage, string? targetLanguage) =>
-        string.Equals(NormalizeLanguageCode(sourceLanguage), "en", StringComparison.Ordinal) &&
-        string.Equals(NormalizeLanguageCode(targetLanguage), "es", StringComparison.Ordinal);
+        (NormalizeLanguageCode(sourceLanguage), NormalizeLanguageCode(targetLanguage)) switch
+        {
+            ("en", "es") => true,
+            ("es", "en") => true,
+            _ => false
+        };
 
     private static string? NormalizeLanguageCode(string? languageCode) =>
         string.IsNullOrWhiteSpace(languageCode)
