@@ -96,8 +96,6 @@ public sealed record StageRunRecord(
             modelAlias,
             modelVariant,
             bootstrapDetail));
-    }
-
     public StageRunRecord Complete(DateTimeOffset completedAtUtc)
     {
         EnsureCompletionTime(completedAtUtc);

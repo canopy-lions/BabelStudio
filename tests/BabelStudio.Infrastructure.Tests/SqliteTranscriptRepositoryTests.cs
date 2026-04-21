@@ -22,7 +22,9 @@ public sealed class SqliteTranscriptRepositoryTests
 
             await projectRepository.InitializeAsync(project, CancellationToken.None);
 
-            StageRunRecord asrStageRun = StageRunRecord.Start(project.Id, "asr", now).Complete(now.AddSeconds(2));
+            StageRunRecord asrStageRun = StageRunRecord.Start(project.Id, "asr", now)
+                .WithRuntimeInfo("auto", "cpu", "onnx-community/whisper-tiny", "whisper-tiny-onnx", "int8", "bootstrap skipped")
+                .Complete(now.AddSeconds(2));
             await stageRunStore.CreateAsync(asrStageRun, CancellationToken.None);
             await stageRunStore.UpdateAsync(asrStageRun, CancellationToken.None);
 
@@ -45,6 +47,8 @@ public sealed class SqliteTranscriptRepositoryTests
             Assert.Equal("Hello", reloadedSegments[0].Text);
             Assert.Single(stageRuns);
             Assert.Equal(StageRunStatus.Completed, stageRuns[0].Status);
+            Assert.NotNull(stageRuns[0].RuntimeInfo);
+            Assert.Equal("cpu", stageRuns[0].RuntimeInfo!.SelectedProvider);
         }
         finally
         {

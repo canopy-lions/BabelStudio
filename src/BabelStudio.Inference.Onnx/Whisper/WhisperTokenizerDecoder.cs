@@ -32,6 +32,8 @@ internal sealed class WhisperTokenizerDecoder
 
     public int EndOfTranscriptToken => endOfTranscriptToken;
 
+    public int TimestampBeginToken => timestampBeginToken;
+
     public IReadOnlySet<int> SuppressedTokens => suppressedTokens;
 
     public static WhisperTokenizerDecoder Load(string modelRootPath)
@@ -165,11 +167,13 @@ internal sealed class WhisperTokenizerDecoder
             }
         }
 
-        List<int> suppressTokens = root.TryGetProperty("suppress_tokens", out JsonElement suppressElement)
+        List<int> suppressTokens = root.TryGetProperty("suppress_tokens", out JsonElement suppressElement) &&
+                                   suppressElement.ValueKind is JsonValueKind.Array
             ? suppressElement.EnumerateArray().Select(static element => element.GetInt32()).ToList()
             : [];
 
-        List<int> beginSuppressTokens = root.TryGetProperty("begin_suppress_tokens", out JsonElement beginSuppressElement)
+        List<int> beginSuppressTokens = root.TryGetProperty("begin_suppress_tokens", out JsonElement beginSuppressElement) &&
+                                        beginSuppressElement.ValueKind is JsonValueKind.Array
             ? beginSuppressElement.EnumerateArray().Select(static element => element.GetInt32()).ToList()
             : [];
 

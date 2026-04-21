@@ -16,7 +16,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
-    <ProjectReference Include="..\BabelStudio.Composition\BabelStudio.Composition.csproj" />
+    <ProjectReference Include="..\BabelStudio.Composition\BabelStudio.Composition.csproj">
+      <SetTargetFramework>TargetFramework=$(TargetFramework)</SetTargetFramework>
+    </ProjectReference>
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
   </ItemGroup>
 

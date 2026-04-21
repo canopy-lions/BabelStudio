@@ -153,10 +153,14 @@ public sealed class MainWindowViewModel : ObservableObject
             return "Not run";
         }
 
+        string providerSuffix = latest.RuntimeInfo is null
+            ? string.Empty
+            : $" via {latest.RuntimeInfo.SelectedProvider}";
+
         return latest.Status switch
         {
-            StageRunStatus.Completed => "Completed",
-            StageRunStatus.Failed => $"Failed: {latest.FailureReason}",
+            StageRunStatus.Completed => $"Completed{providerSuffix}",
+            StageRunStatus.Failed => $"Failed{providerSuffix}: {latest.FailureReason}",
             _ => "Running"
         };
     }

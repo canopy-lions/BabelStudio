@@ -49,14 +49,8 @@ internal sealed class WhisperFeatureExtractor
         var result = new float[FrequencyBins, MaxFrames];
         var spectrum = new Complex[FftSize];
 
-        for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+        for (int frameIndex = 0; frameIndex < frameCount - 1 && frameIndex < MaxFrames; frameIndex++)
         {
-            int destinationFrameIndex = Math.Min(frameIndex, MaxFrames);
-            if (destinationFrameIndex >= MaxFrames + 1)
-            {
-                break;
-            }
-
             int sampleOffset = frameIndex * HopLength;
             Array.Clear(spectrum);
             for (int sampleIndex = 0; sampleIndex < FftSize; sampleIndex++)
@@ -66,11 +60,6 @@ internal sealed class WhisperFeatureExtractor
             }
 
             Fourier.Forward(spectrum, FourierOptions.Matlab);
-
-            if (frameIndex == frameCount - 1)
-            {
-                break;
-            }
 
             for (int binIndex = 0; binIndex < FrequencyBins; binIndex++)
             {

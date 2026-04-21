@@ -38,7 +38,7 @@ public sealed class SqliteProjectSpineTests
 
         IReadOnlyList<SchemaVersionRecord> versions = await database.Migrator.GetAppliedVersionsAsync();
 
-        Assert.Equal([1, 2, 3], versions.Select(version => version.Version).ToArray());
+        Assert.Equal([1, 2, 3, 4], versions.Select(version => version.Version).ToArray());
     }
 
     [Fact]
@@ -70,7 +70,8 @@ public sealed class SqliteProjectSpineTests
         await database.Migrator.MigrateAsync();
 
         ProjectRecord project = ProjectRecord.CreateNew("Demo", Path.Combine(Path.GetTempPath(), "babelstudio-stage"), DateTimeOffset.UtcNow);
-        StageRunRecord stageRun = StageRunRecord.Start(project.Id, "asr", DateTimeOffset.UtcNow);
+        StageRunRecord stageRun = StageRunRecord.Start(project.Id, "asr", DateTimeOffset.UtcNow)
+            .WithRuntimeInfo("auto", "cpu", "onnx-community/whisper-tiny", "whisper-tiny-onnx", "int8", "bootstrap skipped");
         StageRunRecord completed = stageRun.Complete(DateTimeOffset.UtcNow.AddMinutes(1));
 
         var projectRepository = new ProjectRepository();
@@ -86,6 +87,9 @@ public sealed class SqliteProjectSpineTests
         Assert.NotNull(reloaded);
         Assert.Equal(StageRunStatus.Completed, reloaded!.Status);
         Assert.NotNull(reloaded.CompletedAtUtc);
+        Assert.NotNull(reloaded.RuntimeInfo);
+        Assert.Equal("cpu", reloaded.RuntimeInfo!.SelectedProvider);
+        Assert.Equal("whisper-tiny-onnx", reloaded.RuntimeInfo.ModelAlias);
     }
 
     [Fact]

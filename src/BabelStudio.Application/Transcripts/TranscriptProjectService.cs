@@ -167,12 +167,14 @@ public sealed class TranscriptProjectService
                 durationSeconds,
                 cancellationToken).ConfigureAwait(false);
 
-            vadStageRun = vadStageRun.Complete(DateTimeOffset.UtcNow);
+            vadStageRun = ApplyRuntimeExecutionSummary(vadStageRun, speechRegionDetector)
+                .Complete(DateTimeOffset.UtcNow);
             await stageRunStore.UpdateAsync(vadStageRun, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            StageRunRecord failed = vadStageRun.Fail(DateTimeOffset.UtcNow, ex.Message);
+            StageRunRecord failed = ApplyRuntimeExecutionSummary(vadStageRun, speechRegionDetector)
+                .Fail(DateTimeOffset.UtcNow, ex.Message);
             await stageRunStore.UpdateAsync(failed, cancellationToken).ConfigureAwait(false);
             throw;
         }
@@ -190,12 +192,14 @@ public sealed class TranscriptProjectService
                 regions,
                 cancellationToken).ConfigureAwait(false);
 
-            asrStageRun = asrStageRun.Complete(DateTimeOffset.UtcNow);
+            asrStageRun = ApplyRuntimeExecutionSummary(asrStageRun, transcriptionEngine)
+                .Complete(DateTimeOffset.UtcNow);
             await stageRunStore.UpdateAsync(asrStageRun, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            StageRunRecord failed = asrStageRun.Fail(DateTimeOffset.UtcNow, ex.Message);
+            StageRunRecord failed = ApplyRuntimeExecutionSummary(asrStageRun, transcriptionEngine)
+                .Fail(DateTimeOffset.UtcNow, ex.Message);
             await stageRunStore.UpdateAsync(failed, cancellationToken).ConfigureAwait(false);
             throw;
         }
@@ -285,6 +289,24 @@ public sealed class TranscriptProjectService
             Provenance: "generated-asr");
 
         await mediaAssetRepository.SaveArtifactAsync(artifact, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static StageRunRecord ApplyRuntimeExecutionSummary(StageRunRecord stageRun, object stageEngine)
+    {
+        if (stageEngine is not IStageRuntimeExecutionReporter reporter ||
+            reporter.LastExecutionSummary is null)
+        {
+            return stageRun;
+        }
+
+        StageRuntimeExecutionSummary summary = reporter.LastExecutionSummary;
+        return stageRun.WithRuntimeInfo(
+            summary.RequestedProvider,
+            summary.SelectedProvider,
+            summary.ModelId,
+            summary.ModelAlias,
+            summary.ModelVariant,
+            summary.BootstrapDetail);
     }
 
     private sealed record SpeechRegionsArtifactDocument(
