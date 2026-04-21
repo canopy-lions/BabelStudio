@@ -114,7 +114,7 @@
                                              MinHeight="64"
                                              Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              TextWrapping="Wrap" />
-                                    <TextBlock FontWeight="SemiBold" Text="Spanish Draft" />
+                                    <TextBlock FontWeight="SemiBold" Text="{x:Bind TranslationLabel, Mode=OneWay}" />
                                     <TextBox AcceptsReturn="True"
                                              MinHeight="64"
                                              Text="{x:Bind TranslationText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

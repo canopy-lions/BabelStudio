@@ -151,11 +151,14 @@ public sealed partial class MainWindow : Window
                 ApplyProjectState(updatedLanguageState, currentProjectRootPath);
             }
 
+            string targetLanguageCode = ViewModel.GetRequestedTranslationTargetLanguageCode()
+                ?? throw new InvalidOperationException("Choose whether the transcript is English or Spanish before starting translation.");
+
             TranscriptProjectState state = await currentService.GenerateTranslationAsync(
-                new GenerateTranslationRequest(ViewModel.SelectedTranscriptLanguageCode ?? string.Empty, "es"),
+                new GenerateTranslationRequest(ViewModel.SelectedTranscriptLanguageCode ?? string.Empty, targetLanguageCode),
                 cancellationToken).ConfigureAwait(true);
             ApplyProjectState(state, currentProjectRootPath);
-        }, "Generating Spanish translation...");
+        }, $"Generating {GetLanguageDisplayName(ViewModel.GetRequestedTranslationTargetLanguageCode())} translation...");
     }
 
     private async void SaveTranslationButton_Click(object sender, RoutedEventArgs e)
@@ -263,6 +266,14 @@ public sealed partial class MainWindow : Window
         StorageFile? file = await picker.PickSingleFileAsync();
         return file?.Path;
     }
+
+    private static string GetLanguageDisplayName(string? languageCode) =>
+        (languageCode ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "en" => "English",
+            "es" => "Spanish",
+            _ => "translation"
+        };
 
     private async Task<string?> PickProjectFolderAsync()
     {

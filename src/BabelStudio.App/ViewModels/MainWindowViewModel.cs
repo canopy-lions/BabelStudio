@@ -8,6 +8,7 @@ public sealed class MainWindowViewModel : ObservableObject
 {
     private Guid? currentTranscriptRevisionId;
     private Guid? currentTranslationRevisionId;
+    private string? currentTranslationTargetLanguageCode;
     private string? lastErrorReport;
     private string? persistedTranscriptLanguageCode;
     private string? selectedTranscriptLanguageCode;
@@ -19,7 +20,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string asrStageStatus = "Not run";
     private string translationStageStatus = "Not run";
     private string transcriptRevisionLabel = "No transcript loaded.";
-    private string translationRevisionLabel = "No Spanish translation loaded.";
+    private string translationRevisionLabel = "No translation loaded.";
     private string translationRefreshStatus = "Not translated";
     private string statusMessage = "Open media to create a project, or open an existing .babelstudio folder.";
     private bool isBusy;
@@ -132,6 +133,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanTranslate));
                 OnPropertyChanged(nameof(HasTranscriptLanguageChangePending));
                 OnPropertyChanged(nameof(TranscriptLanguageSummary));
+                OnPropertyChanged(nameof(TranslateButtonText));
+                OnPropertyChanged(nameof(TranslationEditorLabel));
             }
         }
     }
@@ -141,7 +144,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool CanTranslate =>
         !IsBusy &&
         currentTranscriptRevisionId is not null &&
-        string.Equals(SelectedTranscriptLanguageCode, "en", StringComparison.Ordinal);
+        RequestedTranslationTargetLanguageCode is not null;
 
     public bool CanSaveTranslation =>
         !IsBusy &&
@@ -153,8 +156,10 @@ public sealed class MainWindowViewModel : ObservableObject
     public string? LastErrorReport => lastErrorReport;
 
     public string TranslateButtonText => currentTranslationRevisionId is null
-        ? "Translate to Spanish"
-        : "Re-translate to Spanish";
+        ? BuildTranslateButtonText(hasExistingTranslation: false)
+        : BuildTranslateButtonText(HasLoadedTranslationForRequestedDirection);
+
+    public string TranslationEditorLabel => $"{GetLanguageDisplayName(LoadedOrRequestedTranslationTargetLanguageCode)} Draft";
 
     public bool HasTranscriptLanguageChangePending =>
         !string.Equals(persistedTranscriptLanguageCode, SelectedTranscriptLanguageCode, StringComparison.Ordinal);
@@ -163,7 +168,7 @@ public sealed class MainWindowViewModel : ObservableObject
         SelectedTranscriptLanguageCode switch
         {
             "en" => "English transcript. Spanish translation is enabled.",
-            "es" => "Spanish transcript. Milestone 7 only supports English-to-Spanish translation, so translation is disabled.",
+            "es" => "Spanish transcript. English translation is enabled.",
             _ => "Choose whether the transcript is English or Spanish."
         };
 
@@ -181,6 +186,8 @@ public sealed class MainWindowViewModel : ObservableObject
         currentTranscriptRevisionId = state.CurrentTranscriptRevision?.Id;
         currentTranslationRevisionId = state.CurrentTranslationRevision?.Id;
         persistedTranscriptLanguageCode = NormalizeLanguageCode(state.TranscriptLanguage);
+        currentTranslationTargetLanguageCode = NormalizeLanguageCode(state.CurrentTranslationRevision?.TargetLanguage) ??
+                                               GetTranslationTargetLanguageCode(persistedTranscriptLanguageCode);
         SelectedTranscriptLanguageCode = persistedTranscriptLanguageCode;
 
         ProjectRootPath = loadedProjectRootPath;
@@ -200,8 +207,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ? "No transcript loaded."
             : $"Revision {state.CurrentTranscriptRevision.RevisionNumber} with {state.TranscriptSegments.Count} segment(s).";
         TranslationRevisionLabel = state.CurrentTranslationRevision is null
-            ? "No Spanish translation loaded."
-            : $"Spanish revision {state.CurrentTranslationRevision.RevisionNumber} with {state.TranslatedSegments.Count} segment(s).";
+            ? BuildMissingTranslationLabel()
+            : $"{GetLanguageDisplayName(state.CurrentTranslationRevision.TargetLanguage)} revision {state.CurrentTranslationRevision.RevisionNumber} with {state.TranslatedSegments.Count} segment(s).";
         TranslationRefreshStatus = state.CurrentTranslationRevision is null
             ? "Not translated"
             : state.IsTranslationStale
@@ -216,6 +223,7 @@ public sealed class MainWindowViewModel : ObservableObject
                      .OrderBy(segment => segment.SegmentIndex)
                      .Select(segment => new TranscriptSegmentItem(
                          segment,
+                         TranslationEditorLabel,
                          translatedTextByIndex.TryGetValue(segment.SegmentIndex, out string? translatedText)
                              ? translatedText
                              : string.Empty)))
@@ -239,6 +247,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(CanTranslate));
         OnPropertyChanged(nameof(CanSaveTranslation));
         OnPropertyChanged(nameof(TranslateButtonText));
+        OnPropertyChanged(nameof(TranslationEditorLabel));
         OnPropertyChanged(nameof(HasTranscriptLanguageChangePending));
         OnPropertyChanged(nameof(TranscriptLanguageSummary));
     }
@@ -288,9 +297,11 @@ public sealed class MainWindowViewModel : ObservableObject
 
         return new SaveTranslationEditsRequest(
             currentTranslationRevisionId.Value,
-            "es",
+            currentTranslationTargetLanguageCode ?? throw new InvalidOperationException("The current translation target language is not available."),
             Segments.Select(segment => new EditedTranslatedSegment(segment.SegmentIndex, segment.TranslationText)).ToArray());
     }
+
+    public string? GetRequestedTranslationTargetLanguageCode() => RequestedTranslationTargetLanguageCode;
 
     private static string BuildStageStatus(IReadOnlyList<StageRunRecord> stageRuns, string stageName)
     {
@@ -316,6 +327,14 @@ public sealed class MainWindowViewModel : ObservableObject
         };
     }
 
+    private string BuildTranslateButtonText(bool hasExistingTranslation)
+    {
+        string displayName = GetLanguageDisplayName(RequestedTranslationTargetLanguageCode);
+        return hasExistingTranslation
+            ? $"Re-translate to {displayName}"
+            : $"Translate to {displayName}";
+    }
+
     private static string BuildLoadedStatusMessage(TranscriptProjectState state)
     {
         if (state.CurrentTranscriptRevision is null)
@@ -325,15 +344,18 @@ public sealed class MainWindowViewModel : ObservableObject
 
         if (state.CurrentTranslationRevision is not null)
         {
+            string translationDisplayName = GetLanguageDisplayName(state.CurrentTranslationRevision.TargetLanguage).ToLowerInvariant();
             return state.IsTranslationStale
-                ? "Project loaded. Existing Spanish translation needs refresh after transcript changes."
+                ? $"Project loaded. Existing {translationDisplayName} translation needs refresh after transcript changes."
                 : "Project loaded. Edit transcript or translation text and save to create a new revision.";
         }
 
+        string? targetLanguageCode = GetTranslationTargetLanguageCode(state.TranscriptLanguage);
+        string targetDisplayName = GetLanguageDisplayName(targetLanguageCode);
         return NormalizeLanguageCode(state.TranscriptLanguage) switch
         {
-            "en" => "Project loaded. Translate to Spanish to create the first draft translation.",
-            "es" => "Project loaded. Translation is disabled because Milestone 7 only supports English-to-Spanish translation.",
+            "en" => $"Project loaded. Translate to {targetDisplayName} to create the first draft translation.",
+            "es" => $"Project loaded. Translate to {targetDisplayName} to create the first draft translation.",
             _ => "Project loaded. Choose whether the transcript is English or Spanish to continue."
         };
     }
@@ -410,4 +432,38 @@ public sealed class MainWindowViewModel : ObservableObject
         string.IsNullOrWhiteSpace(languageCode)
             ? null
             : languageCode.Trim().ToLowerInvariant();
+
+    private string BuildMissingTranslationLabel()
+    {
+        string? targetLanguageCode = LoadedOrRequestedTranslationTargetLanguageCode;
+        return targetLanguageCode is null
+            ? "No translation loaded."
+            : $"No {GetLanguageDisplayName(targetLanguageCode)} translation loaded.";
+    }
+
+    private bool HasLoadedTranslationForRequestedDirection =>
+        currentTranslationRevisionId is not null &&
+        string.Equals(currentTranslationTargetLanguageCode, RequestedTranslationTargetLanguageCode, StringComparison.Ordinal);
+
+    private string? LoadedOrRequestedTranslationTargetLanguageCode =>
+        currentTranslationTargetLanguageCode ?? RequestedTranslationTargetLanguageCode;
+
+    private string? RequestedTranslationTargetLanguageCode =>
+        GetTranslationTargetLanguageCode(SelectedTranscriptLanguageCode ?? persistedTranscriptLanguageCode);
+
+    private static string? GetTranslationTargetLanguageCode(string? transcriptLanguageCode) =>
+        NormalizeLanguageCode(transcriptLanguageCode) switch
+        {
+            "en" => "es",
+            "es" => "en",
+            _ => null
+        };
+
+    private static string GetLanguageDisplayName(string? languageCode) =>
+        NormalizeLanguageCode(languageCode) switch
+        {
+            "en" => "English",
+            "es" => "Spanish",
+            _ => "Translation"
+        };
 }
