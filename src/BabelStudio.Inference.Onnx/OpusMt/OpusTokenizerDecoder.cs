@@ -5,12 +5,20 @@ namespace BabelStudio.Inference.Onnx.OpusMt;
 
 internal sealed class OpusTokenizerDecoder
 {
-    private readonly Tokenizer sourceTokenizer;
-    private readonly Tokenizer targetTokenizer;
+    private readonly SentencePieceTokenizer sourceTokenizer;
+    private readonly SentencePieceTokenizer targetTokenizer;
+    private readonly IReadOnlyDictionary<string, int> modelIdByPiece;
+    private readonly IReadOnlyDictionary<int, string> pieceByModelId;
+    private readonly IReadOnlyDictionary<int, string> sourcePieceByTokenizerId;
+    private readonly IReadOnlyDictionary<string, int> targetTokenizerIdByPiece;
 
     private OpusTokenizerDecoder(
-        Tokenizer sourceTokenizer,
-        Tokenizer targetTokenizer,
+        SentencePieceTokenizer sourceTokenizer,
+        SentencePieceTokenizer targetTokenizer,
+        IReadOnlyDictionary<string, int> modelIdByPiece,
+        IReadOnlyDictionary<int, string> pieceByModelId,
+        IReadOnlyDictionary<int, string> sourcePieceByTokenizerId,
+        IReadOnlyDictionary<string, int> targetTokenizerIdByPiece,
         int decoderStartTokenId,
         int endOfSentenceTokenId,
         int padTokenId,
@@ -18,6 +26,10 @@ internal sealed class OpusTokenizerDecoder
     {
         this.sourceTokenizer = sourceTokenizer;
         this.targetTokenizer = targetTokenizer;
+        this.modelIdByPiece = modelIdByPiece;
+        this.pieceByModelId = pieceByModelId;
+        this.sourcePieceByTokenizerId = sourcePieceByTokenizerId;
+        this.targetTokenizerIdByPiece = targetTokenizerIdByPiece;
         DecoderStartTokenId = decoderStartTokenId;
         EndOfSentenceTokenId = endOfSentenceTokenId;
         PadTokenId = padTokenId;
@@ -36,6 +48,7 @@ internal sealed class OpusTokenizerDecoder
     {
         string sourceTokenizerPath = Path.Combine(modelRootPath, "source.spm");
         string targetTokenizerPath = Path.Combine(modelRootPath, "target.spm");
+        string vocabPath = Path.Combine(modelRootPath, "vocab.json");
         string configPath = Path.Combine(modelRootPath, "config.json");
         string generationConfigPath = Path.Combine(modelRootPath, "generation_config.json");
 
@@ -49,22 +62,36 @@ internal sealed class OpusTokenizerDecoder
             throw new FileNotFoundException("The Opus target tokenizer was not found.", targetTokenizerPath);
         }
 
+        if (!File.Exists(vocabPath))
+        {
+            throw new FileNotFoundException("The Opus vocabulary mapping was not found.", vocabPath);
+        }
+
         OpusTokenizerConfig config = LoadConfig(configPath, generationConfigPath);
         using FileStream sourceStream = File.OpenRead(sourceTokenizerPath);
         using FileStream targetStream = File.OpenRead(targetTokenizerPath);
+        IReadOnlyDictionary<string, int> modelIdByPiece = LoadVocabulary(vocabPath);
 
-        Tokenizer sourceTokenizer = SentencePieceTokenizer.Create(
+        SentencePieceTokenizer sourceTokenizer = SentencePieceTokenizer.Create(
             sourceStream,
             addBeginningOfSentence: false,
             addEndOfSentence: true);
-        Tokenizer targetTokenizer = SentencePieceTokenizer.Create(
+        SentencePieceTokenizer targetTokenizer = SentencePieceTokenizer.Create(
             targetStream,
             addBeginningOfSentence: false,
             addEndOfSentence: false);
+        IReadOnlyDictionary<int, string> pieceByModelId = modelIdByPiece
+            .ToDictionary(pair => pair.Value, pair => pair.Key);
+        IReadOnlyDictionary<int, string> sourcePieceByTokenizerId = sourceTokenizer.Vocabulary
+            .ToDictionary(pair => pair.Value, pair => pair.Key);
 
         return new OpusTokenizerDecoder(
             sourceTokenizer,
             targetTokenizer,
+            modelIdByPiece,
+            pieceByModelId,
+            sourcePieceByTokenizerId,
+            targetTokenizer.Vocabulary,
             config.DecoderStartTokenId,
             config.EndOfSentenceTokenId,
             config.PadTokenId,
@@ -76,19 +103,61 @@ internal sealed class OpusTokenizerDecoder
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         return sourceTokenizer
             .EncodeToIds(text.Trim())
+            .Select(MapSourceTokenizerIdToModelId)
             .Select(static tokenId => (long)tokenId)
             .ToArray();
     }
 
     public string DecodeTargetText(IEnumerable<long> tokenIds)
     {
-        int[] filteredTokenIds = tokenIds
+        int[] targetTokenizerIds = tokenIds
             .Where(tokenId => tokenId != DecoderStartTokenId &&
                               tokenId != EndOfSentenceTokenId &&
                               tokenId != PadTokenId)
-            .Select(static tokenId => checked((int)tokenId))
+            .Select(MapModelIdToTargetTokenizerId)
             .ToArray();
-        return targetTokenizer.Decode(filteredTokenIds).Trim();
+        return targetTokenizer.Decode(targetTokenizerIds).Trim();
+    }
+
+    private int MapSourceTokenizerIdToModelId(int tokenizerId)
+    {
+        if (!sourcePieceByTokenizerId.TryGetValue(tokenizerId, out string? piece))
+        {
+            throw new InvalidOperationException($"Source tokenizer piece id '{tokenizerId}' did not resolve to a Marian token piece.");
+        }
+
+        if (modelIdByPiece.TryGetValue(piece, out int modelId))
+        {
+            return modelId;
+        }
+
+        if (modelIdByPiece.TryGetValue(sourceTokenizer.UnknownToken, out int unknownId))
+        {
+            return unknownId;
+        }
+
+        throw new InvalidOperationException($"Marian vocabulary did not define a model id for token piece '{piece}'.");
+    }
+
+    private int MapModelIdToTargetTokenizerId(long modelTokenId)
+    {
+        int checkedModelTokenId = checked((int)modelTokenId);
+        if (!pieceByModelId.TryGetValue(checkedModelTokenId, out string? piece))
+        {
+            throw new InvalidOperationException($"Marian vocabulary did not define token piece for model id '{checkedModelTokenId}'.");
+        }
+
+        if (targetTokenizerIdByPiece.TryGetValue(piece, out int tokenizerId))
+        {
+            return tokenizerId;
+        }
+
+        if (targetTokenizerIdByPiece.TryGetValue(targetTokenizer.UnknownToken, out int unknownId))
+        {
+            return unknownId;
+        }
+
+        throw new InvalidOperationException($"Target tokenizer did not define an id for Marian token piece '{piece}'.");
     }
 
     private static OpusTokenizerConfig LoadConfig(string configPath, string generationConfigPath)
@@ -132,6 +201,18 @@ internal sealed class OpusTokenizerDecoder
         return element.ValueKind is JsonValueKind.Number && element.TryGetInt32(out int value)
             ? value
             : defaultValue;
+    }
+
+    private static IReadOnlyDictionary<string, int> LoadVocabulary(string vocabPath)
+    {
+        Dictionary<string, int>? vocabulary = JsonSerializer.Deserialize<Dictionary<string, int>>(
+            File.ReadAllText(vocabPath));
+        if (vocabulary is null || vocabulary.Count == 0)
+        {
+            throw new InvalidOperationException($"The Opus Marian vocabulary at '{vocabPath}' was empty or invalid.");
+        }
+
+        return vocabulary;
     }
 
     private sealed record OpusTokenizerConfig(

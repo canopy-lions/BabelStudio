@@ -2,8 +2,6 @@
 
 This document replaces the original M8–M20 plan. M0–M7 remain as defined.
 
----
-
 ## What changed and why
 
 **Real ONNX models throughout.** The codebase drifted ahead of the "fakes first" approach — real Silero VAD and Whisper are integrated in M6, and Opus-MT is running in M7. This revision accepts that drift and requires real model integration at each slice milestone. Fakes are still required, but as CI test doubles alongside real implementations, not as the primary deliverable.
@@ -38,7 +36,707 @@ This means agent tasks should always produce both the real engine and the fake a
 
 **Segment boundary editor added to M8.**
 
----
+
+# MILESTONE.md
+
+Babel Studio is a Windows-native, local-first AI dubbing workstation. The project should be built in thin, verifiable slices rather than as one giant application pass.
+
+The main rule for this plan:
+
+> Prove the runtime and persistence spine before building the full editor.
+
+The product is ambitious enough that the biggest risk is not UI polish. The biggest risks are model/runtime viability, artifact integrity, media sync, licensing, and avoiding false readiness.
+
+\---
+
+## Milestone philosophy
+
+Each milestone should produce one of these:
+
+1. A technical proof that reduces major uncertainty.
+2. A durable product foundation.
+3. A vertical slice users can actually exercise.
+4. A safety/legal/commercial foundation that prevents future rework.
+
+Each milestone should have:
+
+* a goal
+* acceptance criteria
+* non-goals
+* risks
+* agent task boundaries
+* tests or validation steps
+
+Do not move to feature expansion until the previous milestone has a boring, repeatable success path.
+
+\---
+
+## Windows ML package rule
+
+`Microsoft.Windows.AI.MachineLearning` is a concrete runtime dependency, not a planner or UI dependency.
+
+Add it like this:
+
+* Pin the version in `Directory.Packages.props`.
+* Add `<PackageReference Include="Microsoft.WindowsAppSDK.ML" />` only in the project that actually executes ONNX through the Windows ML path.
+* Keep Windows ML bootstrap and provider registration inside `src/BabelStudio.Inference.Onnx/`.
+* Current C# bootstrap path should follow Microsoft Learn's `ExecutionProviderCatalog` APIs:
+`var catalog = ExecutionProviderCatalog.GetDefault();`
+then `await catalog.EnsureAndRegisterCertifiedAsync();` for the default online path, or `await catalog.RegisterCertifiedAsync();` when only already-installed providers should be registered.
+* Current C# prerequisites from Microsoft Learn are `.NET 8` or greater plus a Windows-specific target framework such as `net8.0-windows10.0.19041.0` or greater.
+* For unpackaged executable hosts, add `<WindowsPackageType>None</WindowsPackageType>` so the Windows App SDK bootstrapper is enabled.
+* For harness-style local execution where you want the runtime carried with the executable, set `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>`.
+* The executable host should reference `Microsoft.WindowsAppSDK` so the Windows App SDK runtime/bootstrap path is present. `Microsoft.WindowsAppSDK.ML` alone is not enough for an unpackaged host to run correctly.
+* If the repo still targets plain `net10.0`, keep any `WindowsMlExecutionProviderBootstrapper` scaffold in `BabelStudio.Inference.Onnx` as a non-executing shim until the Milestone 6 Windows-targeted TFM step is taken.
+* Smallest safe TFM change for Milestone 6:
+multi-target `src/BabelStudio.Inference.Onnx/` as `net10.0;net10.0-windows10.0.19041.0`.
+Put the real `ExecutionProviderCatalog` implementation only in the Windows target, and keep the base `net10.0` target as a deferred shim so non-Windows-specific consumers do not get forced onto Windows APIs too early.
+* Only widen the Windows-specific TFM to `src/BabelStudio.Benchmarks/` when that project needs to actually execute the Windows ML bootstrap path.
+
+Do not add it to:
+
+* `src/BabelStudio.Domain/`
+* `src/BabelStudio.Application/`
+* `src/BabelStudio.Inference/`
+* `src/BabelStudio.Infrastructure/`
+* the WinUI app shell
+
+Milestone timing:
+
+* Milestone 1 may reference `Microsoft.Windows.AI.MachineLearning` in the harness only if needed to prove Windows ML viability on real hardware.
+* Milestone 5 must not reference or execute `Microsoft.Windows.AI.MachineLearning`; the planner should reason only about `ExecutionProviderKind` and runtime requirements.
+* Milestone 6 is the first real product milestone where `Microsoft.Windows.AI.MachineLearning` should become a product dependency, and it should be introduced through `src/BabelStudio.Inference.Onnx/`.
+
+If the repo has already passed Milestone 5, add `Microsoft.Windows.AI.MachineLearning` in the first Milestone 6 commit that introduces real stage execution in `BabelStudio.Inference.Onnx`.
+
+\---
+
+## Milestone 0 — Repository and architecture foundation
+
+### Goal
+
+Create the repo foundation, document architectural boundaries, and prevent coding agents from turning the project into a soup cauldron.
+
+### Deliverables
+
+* Root `README.md`
+* `ARCHITECTURE.md`
+* `MILESTONE.md`
+* `AGENTS.md`
+* `LICENSE`
+* `COMMERCIAL-LICENSE.md`
+* `CONTRIBUTOR-LICENSE-AGREEMENT.md`
+* `MODEL\\\_LICENSE\\\_POLICY.md`
+* `THIRD\\\_PARTY\\\_NOTICES.md`
+* `.gitignore`
+* `Directory.Build.props`
+* `Directory.Packages.props`
+* starter directory layout
+* README files in important directories
+
+### Acceptance criteria
+
+* Repo clearly states this is early architecture/prototype work.
+* GPLv3 + commercial dual-license intent is documented.
+* Agent guardrails exist.
+* Model license policy exists before any model is added.
+* Directory boundaries are clear enough that Codex/Claude Code can be given scoped tasks.
+
+### Non-goals
+
+* No app UI.
+* No model execution.
+* No installer.
+* No cloud provider work.
+* No monetization implementation.
+
+### Agent tasks
+
+Good agent prompts:
+
+```text
+Review ARCHITECTURE.md for internal contradictions.
+Create README files for missing directories.
+Draft ADR-0001 for WinUI 3 + Windows ML.
+Draft ADR-0002 for SQLite project persistence.
+```
+
+Bad agent prompts:
+
+```text
+Build Babel Studio.
+Implement the whole pipeline.
+Create the full WinUI app.
+```
+
+\---
+
+## Milestone 1 — Runtime viability harness
+
+### Goal
+
+Prove that Babel Studio can load and run ONNX models from C# through the intended runtime path before building the real app.
+
+This is the first technical gate.
+
+### Deliverables
+
+Project:
+
+```text
+src/BabelStudio.Benchmarks/
+src/BabelStudio.Inference/
+src/BabelStudio.Inference.Onnx/
+src/BabelStudio.Domain/
+```
+
+Harness features:
+
+* Load a single ONNX model from disk.
+* Select or report execution provider.
+* Run cold-load measurement.
+* Run warm inference measurement.
+* Measure wall-clock latency.
+* Measure real-time factor where applicable.
+* Record success/failure.
+* Emit JSON report.
+* Emit console summary.
+
+Initial target models:
+
+1. Silero VAD ONNX
+2. one Whisper ONNX export
+3. one Opus-MT ONNX pair
+4. one stock TTS ONNX candidate
+5. optional Chatterbox ONNX spike
+
+### Acceptance criteria
+
+* Harness runs from command line.
+* At least one model loads and runs from C#.
+* Harness reports provider, load time, inference time, and failure reason.
+* Failed model/provider combinations are reported clearly, not swallowed.
+* No UI project exists yet.
+
+### Non-goals
+
+* No WinUI.
+* No project database.
+* No video ingest.
+* No full pipeline.
+* No voice cloning UX.
+
+### Risks
+
+* Windows ML / ONNX provider availability differs across machines.
+* Some ONNX exports may require unsupported ops or custom preprocessing.
+* Tokenizer/model glue may be more complex than model loading.
+* TTS models may be much heavier than expected.
+
+### Tests
+
+* Unit tests for result formatting.
+* Smoke test for one tiny ONNX model.
+* Harness regression test using a local fixture model if available.
+* Golden report format test.
+
+### Agent tasks
+
+Good agent prompt:
+
+```text
+Implement BabelStudio.Benchmarks as a .NET console app that loads a supplied ONNX model path, runs one inference call with dummy or fixture input, reports provider, cold load time, warm latency, and writes benchmark-report.json. Do not create UI.
+```
+
+\---
+
+## Milestone 2 — Model manifest and commercial-safe policy
+
+### Goal
+
+Create a first-class model registry before real models become scattered across code.
+
+### Deliverables
+
+Projects:
+
+```text
+src/BabelStudio.Inference/
+src/BabelStudio.Infrastructure/
+tests/BabelStudio.Inference.Tests/
+```
+
+Features:
+
+* `ModelManifest` type
+* manifest JSON schema
+* model task enum
+* license metadata
+* commercial-safe evaluator
+* local model cache record
+* hash verification policy
+* model variant metadata
+* required consent flags
+* attribution flags
+
+Example manifest fields:
+
+```json
+{
+  "model\\\_id": "example/model",
+  "task": "asr",
+  "license": "MIT",
+  "commercial\\\_allowed": true,
+  "redistribution\\\_allowed": true,
+  "requires\\\_attribution": false,
+  "requires\\\_user\\\_consent": false,
+  "voice\\\_cloning": false,
+  "commercial\\\_safe\\\_mode": true,
+  "source\\\_url": "",
+  "revision": "",
+  "sha256": "",
+  "variants": \\\[]
+}
+```
+
+### Acceptance criteria
+
+* Unknown-license models are not commercial-safe.
+* Non-commercial models are not commercial-safe.
+* Voice-cloning models require consent.
+* Manifests can be loaded and validated.
+* Invalid manifests produce useful errors.
+* Tests cover commercial-safe logic.
+
+### Non-goals
+
+* No model downloading yet.
+* No UI model manager yet.
+* No legal finalization.
+* No automatic Hugging Face lookup yet.
+
+### Risks
+
+* License metadata can become stale.
+* Model cards vary in clarity.
+* Exported ONNX models may have different terms than source repos.
+
+### Tests
+
+* Valid manifest test.
+* Invalid license test.
+* Non-commercial exclusion test.
+* Voice-cloning consent-required test.
+* Attribution-required test.
+
+### Agent tasks
+
+Good agent prompt:
+
+```text
+Implement ModelManifest parsing and CommercialSafeEvaluator. Add tests proving unknown and non-commercial licenses are rejected in commercial-safe mode. Do not add real model downloads.
+```
+
+\---
+
+## Milestone 3 — SQLite project spine
+
+### Goal
+
+Create durable project and artifact state before building pipeline stages.
+
+### Deliverables
+
+Projects:
+
+```text
+src/BabelStudio.Domain/
+src/BabelStudio.Application/
+src/BabelStudio.Infrastructure/
+tests/BabelStudio.Domain.Tests/
+tests/BabelStudio.Infrastructure.Tests/
+```
+
+Core tables:
+
+```text
+SchemaVersion
+Projects
+MediaAssets
+StageRuns
+Artifacts
+Speakers
+SpeakerTurns
+TranscriptRevisions
+TranscriptSegments
+Words
+TranslationRevisions
+TranslatedSegments
+VoiceAssignments
+TtsTakes
+MixPlans
+Exports
+ModelCache
+BenchmarkRuns
+ConsentRecords
+```
+
+Core services:
+
+* database migrator
+* connection factory
+* project repository
+* artifact repository
+* stage run repository
+* model cache repository
+* benchmark repository
+
+### Acceptance criteria
+
+* Database can be created from scratch.
+* Migrations apply in order.
+* Project can be created.
+* Stage run can be created and completed.
+* Artifact can be registered with hash/path/kind/provenance.
+* Project can be reopened.
+* Tests use temporary SQLite files.
+
+### Non-goals
+
+* No UI.
+* No media extraction yet.
+* No real ONNX inference.
+* No export.
+
+### Risks
+
+* Schema gets too broad too early.
+* Missing artifact provenance causes rework later.
+* Destructive migrations create project corruption risk.
+
+### Tests
+
+* Migration test.
+* Project repository test.
+* StageRun repository test.
+* Artifact repository test.
+* Transaction rollback test.
+* Schema version test.
+
+### Agent tasks
+
+Good agent prompt:
+
+```text
+Implement SQLite migration runner and repositories for Projects, StageRuns, Artifacts, and ModelCache using Dapper. Tests must use temporary database files. Do not create UI.
+```
+
+\---
+
+## Milestone 4 — Media ingest and artifact store
+
+### Goal
+
+Open a local media file, probe it, extract working audio, and persist the result as project artifacts.
+
+### Deliverables
+
+Projects:
+
+```text
+src/BabelStudio.Media/
+src/BabelStudio.Application/
+src/BabelStudio.Infrastructure/
+tests/BabelStudio.Media.Tests/
+```
+
+Features:
+
+* media probe abstraction
+* FFmpeg/ffprobe wrapper
+* normalized audio extraction
+* source media fingerprinting
+* waveform summary generation
+* artifact folder layout
+* atomic artifact writes
+* media asset repository integration
+
+Project artifact layout:
+
+```text
+ProjectName.babelstudio/
+├── babel.db
+├── manifest.json
+├── media/
+│   ├── source-reference.json
+│   └── normalized\\\_audio.wav
+├── artifacts/
+│   ├── audio/
+│   └── waveform/
+├── logs/
+└── temp/
+```
+
+### Acceptance criteria
+
+* Local video/audio can be probed.
+* Source media metadata is stored.
+* Working audio is extracted.
+* Audio artifact is registered with hash and duration.
+* Waveform summary is generated and registered.
+* Project can be reopened and artifacts found.
+* Missing source file is reported clearly.
+
+### Non-goals
+
+* No video editor UI.
+* No ASR yet.
+* No final export.
+* No stem separation.
+
+### Risks
+
+* FFmpeg availability and licensing.
+* Weird media containers.
+* Variable frame rate and stream start offsets.
+* Long path issues on Windows.
+
+### Tests
+
+* Probe fixture media.
+* Extract fixture audio.
+* Hash verification.
+* Missing media recovery.
+* Artifact atomic write test.
+
+### Agent tasks
+
+Good agent prompt:
+
+```text
+Implement MediaProbe and AudioExtractionService using FFmpeg process execution. Store outputs through IArtifactStore. Add tests using tiny sample media. Do not add ASR.
+```
+
+\---
+
+## Milestone 5 — Runtime planner and model cache
+
+### Goal
+
+Create a runtime planning layer that decides which model variant and execution provider should be used for a stage.
+
+### Deliverables
+
+Projects:
+
+```text
+src/BabelStudio.Inference/
+src/BabelStudio.Infrastructure/
+tests/BabelStudio.Inference.Tests/
+```
+
+Features:
+
+* hardware profile
+* execution provider discovery abstraction
+* model variant selector
+* model cache records
+* runtime plan record
+* stage runtime requirements
+* smoke-test interface
+* fallback explanation
+
+Example runtime plan:
+
+```json
+{
+  "stage": "ASR",
+  "model\\\_id": "whisper-large-v3-turbo",
+  "variant": "fp16",
+  "execution\\\_provider": "DirectML",
+  "fallback\\\_reason": null,
+  "warnings": \\\[]
+}
+```
+
+### Acceptance criteria
+
+* Planner can choose between GPU and CPU variants.
+* Planner explains fallback reasons.
+* Missing model produces a download-needed state.
+* Commercial-safe mode affects model selection.
+* Runtime plan is serializable for logs/stage runs.
+
+### Non-goals
+
+* No actual model download UI.
+* No full benchmark-based preset yet.
+* No cloud providers.
+
+### Risks
+
+* Planner becomes speculative and too complex.
+* Provider availability is confused with model compatibility.
+* Users see “GPU ready” before a real model passes.
+
+### Tests
+
+* GPU available plan test.
+* CPU fallback plan test.
+* missing model test.
+* commercial-safe exclusion test.
+* provider smoke-test failure test.
+
+### Agent tasks
+
+Good agent prompt:
+
+```text
+Implement RuntimePlanner using fake hardware/model providers. It should produce a StageRuntimePlan with fallback explanations and commercial-safe filtering. Add tests. Do not load real ONNX models.
+```
+
+\---
+
+## Milestone 6 — Transcript-only vertical slice
+
+### Goal
+
+Produce the first meaningful product slice: open media, extract audio, run speech detection/transcription, show editable transcript, save/reopen.
+
+### Deliverables
+
+Projects:
+
+```text
+src/BabelStudio.App/
+src/BabelStudio.Application/
+src/BabelStudio.Inference/
+src/BabelStudio.Inference.Onnx/
+src/BabelStudio.Media/
+src/BabelStudio.Infrastructure/
+```
+
+Features:
+
+* minimal WinUI shell
+* open media command
+* project creation
+* media ingest
+* VAD stage
+* ASR stage
+* transcript segment storage
+* transcript list UI
+* manual transcript editing
+* stage status display
+* reopen project with transcript
+
+### Acceptance criteria
+
+* User can open a media file.
+* App creates project.
+* App extracts audio.
+* App runs VAD/ASR through validated path or test/fake engine.
+* Transcript segments appear.
+* User can edit transcript text.
+* Edits persist.
+* Project reopens without recomputing.
+* Stage run and artifact provenance are stored.
+
+### Non-goals
+
+* No translation.
+* No TTS.
+* No voice cloning.
+* No fancy timeline.
+* No final export.
+
+### Risks
+
+* UI is built too wide too early.
+* ASR wrapper not stable.
+* Transcript edits overwrite generated provenance.
+* Long-running tasks block UI.
+
+### Tests
+
+* Application use case tests with fake ASR.
+* Transcript persistence test.
+* Stage-run commit test.
+* UI smoke test if practical.
+* Manual end-to-end test on tiny media.
+
+### Agent tasks
+
+Good agent prompt:
+
+```text
+Build a minimal WinUI transcript slice: open existing project, display TranscriptSegments from repository, allow editing text, persist edits. Use fake data first. Do not add translation or TTS.
+```
+
+\---
+
+## Milestone 7 — Translation slice
+
+### Goal
+
+Translate English or Spanish transcript segments into editable direct opposite-language draft revisions in the WinUI shell.
+
+### Deliverables
+
+Features:
+
+* transcript language selection (`English` or `Spanish`)
+* fixed Milestone 7 direct translation pairs (`English -> Spanish`, `Spanish -> English`)
+* translation runtime plan
+* translation model resolver
+* translation stage run
+* translated segment storage
+* translation editor
+* `Needs Refresh` state when transcript changes
+* commercial-safe model filtering
+
+### Acceptance criteria
+
+* User can translate English transcript segments to Spanish.
+* User can translate Spanish transcript segments to English.
+* Translation results are stored as a revision.
+* User can edit translated text.
+* Transcript edit marks affected translation `Needs Refresh`.
+* Reopen preserves translation.
+* Model/provider used is recorded.
+
+### Non-goals
+
+* No TTS.
+* No free-form target language picker.
+* No multi-language routing beyond direct English <-> Spanish.
+* No cloud providers.
+* No glossary yet.
+
+### Risks
+
+* Opus-MT pair availability gaps.
+* Tokenizer implementation complexity.
+* Pivot translation quality issues.
+* Users expect perfect translation.
+
+### Tests
+
+* Translation use case with fake translator.
+* Stale marker test.
+* Provider metadata test.
+* Commercial-safe filtering test.
+
+### Agent tasks
+
+Good agent prompt:
+
+```text
+Implement TranslationRevision and TranslatedSegment persistence. Add StartTranslationStageHandler using ITranslationEngine fake. Mark translation stale when source transcript segment changes.
+```
+
+\---
+
 
 ## Milestone 8 — Video player, segment editor, and project management
 

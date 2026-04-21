@@ -82,7 +82,7 @@ public sealed class OnnxTranscriptEnginesTests
     }
 
     [Fact]
-    public async Task OpusMtTranslationEngine_RunsBundledModelOnTinyEnglishFixture()
+    public async Task OpusMtTranslationEngine_TranslatesBundledEnglishToSpanishSentence()
     {
         var engine = new OpusMtTranslationEngine(
             new StubRuntimePlanner(new StageRuntimePlan
@@ -100,14 +100,14 @@ public sealed class OnnxTranscriptEnginesTests
             new TranslationRequest(
                 "en",
                 "es",
-                [ new TranslationInputSegment(0, 0.0, 1.0, "Hello world.") ],
+                [ new TranslationInputSegment(0, 0.0, 1.0, "Hello, I am Brenna Romaniello, your Spanish teacher from Ole Spanish.") ],
                 CommercialSafeMode: true,
                 PreferredModelAlias: "opus-en-es"),
             CancellationToken.None);
 
         TranslatedTextSegment segment = Assert.Single(segments);
         Assert.Equal(0, segment.Index);
-        Assert.False(string.IsNullOrWhiteSpace(segment.Text));
+        Assert.Equal("Hola, soy Brenna Romaniello, tu profesora de español de Ole Spanish.", segment.Text);
         Assert.NotNull(engine.LastExecutionSummary);
         Assert.Equal("cpu", engine.LastExecutionSummary!.SelectedProvider);
         Assert.Equal("opus-en-es", engine.LastExecutionSummary.ModelAlias);
@@ -115,7 +115,7 @@ public sealed class OnnxTranscriptEnginesTests
     }
 
     [Fact]
-    public async Task OpusMtTranslationEngine_RunsBundledReverseModelOnTinySpanishFixture()
+    public async Task OpusMtTranslationEngine_TranslatesBundledSpanishToEnglishSentence()
     {
         var engine = new OpusMtTranslationEngine(
             new StubRuntimePlanner(new StageRuntimePlan
@@ -133,14 +133,14 @@ public sealed class OnnxTranscriptEnginesTests
             new TranslationRequest(
                 "es",
                 "en",
-                [ new TranslationInputSegment(0, 0.0, 1.0, "Hola mundo.") ],
+                [ new TranslationInputSegment(0, 0.0, 1.0, "Hola, soy Brenna Romaniello, tu profesora de español de Ole Spanish.") ],
                 CommercialSafeMode: true,
                 PreferredModelAlias: "opus-es-en"),
             CancellationToken.None);
 
         TranslatedTextSegment segment = Assert.Single(segments);
         Assert.Equal(0, segment.Index);
-        Assert.False(string.IsNullOrWhiteSpace(segment.Text));
+        Assert.Equal("Hi, I'm Brenna Romaniello, your Spanish teacher at Ole Spanish.", segment.Text);
         Assert.NotNull(engine.LastExecutionSummary);
         Assert.Equal("cpu", engine.LastExecutionSummary!.SelectedProvider);
         Assert.Equal("opus-es-en", engine.LastExecutionSummary.ModelAlias);

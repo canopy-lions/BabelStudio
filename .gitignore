@@ -58,6 +58,9 @@ tmp/
 .DS_Store
 Thumbs.db
 
+# Node / JS tooling
+node_modules/
+
 # Marketing tooling (dev-only, never shipped)
 tools/marketing/.venv/
 tools/marketing/output/
