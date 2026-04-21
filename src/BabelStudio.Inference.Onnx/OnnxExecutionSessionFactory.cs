@@ -40,6 +40,27 @@ internal static class OnnxExecutionSessionFactory
             bootstrapDetail);
     }
 
+    public static async Task<OpusSessionLease> CreateOpusAsync(
+        string encoderModelPath,
+        string decoderModelPath,
+        ExecutionProviderKind provider,
+        CancellationToken cancellationToken)
+    {
+        string requestedProvider = provider is ExecutionProviderKind.Cpu ? "cpu" : "auto";
+        string selectedProvider = provider is ExecutionProviderKind.Cpu ? "cpu" : "dml";
+        WindowsMlBootstrapResult? bootstrapResult = await BootstrapIfNeededAsync(provider, cancellationToken).ConfigureAwait(false);
+        SessionOptions encoderOptions = CreateSessionOptions(provider);
+        SessionOptions decoderOptions = CreateSessionOptions(provider);
+        string? bootstrapDetail = FormatBootstrapDetail(provider, bootstrapResult);
+
+        return new OpusSessionLease(
+            new InferenceSession(encoderModelPath, encoderOptions),
+            new InferenceSession(decoderModelPath, decoderOptions),
+            requestedProvider,
+            selectedProvider,
+            bootstrapDetail);
+    }
+
     private static SessionOptions CreateSessionOptions(ExecutionProviderKind provider)
     {
         SessionOptions options = CreateSessionOptions();
@@ -109,6 +130,20 @@ internal static class OnnxExecutionSessionFactory
     }
 
     internal sealed record WhisperSessionLease(
+        InferenceSession EncoderSession,
+        InferenceSession DecoderSession,
+        string RequestedProvider,
+        string SelectedProvider,
+        string? BootstrapDetail) : IDisposable
+    {
+        public void Dispose()
+        {
+            DecoderSession.Dispose();
+            EncoderSession.Dispose();
+        }
+    }
+
+    internal sealed record OpusSessionLease(
         InferenceSession EncoderSession,
         InferenceSession DecoderSession,
         string RequestedProvider,
