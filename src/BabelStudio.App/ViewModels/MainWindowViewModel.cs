@@ -7,6 +7,7 @@ namespace BabelStudio.App.ViewModels;
 public sealed class MainWindowViewModel : ObservableObject
 {
     private Guid? currentTranscriptRevisionId;
+    private string? lastErrorReport;
     private string projectNameDraft = "New Project";
     private string projectRootPath = "No project loaded.";
     private string mediaPath = "No media selected.";
@@ -86,6 +87,10 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool CanSaveTranscript => !IsBusy && currentTranscriptRevisionId is not null && Segments.Count > 0;
 
+    public bool CanCopyError => !string.IsNullOrWhiteSpace(lastErrorReport);
+
+    public string? LastErrorReport => lastErrorReport;
+
     public void SetProjectNameFromMedia(string mediaPath)
     {
         string fileName = Path.GetFileNameWithoutExtension(mediaPath);
@@ -126,7 +131,35 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusMessage = state.CurrentTranscriptRevision is null
             ? "Project loaded. No transcript revision is stored yet."
             : "Project loaded. Edit transcript text and save to create a new revision.";
+        ClearError();
         OnPropertyChanged(nameof(CanSaveTranscript));
+    }
+
+    public void BeginOperation(string busyMessage)
+    {
+        ClearError();
+        IsBusy = true;
+        StatusMessage = busyMessage;
+    }
+
+    public void ReportException(Exception exception, string context)
+    {
+        lastErrorReport = BuildErrorReport(exception, context);
+        StatusMessage = exception.Message;
+        OnPropertyChanged(nameof(CanCopyError));
+        OnPropertyChanged(nameof(LastErrorReport));
+    }
+
+    public void ClearError()
+    {
+        if (string.IsNullOrWhiteSpace(lastErrorReport))
+        {
+            return;
+        }
+
+        lastErrorReport = null;
+        OnPropertyChanged(nameof(CanCopyError));
+        OnPropertyChanged(nameof(LastErrorReport));
     }
 
     public SaveTranscriptEditsRequest? CreateSaveRequest()
@@ -163,5 +196,19 @@ public sealed class MainWindowViewModel : ObservableObject
             StageRunStatus.Failed => $"Failed{providerSuffix}: {latest.FailureReason}",
             _ => "Running"
         };
+    }
+
+    private string BuildErrorReport(Exception exception, string context)
+    {
+        return string.Join(Environment.NewLine,
+        [
+            "BabelStudio.App error report",
+            $"Time (UTC): {DateTimeOffset.UtcNow:O}",
+            $"Context: {context}",
+            $"Project root: {ProjectRootPath}",
+            $"Media path: {MediaPath}",
+            "Exception:",
+            exception.ToString()
+        ]);
     }
 }
