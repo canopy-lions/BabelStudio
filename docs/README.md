@@ -8,6 +8,10 @@ Documentation root.
 
 Architecture, decisions, milestones, prompts, and implementation notes.
 
+Useful entry points:
+
+- `TROUBLESHOOTING.md` for operator-facing startup checks and the short bug-report template
+
 ## What should not go here
 
 Generated code, binaries, model files, or screenshots that belong in assets.
