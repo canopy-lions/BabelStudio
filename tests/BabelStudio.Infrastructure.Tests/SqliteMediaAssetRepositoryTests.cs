@@ -17,7 +17,8 @@ public sealed class SqliteMediaAssetRepositoryTests
         DateTimeOffset now = DateTimeOffset.UtcNow;
         var project = new BabelProject(Guid.NewGuid(), "Reopen", now, now);
         var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, "source.mp4", "abc", 123, now, "mp4", 1.2, true, true, now);
-        var audioArtifact = new ProjectArtifact(Guid.NewGuid(), project.Id, mediaAsset.Id, ArtifactKind.NormalizedAudio, "media/normalized_audio.wav", "def", 456, 1.1, 48000, 1, now);
+        Guid stageRunId = Guid.NewGuid();
+        var audioArtifact = new ProjectArtifact(Guid.NewGuid(), project.Id, mediaAsset.Id, ArtifactKind.NormalizedAudio, "media/normalized_audio.wav", "def", 456, 1.1, 48000, 1, now, stageRunId, "generated-audio");
         var waveformArtifact = new ProjectArtifact(Guid.NewGuid(), project.Id, mediaAsset.Id, ArtifactKind.WaveformSummary, "artifacts/waveform/normalized_audio.waveform.json", "ghi", 789, 1.1, 48000, 1, now);
 
         await projectRepository.InitializeAsync(project, CancellationToken.None);
@@ -36,5 +37,8 @@ public sealed class SqliteMediaAssetRepositoryTests
         Assert.Equal(2, reopenedArtifacts.Count);
         Assert.Contains(reopenedArtifacts, artifact => artifact.Kind == ArtifactKind.NormalizedAudio);
         Assert.Contains(reopenedArtifacts, artifact => artifact.Kind == ArtifactKind.WaveformSummary);
+        ProjectArtifact reopenedAudio = Assert.Single(reopenedArtifacts, artifact => artifact.Kind == ArtifactKind.NormalizedAudio);
+        Assert.Equal(stageRunId, reopenedAudio.StageRunId);
+        Assert.Equal("generated-audio", reopenedAudio.Provenance);
     }
 }
