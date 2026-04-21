@@ -49,8 +49,8 @@ public sealed class BenchmarkSelectionDefaultsStore
         }
     }
 
-    public bool TryGet(string scopeKey, out string candidateKey) =>
-        defaults.TryGetValue(scopeKey, out candidateKey!);
+    public bool TryGet(string scopeKey, out string? candidateKey) =>
+        defaults.TryGetValue(scopeKey, out candidateKey);
 
     public void Set(string scopeKey, string candidateKey) =>
         defaults[scopeKey] = candidateKey;
@@ -64,6 +64,6 @@ public sealed class BenchmarkSelectionDefaultsStore
         }
 
         await using FileStream stream = File.Create(defaultsPath);
-        await JsonSerializer.SerializeAsync(stream, defaults, SerializerOptions, cancellationToken);
+        await JsonSerializer.SerializeAsync(stream, defaults, SerializerOptions, cancellationToken).ConfigureAwait(false);
     }
 }

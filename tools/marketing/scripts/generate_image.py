@@ -2,19 +2,24 @@
 
 import argparse
 import base64
+from binascii import Error as BinasciiError
+import io
+import logging
 import os
 import sys
 from pathlib import Path
 
+from google.api_core.exceptions import GoogleAPIError
 import google.generativeai as genai
-from PIL import Image
-import io
+from PIL import Image, UnidentifiedImageError
 
 
 MODELS = {
     "flash": "gemini-2.0-flash-preview-image-generation",
     "pro": "gemini-2.5-pro-preview-06-05",
 }
+
+logger = logging.getLogger(__name__)
 
 ASPECT_RATIOS = {
     "1:1": (1024, 1024),
@@ -39,25 +44,37 @@ def generate(prompt: str, output: Path, model_key: str, aspect: str) -> None:
     full_prompt = f"{prompt}. No text, no letters, no words. {width}x{height} composition."
 
     print(f"Generating with {model_key} ({MODELS[model_key]})...")
-    response = model.generate_content(
-        full_prompt,
-        generation_config={"response_modalities": ["image"]},
-    )
+    try:
+        response = model.generate_content(
+            full_prompt,
+            generation_config={"response_modalities": ["image"]},
+        )
+    except GoogleAPIError as ex:  # pragma: no cover - network/API failure path
+        logger.error("Failed to generate image from Gemini: %s", ex)
+        raise SystemExit(1) from ex
+    except Exception as ex:  # pragma: no cover - SDKs can surface transport errors outside GoogleAPIError
+        logger.error("Unexpected Gemini SDK failure: %s", ex)
+        raise SystemExit(1) from ex
 
     for part in response.parts:
         if hasattr(part, "inline_data"):
-            image_data = base64.b64decode(part.inline_data.data)
-            img = Image.open(io.BytesIO(image_data))
-            output.parent.mkdir(parents=True, exist_ok=True)
-            img.save(str(output))
-            print(f"Saved: {output}")
-            return
+            try:
+                image_data = base64.b64decode(part.inline_data.data)
+                with Image.open(io.BytesIO(image_data)) as img:
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    img.save(str(output))
+                print(f"Saved: {output}")
+                return
+            except (BinasciiError, OSError, UnidentifiedImageError) as ex:
+                logger.error("Failed to decode or save generated image: %s", ex)
+                raise SystemExit(1) from ex
 
     print("No image in response", file=sys.stderr)
     sys.exit(1)
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
     parser = argparse.ArgumentParser(description="Generate marketing images via Gemini")
     parser.add_argument("prompt", help="Image generation prompt")
     parser.add_argument("--output", "-o", type=Path, required=True)

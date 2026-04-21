@@ -9,6 +9,9 @@ script = ""
 name = "Benchmark"
 icon = "run"
 command = '''
-dotnet .\src\BabelStudio.Benchmarks\bin\Debug\net10.0-windows10.0.26100.0\BabelStudio.Benchmarks.dll --model .\models\silero_vad.onnx --runs 20 --output .\reports\silero-cpu.json
-dotnet .\src\BabelStudio.Benchmarks\bin\Debug\net10.0-windows10.0.26100.0\BabelStudio.Benchmarks.dll --model .\models\silero_vad.onnx --provider dml --runs 20 --output .\reports\silero-dml.json
+.\src\BabelStudio.Benchmarks\bin\Debug\net10.0-windows10.0.19041.0\BabelStudio.Benchmarks.exe --model silero-vad --runs 1 --provider auto --format console --output .\artifacts\benchmark-windowsml-smoke.json
+
+.\src\BabelStudio.Benchmarks\bin\Debug\net10.0-windows10.0.19041.0\BabelStudio.Benchmarks.exe --model whisper-tiny-onnx --provider auto --runs 1 --format both --output .\artifacts\whisper-auto.json
+
+.\src\BabelStudio.Benchmarks\bin\Debug\net10.0-windows10.0.19041.0\BabelStudio.Benchmarks.exe --model .\models\silero-vad\onnx\model.onnx --provider cpu --runs 3 --format both --output .\artifacts\silero-cpu.json
 '''

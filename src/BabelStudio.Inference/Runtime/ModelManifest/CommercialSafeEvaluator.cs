@@ -22,6 +22,11 @@ public sealed class CommercialSafeEvaluator
             reasons.Add("Manifest does not allow commercial use.");
         }
 
+        if (!manifest.CommercialSafeMode)
+        {
+            reasons.Add("Manifest does not mark this model as commercial-safe mode eligible.");
+        }
+
         if (manifest.VoiceCloning && !manifest.RequiresUserConsent)
         {
             reasons.Add("Voice-cloning models must require user consent.");
@@ -32,6 +37,35 @@ public sealed class CommercialSafeEvaluator
             RequiresUserConsent: manifest.RequiresUserConsent || manifest.VoiceCloning,
             RequiresAttribution: manifest.RequiresAttribution,
             Reasons: reasons);
+    }
+
+    public CommercialSafeEvaluation Evaluate(BundledModelManifestEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        var manifest = new ModelManifest(
+            entry.ModelId,
+            ModelManifestText.ParseTask(entry.Task),
+            ModelManifestText.ParseLicense(entry.License),
+            entry.CommercialAllowed,
+            entry.RedistributionAllowed,
+            entry.RequiresAttribution,
+            entry.RequiresUserConsent,
+            entry.VoiceCloning,
+            entry.CommercialSafeMode,
+            entry.SourceUrl,
+            entry.Revision,
+            entry.Sha256,
+            entry.Variants.Select(variant => new ModelVariantManifest(
+                variant.Alias,
+                Path.GetRelativePath(entry.RootDirectory, variant.EntryPath),
+                string.Empty)).ToArray(),
+            entry.Aliases,
+            entry.RootDirectory,
+            Path.GetRelativePath(entry.RootDirectory, entry.DefaultBenchmarkEntryPath),
+            new HashVerificationPolicy(HashVerificationMode.VerifyIfShaPresent, "SHA-256"));
+
+        return Evaluate(manifest);
     }
 }
 

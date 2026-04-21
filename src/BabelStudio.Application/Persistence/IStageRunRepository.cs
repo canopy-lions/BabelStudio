@@ -16,6 +16,11 @@ public interface IStageRunRepository
         Guid stageRunId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<StageRunRecord>> ListByProjectAsync(
+        DbConnection connection,
+        Guid projectId,
+        CancellationToken cancellationToken = default);
+
     Task CompleteAsync(
         DbConnection connection,
         StageRunRecord stageRun,

@@ -15,6 +15,8 @@ artifacts/
 publish/
 dist/
 out/
+!src/**/Artifacts/
+!src/**/Artifacts/**
 
 # Models and large runtime assets
 models/
@@ -39,6 +41,8 @@ model-cache/
 *.vtt
 *.babelstudio/
 projects/
+!src/**/Projects/
+!src/**/Projects/**
 
 # Logs/temp
 logs/
@@ -56,6 +60,11 @@ tools/marketing/output/
 
 
 #Ignore insiders AI rules
-.github\instructions\codacy.instructions.md
+.github/instructions/codacy.instructions.md
 
-scripts
+scripts/
+reports/**/*.json
+benchmark-report*.json
+*.lscache
+*.csproj.lscache
+.claude/settings.local.json

@@ -6,8 +6,37 @@ namespace BabelStudio.Benchmarks;
 
 public static class Program
 {
-    public static Task<int> Main(string[] args) =>
-        RunAsync(args, Console.In, Console.Out, Console.Error, CancellationToken.None);
+    public static async Task<int> Main(string[] args)
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        int cancelSignalCount = 0;
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            if (Interlocked.Increment(ref cancelSignalCount) == 1)
+            {
+                eventArgs.Cancel = true;
+                cancellationTokenSource.Cancel();
+                return;
+            }
+
+            eventArgs.Cancel = false;
+        };
+
+        Console.CancelKeyPress += handler;
+        try
+        {
+            return await RunAsync(
+                args,
+                Console.In,
+                Console.Out,
+                Console.Error,
+                cancellationTokenSource.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
 
     public static async Task<int> RunAsync(
         string[] args,
@@ -16,12 +45,6 @@ public static class Program
         TextWriter error,
         CancellationToken cancellationToken)
     {
-        if (args.Length > 0 &&
-            string.Equals(args[0], "ingest", StringComparison.OrdinalIgnoreCase))
-        {
-            return await MediaIngestCommand.RunAsync(args[1..], output, error, cancellationToken).ConfigureAwait(false);
-        }
-
         if (!BenchmarkOptions.TryParse(args, error, out var options))
         {
             BenchmarkConsole.WriteUsage(error);
@@ -77,7 +100,7 @@ public static class Program
         }
         catch (Exception ex)
         {
-            error.WriteLine(ex.Message);
+            error.WriteLine(ex.ToString());
             return 1;
         }
     }
@@ -164,7 +187,8 @@ public static class Program
             throw new FileNotFoundException(discovery.Error, options.ModelPath);
         }
 
-        if (defaultsStore.TryGet(discovery.ScopeKey, out string storedCandidateKey))
+        if (defaultsStore.TryGet(discovery.ScopeKey, out string? storedCandidateKey) &&
+            !string.IsNullOrWhiteSpace(storedCandidateKey))
         {
             BenchmarkModelCandidate? storedCandidate = discovery.Candidates.FirstOrDefault(
                 candidate => candidate.CandidateKey.Equals(storedCandidateKey, StringComparison.OrdinalIgnoreCase));

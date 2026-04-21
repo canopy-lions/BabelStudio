@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\BabelStudio.Inference\BabelStudio.Inference.csproj" />
     <ProjectReference Include="..\..\src\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BabelStudio.Domain\BabelStudio.Domain.csproj" />
+    <ProjectReference Include="..\..\src\BabelStudio.Composition\BabelStudio.Composition.csproj" />
   </ItemGroup>
 
 </Project>

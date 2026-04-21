@@ -348,6 +348,15 @@ public sealed class CommercialSafeEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_RejectsManifestWithoutCommercialSafeModeFlag()
+    {
+        CommercialSafeEvaluation result = evaluator.Evaluate(CreateManifest(commercialSafeMode: false));
+
+        Assert.False(result.IsCommercialSafe);
+        Assert.Contains(result.Reasons, reason => reason.Contains("commercial-safe mode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Evaluate_RequiresConsentForVoiceCloning()
     {
         CommercialSafeEvaluation result = evaluator.Evaluate(CreateManifest(
@@ -374,7 +383,8 @@ public sealed class CommercialSafeEvaluatorTests
         bool commercialAllowed = true,
         bool requiresAttribution = false,
         bool requiresUserConsent = false,
-        bool voiceCloning = false) =>
+        bool voiceCloning = false,
+        bool? commercialSafeMode = null) =>
         new(
             ModelId: "example/model",
             Task: task,
@@ -384,7 +394,7 @@ public sealed class CommercialSafeEvaluatorTests
             RequiresAttribution: requiresAttribution,
             RequiresUserConsent: requiresUserConsent,
             VoiceCloning: voiceCloning,
-            CommercialSafeMode: commercialAllowed && license is not ModelLicenseKind.Unknown and not ModelLicenseKind.NonCommercial,
+            CommercialSafeMode: commercialSafeMode ?? (commercialAllowed && license is not ModelLicenseKind.Unknown and not ModelLicenseKind.NonCommercial),
             SourceUrl: "",
             Revision: "",
             Sha256: "",
@@ -398,7 +408,7 @@ public sealed class CommercialSafeEvaluatorTests
 public sealed class ModelHashVerifierTests
 {
     [Fact]
-    public void Verify_RequiredPolicyFailsWhenShaMissing()
+    public async Task Verify_RequiredPolicyFailsWhenShaMissing()
     {
         var manifest = CreateManifest(HashVerificationMode.Required, sha256: "");
         var verifier = new ModelHashVerifier();
@@ -406,7 +416,7 @@ public sealed class ModelHashVerifierTests
 
         try
         {
-            HashVerificationResult result = verifier.Verify(manifest, filePath);
+            HashVerificationResult result = await verifier.VerifyAsync(manifest, filePath);
 
             Assert.False(result.IsValid);
             Assert.False(result.WasVerified);
@@ -419,7 +429,7 @@ public sealed class ModelHashVerifierTests
     }
 
     [Fact]
-    public void Verify_VerifiesMatchingSha()
+    public async Task Verify_VerifiesMatchingSha()
     {
         string filePath = WriteTempFile([1, 2, 3, 4]);
         string sha = new Sha256FileHasher().Compute(filePath);
@@ -428,7 +438,7 @@ public sealed class ModelHashVerifierTests
 
         try
         {
-            HashVerificationResult result = verifier.Verify(manifest, filePath);
+            HashVerificationResult result = await verifier.VerifyAsync(manifest, filePath);
 
             Assert.True(result.IsValid);
             Assert.True(result.WasVerified);
@@ -441,7 +451,7 @@ public sealed class ModelHashVerifierTests
     }
 
     [Fact]
-    public void Verify_ReportsHashMismatch()
+    public async Task Verify_ReportsHashMismatch()
     {
         string filePath = WriteTempFile([5, 6, 7, 8]);
         var manifest = CreateManifest(HashVerificationMode.VerifyIfShaPresent, sha256: "deadbeef");
@@ -449,7 +459,7 @@ public sealed class ModelHashVerifierTests
 
         try
         {
-            HashVerificationResult result = verifier.Verify(manifest, filePath);
+            HashVerificationResult result = await verifier.VerifyAsync(manifest, filePath);
 
             Assert.False(result.IsValid);
             Assert.True(result.WasVerified);

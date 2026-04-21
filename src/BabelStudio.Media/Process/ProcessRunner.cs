@@ -37,11 +37,48 @@ internal sealed class ProcessRunner : IProcessRunner
         }
 
         using var process = new System.Diagnostics.Process { StartInfo = startInfo };
-        process.Start();
+        if (!process.Start())
+        {
+            throw new InvalidOperationException($"Failed to start '{executablePath}'.");
+        }
 
         Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         Task<string> standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            try
+            {
+                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            try
+            {
+                await Task.WhenAll(standardOutputTask, standardErrorTask).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+
+            throw;
+        }
 
         return new ProcessResult(
             process.ExitCode,

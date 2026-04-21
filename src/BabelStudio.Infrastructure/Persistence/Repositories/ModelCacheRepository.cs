@@ -8,12 +8,13 @@ namespace BabelStudio.Infrastructure.Persistence.Repositories;
 
 public sealed class ModelCacheRepository : IModelCacheRepository
 {
-    public Task UpsertAsync(
+    public async Task UpsertAsync(
         DbConnection connection,
         LocalModelCacheRecord record,
         DbTransaction? transaction = null,
-        CancellationToken cancellationToken = default) =>
-        connection.ExecuteAsync(new CommandDefinition(
+        CancellationToken cancellationToken = default)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO ModelCache (ModelId, RootPath, Revision, Sha256, CachedAtUtc)
             VALUES (@ModelId, @RootPath, @Revision, @Sha256, @CachedAtUtc)
@@ -32,7 +33,8 @@ public sealed class ModelCacheRepository : IModelCacheRepository
                 CachedAtUtc = SqliteValueConverters.ToDbValue(record.CachedAtUtc)
             },
             transaction,
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
 
     public async Task<LocalModelCacheRecord?> GetAsync(
         DbConnection connection,
@@ -46,7 +48,7 @@ public sealed class ModelCacheRepository : IModelCacheRepository
             WHERE ModelId = @ModelId;
             """,
             new { ModelId = modelId },
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
 
         return row is null
             ? null

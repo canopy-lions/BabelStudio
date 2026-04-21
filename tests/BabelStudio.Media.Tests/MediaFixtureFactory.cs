@@ -4,7 +4,9 @@ namespace BabelStudio.Media.Tests;
 
 internal static class MediaFixtureFactory
 {
-    public static async Task<string> CreateSampleVideoAsync(string directoryPath)
+    public static async Task<string> CreateSampleVideoAsync(
+        string directoryPath,
+        CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(directoryPath);
         string outputPath = Path.Combine(directoryPath, "sample-input.mp4");
@@ -17,7 +19,6 @@ internal static class MediaFixtureFactory
         {
             FileName = "ffmpeg",
             RedirectStandardError = true,
-            RedirectStandardOutput = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -41,10 +42,51 @@ internal static class MediaFixtureFactory
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = System.Diagnostics.Process.Start(startInfo)!;
-        string error = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
-        await process.WaitForExitAsync().ConfigureAwait(false);
-        Assert.True(process.ExitCode == 0, $"ffmpeg failed to create test media: {error}");
+        System.Diagnostics.Process process = System.Diagnostics.Process.Start(startInfo)
+            ?? throw new InvalidOperationException($"Failed to start '{startInfo.FileName}'. Ensure ffmpeg is installed and available on PATH.");
+
+        using (process)
+        {
+            Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                string error = await errorTask.ConfigureAwait(false);
+                Assert.True(process.ExitCode == 0, $"ffmpeg failed to create test media: {error}");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                    }
+                }
+                catch
+                {
+                }
+
+                try
+                {
+                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                try
+                {
+                    await errorTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+
+                throw;
+            }
+        }
+
         return outputPath;
     }
 }

@@ -54,7 +54,7 @@ Add it like this:
 - Smallest safe TFM change for Milestone 6:
   multi-target `src/BabelStudio.Inference.Onnx/` as `net10.0;net10.0-windows10.0.19041.0`.
   Put the real `ExecutionProviderCatalog` implementation only in the Windows target, and keep the base `net10.0` target as a deferred shim so non-Windows-specific consumers do not get forced onto Windows APIs too early.
-- Only widen the Windows-specific TFM to `src/BabelStudio.Benchmarks/` or the app shell when those projects need to actually execute the Windows ML bootstrap path.
+- Only widen the Windows-specific TFM to `src/BabelStudio.Benchmarks/` when that project needs to actually execute the Windows ML bootstrap path.
 
 Do not add it to:
 

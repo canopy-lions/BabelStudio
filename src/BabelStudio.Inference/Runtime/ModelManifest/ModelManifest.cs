@@ -83,4 +83,44 @@ internal static class ModelManifestText
             ModelLicenseKind.NonCommercial => "non-commercial",
             _ => throw new ArgumentOutOfRangeException(nameof(license), license, "Unknown model license.")
         };
+
+    public static ModelTask ParseTask(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
+        return value.ToLowerInvariant() switch
+        {
+            "asr" => ModelTask.Asr,
+            "translation" => ModelTask.Translation,
+            "tts" => ModelTask.Tts,
+            "diarization" => ModelTask.Diarization,
+            "vad" => ModelTask.Vad,
+            "separation" => ModelTask.Separation,
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown model task.")
+        };
+    }
+
+    public static ModelLicenseKind ParseLicense(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
+        return value.ToLowerInvariant() switch
+        {
+            "mit" => ModelLicenseKind.Mit,
+            "apache-2.0" => ModelLicenseKind.Apache20,
+            "apache-2" => ModelLicenseKind.Apache20,
+            "apache2" => ModelLicenseKind.Apache20,
+            "apache2.0" => ModelLicenseKind.Apache20,
+            "cc-by-4.0" => ModelLicenseKind.CcBy40,
+            "cc-by-4" => ModelLicenseKind.CcBy40,
+            "ccby-4.0" => ModelLicenseKind.CcBy40,
+            "ccby4" => ModelLicenseKind.CcBy40,
+            "ccby40" => ModelLicenseKind.CcBy40,
+            "custom" => ModelLicenseKind.Custom,
+            "unknown" => ModelLicenseKind.Unknown,
+            "non-commercial" => ModelLicenseKind.NonCommercial,
+            "noncommercial" => ModelLicenseKind.NonCommercial,
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown model license.")
+        };
+    }
 }

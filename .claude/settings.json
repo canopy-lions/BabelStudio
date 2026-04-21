@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; echo \"$f\" | grep -q '\\.csproj$' && dotnet build D:/Dev/BabelStudio/BabelStudio.sln --no-restore -v q 2>&1 || true; }",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; if echo \"$f\" | grep -q '\\.csproj$'; then dotnet build \"$repo_root/BabelStudio.sln\" --no-restore -v q 2>&1; fi; }",
             "statusMessage": "Building solution..."
           }
         ]

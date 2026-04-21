@@ -57,6 +57,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             return null;
         }
 
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
@@ -99,6 +100,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
                 id,
                 project_id,
                 media_asset_id,
+                stage_run_id,
                 kind,
                 relative_path,
                 sha256,
@@ -106,11 +108,13 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
                 duration_seconds,
                 sample_rate,
                 channel_count,
+                provenance,
                 created_at_utc)
             VALUES (
                 $id,
                 $projectId,
                 $mediaAssetId,
+                $stageRunId,
                 $kind,
                 $relativePath,
                 $sha256,
@@ -118,6 +122,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
                 $durationSeconds,
                 $sampleRate,
                 $channelCount,
+                $provenance,
                 $createdAtUtc);
             """;
         BindArtifact(command, artifact);
@@ -131,6 +136,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             return [];
         }
 
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
@@ -138,6 +144,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             SELECT id,
                    project_id,
                    media_asset_id,
+                   stage_run_id,
                    kind,
                    relative_path,
                    sha256,
@@ -145,6 +152,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
                    duration_seconds,
                    sample_rate,
                    channel_count,
+                   provenance,
                    created_at_utc
             FROM artifacts
             WHERE project_id = $projectId
@@ -196,6 +204,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
         command.Parameters.AddWithValue("$id", artifact.Id.ToString("D"));
         command.Parameters.AddWithValue("$projectId", artifact.ProjectId.ToString("D"));
         command.Parameters.AddWithValue("$mediaAssetId", artifact.MediaAssetId.ToString("D"));
+        command.Parameters.AddWithValue("$stageRunId", artifact.StageRunId?.ToString("D") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$kind", artifact.Kind.ToString());
         command.Parameters.AddWithValue("$relativePath", artifact.RelativePath);
         command.Parameters.AddWithValue("$sha256", artifact.Sha256);
@@ -203,6 +212,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
         command.Parameters.AddWithValue("$durationSeconds", (object?)artifact.DurationSeconds ?? DBNull.Value);
         command.Parameters.AddWithValue("$sampleRate", (object?)artifact.SampleRate ?? DBNull.Value);
         command.Parameters.AddWithValue("$channelCount", (object?)artifact.ChannelCount ?? DBNull.Value);
+        command.Parameters.AddWithValue("$provenance", (object?)artifact.Provenance ?? DBNull.Value);
         command.Parameters.AddWithValue("$createdAtUtc", artifact.CreatedAtUtc.UtcDateTime);
     }
 
@@ -211,12 +221,14 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             Guid.Parse(reader.GetString(0)),
             Guid.Parse(reader.GetString(1)),
             Guid.Parse(reader.GetString(2)),
-            Enum.Parse<ArtifactKind>(reader.GetString(3), ignoreCase: true),
-            reader.GetString(4),
+            Enum.Parse<ArtifactKind>(reader.GetString(4), ignoreCase: true),
             reader.GetString(5),
-            reader.GetInt64(6),
-            reader.IsDBNull(7) ? null : reader.GetDouble(7),
-            reader.IsDBNull(8) ? null : reader.GetInt32(8),
+            reader.GetString(6),
+            reader.GetInt64(7),
+            reader.IsDBNull(8) ? null : reader.GetDouble(8),
             reader.IsDBNull(9) ? null : reader.GetInt32(9),
-            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(10), DateTimeKind.Utc)));
+            reader.IsDBNull(10) ? null : reader.GetInt32(10),
+            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(12), DateTimeKind.Utc)),
+            reader.IsDBNull(3) ? null : Guid.Parse(reader.GetString(3)),
+            reader.IsDBNull(11) ? null : reader.GetString(11));
 }

@@ -44,24 +44,81 @@ public enum BenchmarkStatus
     Failed
 }
 
-public sealed record BenchmarkRunRecord(
-    Guid Id,
-    string ModelId,
-    string ModelPath,
-    string ReportPath,
-    BenchmarkStatus Status,
-    string RequestedProvider,
-    string SelectedProvider,
-    int RunCount,
-    bool SupportsExecution,
-    long ModelSizeBytes,
-    double? ColdLoadMilliseconds,
-    double? WarmLatencyAverageMilliseconds,
-    double? WarmLatencyMinimumMilliseconds,
-    double? WarmLatencyMaximumMilliseconds,
-    string? FailureReason,
-    DateTimeOffset GeneratedAtUtc)
+public sealed record BenchmarkRunRecord
 {
+    public BenchmarkRunRecord(
+        Guid id,
+        string modelId,
+        string modelPath,
+        string reportPath,
+        BenchmarkStatus status,
+        string requestedProvider,
+        string selectedProvider,
+        int runCount,
+        bool supportsExecution,
+        long modelSizeBytes,
+        double? coldLoadMilliseconds,
+        double? warmLatencyAverageMilliseconds,
+        double? warmLatencyMinimumMilliseconds,
+        double? warmLatencyMaximumMilliseconds,
+        string? failureReason,
+        DateTimeOffset generatedAtUtc)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("Benchmark run id is required.", nameof(id));
+        }
+
+        Id = id;
+        ModelId = NormalizeRequired(modelId, nameof(modelId), "Model id is required.");
+        ModelPath = NormalizeRequired(modelPath, nameof(modelPath), "Model path is required.");
+        ReportPath = NormalizeRequired(reportPath, nameof(reportPath), "Report path is required.");
+        Status = status;
+        RequestedProvider = NormalizeRequired(requestedProvider, nameof(requestedProvider), "Requested provider is required.");
+        SelectedProvider = NormalizeRequired(selectedProvider, nameof(selectedProvider), "Selected provider is required.");
+        RunCount = runCount;
+        SupportsExecution = supportsExecution;
+        ModelSizeBytes = modelSizeBytes;
+        ColdLoadMilliseconds = coldLoadMilliseconds;
+        WarmLatencyAverageMilliseconds = warmLatencyAverageMilliseconds;
+        WarmLatencyMinimumMilliseconds = warmLatencyMinimumMilliseconds;
+        WarmLatencyMaximumMilliseconds = warmLatencyMaximumMilliseconds;
+        FailureReason = NormalizeOptional(failureReason);
+        GeneratedAtUtc = generatedAtUtc;
+    }
+
+    public Guid Id { get; init; }
+
+    public string ModelId { get; init; }
+
+    public string ModelPath { get; init; }
+
+    public string ReportPath { get; init; }
+
+    public BenchmarkStatus Status { get; init; }
+
+    public string RequestedProvider { get; init; }
+
+    public string SelectedProvider { get; init; }
+
+    public int RunCount { get; init; }
+
+    public bool SupportsExecution { get; init; }
+
+    public long ModelSizeBytes { get; init; }
+
+    public double? ColdLoadMilliseconds { get; init; }
+
+    public double? WarmLatencyAverageMilliseconds { get; init; }
+
+    public double? WarmLatencyMinimumMilliseconds { get; init; }
+
+    public double? WarmLatencyMaximumMilliseconds { get; init; }
+
+    public string? FailureReason { get; init; }
+
+    public DateTimeOffset GeneratedAtUtc { get; init; }
+
     public static BenchmarkRunRecord Create(
         string modelId,
         string modelPath,
@@ -79,29 +136,14 @@ public sealed record BenchmarkRunRecord(
         string? failureReason,
         DateTimeOffset generatedAtUtc)
     {
-        if (string.IsNullOrWhiteSpace(modelId))
-        {
-            throw new ArgumentException("Model id is required.", nameof(modelId));
-        }
-
-        if (string.IsNullOrWhiteSpace(modelPath))
-        {
-            throw new ArgumentException("Model path is required.", nameof(modelPath));
-        }
-
-        if (string.IsNullOrWhiteSpace(reportPath))
-        {
-            throw new ArgumentException("Report path is required.", nameof(reportPath));
-        }
-
         return new BenchmarkRunRecord(
             Guid.NewGuid(),
-            modelId.Trim(),
-            modelPath.Trim(),
-            reportPath.Trim(),
+            modelId,
+            modelPath,
+            reportPath,
             status,
-            requestedProvider.Trim(),
-            selectedProvider.Trim(),
+            requestedProvider,
+            selectedProvider,
             runCount,
             supportsExecution,
             modelSizeBytes,
@@ -109,7 +151,20 @@ public sealed record BenchmarkRunRecord(
             warmLatencyAverageMilliseconds,
             warmLatencyMinimumMilliseconds,
             warmLatencyMaximumMilliseconds,
-            string.IsNullOrWhiteSpace(failureReason) ? null : failureReason.Trim(),
+            failureReason,
             generatedAtUtc);
     }
+
+    private static string NormalizeRequired(string value, string paramName, string message)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException(message, paramName);
+        }
+
+        return value.Trim();
+    }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

@@ -25,12 +25,20 @@ public sealed class SqliteConnectionFactory(string databasePath) : IDbConnection
         };
 
         var connection = new SqliteConnection(builder.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
+        try
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-        await using SqliteCommand pragmaCommand = connection.CreateCommand();
-        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON;";
-        await pragmaCommand.ExecuteNonQueryAsync(cancellationToken);
+            await using SqliteCommand pragmaCommand = connection.CreateCommand();
+            pragmaCommand.CommandText = "PRAGMA foreign_keys = ON;";
+            await pragmaCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        return connection;
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 }
