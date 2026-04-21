@@ -11,6 +11,7 @@
     <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
     <ProjectReference Include="..\BabelStudio.Inference.Onnx\BabelStudio.Inference.Onnx.csproj">
       <SetTargetFramework>TargetFramework=$(TargetFramework)</SetTargetFramework>
+      <PrivateAssets>all</PrivateAssets>
     </ProjectReference>
     <ProjectReference Include="..\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
     <ProjectReference Include="..\BabelStudio.Media\BabelStudio.Media.csproj" />

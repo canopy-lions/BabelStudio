@@ -15,3 +15,13 @@ command = '''
 
 .\src\BabelStudio.Benchmarks\bin\Debug\net10.0-windows10.0.19041.0\BabelStudio.Benchmarks.exe --model .\models\silero-vad\onnx\model.onnx --provider cpu --runs 3 --format both --output .\artifacts\silero-cpu.json
 '''
+
+[[actions]]
+name = "Build"
+icon = "tool"
+command = "dotnet build"
+
+[[actions]]
+name = "Test"
+icon = "test"
+command = "dotnet test"
