@@ -8,12 +8,15 @@ public static class ProjectArtifactPaths
     public const string NormalizedAudioRelativePath = "media/normalized_audio.wav";
     public const string WaveformSummaryRelativePath = "artifacts/waveform/normalized_audio.waveform.json";
     public const string SpeechRegionsRelativePath = "artifacts/audio/speech-regions.json";
+    public const string TranslationDirectoryRelativePath = "artifacts/translation";
 
     public static readonly string[] RequiredDirectories =
     [
         "media",
         "artifacts",
         "artifacts/audio",
+        "artifacts/translation",
+        "artifacts/translation/es",
         "artifacts/transcript",
         "artifacts/waveform",
         "logs",
@@ -30,5 +33,21 @@ public static class ProjectArtifactPaths
         }
 
         return $"artifacts/transcript/transcript-revision-{revisionNumber:D4}.json";
+    }
+
+    public static string GetTranslationRevisionRelativePath(string targetLanguage, int revisionNumber)
+    {
+        if (string.IsNullOrWhiteSpace(targetLanguage))
+        {
+            throw new ArgumentException("Target language is required.", nameof(targetLanguage));
+        }
+
+        if (revisionNumber <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(revisionNumber), "Revision number must be positive.");
+        }
+
+        string normalizedTargetLanguage = targetLanguage.Trim().ToLowerInvariant();
+        return $"artifacts/translation/{normalizedTargetLanguage}/translation-revision-{revisionNumber:D4}.json";
     }
 }
