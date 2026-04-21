@@ -4,39 +4,49 @@ using BabelStudio.Contracts.Pipeline;
 using BabelStudio.Domain;
 using BabelStudio.Domain.Artifacts;
 using BabelStudio.Domain.Media;
+using BabelStudio.Domain.Projects;
 using BabelStudio.Domain.Transcript;
+using BabelStudio.Domain.Translation;
 
 namespace BabelStudio.Application.Transcripts;
 
 public sealed class TranscriptProjectService
 {
+    private const string EnglishLanguageCode = "en";
+    private const string SpanishLanguageCode = "es";
     private readonly ProjectMediaIngestService projectMediaIngestService;
     private readonly ITranscriptRepository transcriptRepository;
+    private readonly ITranslationRepository translationRepository;
     private readonly IProjectStageRunStore stageRunStore;
     private readonly IMediaAssetRepository mediaAssetRepository;
     private readonly IArtifactStore artifactStore;
     private readonly IFileFingerprintService fileFingerprintService;
     private readonly ISpeechRegionDetector speechRegionDetector;
     private readonly IAudioTranscriptionEngine transcriptionEngine;
+    private readonly ITranslationEngine translationEngine;
 
     public TranscriptProjectService(
         ProjectMediaIngestService projectMediaIngestService,
         ITranscriptRepository transcriptRepository,
+        ITranslationRepository translationRepository,
         IProjectStageRunStore stageRunStore,
         IMediaAssetRepository mediaAssetRepository,
         IArtifactStore artifactStore,
         IFileFingerprintService fileFingerprintService,
         ISpeechRegionDetector speechRegionDetector,
-        IAudioTranscriptionEngine transcriptionEngine)
+        IAudioTranscriptionEngine transcriptionEngine,
+        ITranslationEngine translationEngine)
     {
         this.projectMediaIngestService = projectMediaIngestService;
         this.transcriptRepository = transcriptRepository;
+        this.translationRepository = translationRepository;
         this.stageRunStore = stageRunStore;
         this.mediaAssetRepository = mediaAssetRepository;
         this.artifactStore = artifactStore;
         this.fileFingerprintService = fileFingerprintService;
         this.speechRegionDetector = speechRegionDetector;
         this.transcriptionEngine = transcriptionEngine;
+        this.translationEngine = translationEngine;
     }
 
     public async Task<TranscriptProjectState> CreateAsync(
@@ -67,11 +77,32 @@ public sealed class TranscriptProjectService
             ? []
             : await transcriptRepository.GetSegmentsAsync(currentRevision.Id, cancellationToken).ConfigureAwait(false);
 
+        TranslationRevision? currentTranslationRevision = await translationRepository.GetCurrentRevisionAsync(
+            openResult.Project.Id,
+            SpanishLanguageCode,
+            cancellationToken).ConfigureAwait(false);
+
+        IReadOnlyList<TranslatedSegment> translatedSegments = currentTranslationRevision is null
+            ? []
+            : await translationRepository.GetSegmentsAsync(currentTranslationRevision.Id, cancellationToken).ConfigureAwait(false);
+
         IReadOnlyList<StageRunRecord> stageRuns = await stageRunStore.ListByProjectAsync(
             openResult.Project.Id,
             cancellationToken).ConfigureAwait(false);
 
-        return new TranscriptProjectState(openResult, currentRevision, segments, stageRuns);
+        bool isTranslationStale = currentRevision is not null &&
+                                  currentTranslationRevision is not null &&
+                                  currentTranslationRevision.SourceTranscriptRevisionId != currentRevision.Id;
+
+        return new TranscriptProjectState(
+            openResult,
+            currentRevision,
+            segments,
+            currentTranslationRevision,
+            translatedSegments,
+            isTranslationStale,
+            openResult.TranscriptLanguage,
+            stageRuns);
     }
 
     public async Task<TranscriptProjectState> SaveEditsAsync(
@@ -116,34 +147,191 @@ public sealed class TranscriptProjectService
             .ToArray();
 
         await transcriptRepository.SaveRevisionAsync(editedRevision, editedSegments, cancellationToken).ConfigureAwait(false);
-
-        string relativePath = ProjectArtifactPaths.GetTranscriptRevisionRelativePath(editedRevision.RevisionNumber);
-        var artifactDocument = TranscriptRevisionArtifactDocument.From(editedRevision, editedSegments, provenance: "manual-edit");
-        await artifactStore.WriteJsonAsync(relativePath, artifactDocument, cancellationToken).ConfigureAwait(false);
-
-        FileFingerprint artifactFingerprint = await fileFingerprintService.ComputeAsync(
-            artifactStore.GetPath(relativePath),
+        await WriteTranscriptArtifactAsync(
+            currentState.ProjectState.Project.Id,
+            GetRequiredMediaAsset(currentState),
+            editedRevision,
+            editedSegments,
+            stageRunId: null,
+            provenance: "manual-edit",
             cancellationToken).ConfigureAwait(false);
 
-        MediaAsset mediaAsset = currentState.ProjectState.MediaAsset
-            ?? throw new InvalidOperationException("The project does not contain a primary media asset.");
+        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+    }
 
-        var transcriptArtifact = new ProjectArtifact(
-            Guid.NewGuid(),
+    public async Task<TranscriptProjectState> SetTranscriptLanguageAsync(
+        SetTranscriptLanguageRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        string? transcriptLanguage = NormalizeTranscriptLanguageCode(request.TranscriptLanguage);
+        if (string.Equals(currentState.TranscriptLanguage, transcriptLanguage, StringComparison.Ordinal))
+        {
+            return currentState;
+        }
+
+        ProjectManifest manifest = await ReadProjectManifestAsync(
+            currentState.ProjectState.Project,
+            currentState.TranscriptLanguage,
+            cancellationToken).ConfigureAwait(false);
+        await artifactStore.WriteJsonAsync(
+            ProjectArtifactPaths.ManifestRelativePath,
+            manifest.WithTranscriptLanguage(transcriptLanguage),
+            cancellationToken).ConfigureAwait(false);
+
+        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> GenerateTranslationAsync(
+        GenerateTranslationRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        TranscriptRevision currentTranscriptRevision = currentState.CurrentTranscriptRevision
+            ?? throw new InvalidOperationException("The project does not contain a transcript revision.");
+
+        string sourceLanguage = NormalizeRequiredTranscriptLanguageCode(request.SourceLanguage);
+        string targetLanguage = NormalizeSupportedTargetLanguage(request.TargetLanguage);
+
+        if (!string.Equals(currentState.TranscriptLanguage, sourceLanguage, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Set the transcript language before starting translation.");
+        }
+
+        StageRunRecord translationStageRun = StageRunRecord.Start(
             currentState.ProjectState.Project.Id,
-            mediaAsset.Id,
-            ArtifactKind.TranscriptRevision,
-            relativePath,
-            artifactFingerprint.Sha256,
-            artifactFingerprint.SizeBytes,
-            DurationSeconds: null,
-            SampleRate: null,
-            ChannelCount: null,
-            now,
-            StageRunId: null,
-            Provenance: "manual-edit");
+            "translation",
+            DateTimeOffset.UtcNow);
+        await stageRunStore.CreateAsync(translationStageRun, cancellationToken).ConfigureAwait(false);
 
-        await mediaAssetRepository.SaveArtifactAsync(transcriptArtifact, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<TranslatedTextSegment> translatedTextSegments;
+        try
+        {
+            translatedTextSegments = await translationEngine.TranslateAsync(
+                new TranslationRequest(
+                    sourceLanguage,
+                    targetLanguage,
+                    currentState.TranscriptSegments
+                        .OrderBy(segment => segment.SegmentIndex)
+                        .Select(segment => new TranslationInputSegment(
+                            segment.SegmentIndex,
+                            segment.StartSeconds,
+                            segment.EndSeconds,
+                            segment.Text))
+                        .ToArray(),
+                    CommercialSafeMode: true,
+                    PreferredModelAlias: "opus-en-es"),
+                cancellationToken).ConfigureAwait(false);
+
+            translationStageRun = ApplyRuntimeExecutionSummary(translationStageRun, translationEngine)
+                .Complete(DateTimeOffset.UtcNow);
+            await stageRunStore.UpdateAsync(translationStageRun, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            StageRunRecord failed = ApplyRuntimeExecutionSummary(translationStageRun, translationEngine)
+                .Fail(DateTimeOffset.UtcNow, ex.Message);
+            await stageRunStore.UpdateAsync(failed, cancellationToken).ConfigureAwait(false);
+            throw;
+        }
+
+        int nextRevisionNumber = await translationRepository.GetNextRevisionNumberAsync(
+            currentState.ProjectState.Project.Id,
+            targetLanguage,
+            cancellationToken).ConfigureAwait(false);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        TranslationRevision translationRevision = TranslationRevision.Create(
+            currentState.ProjectState.Project.Id,
+            translationStageRun.Id,
+            currentTranscriptRevision.Id,
+            targetLanguage,
+            nextRevisionNumber,
+            now);
+
+        TranslatedSegment[] translatedSegments = translatedTextSegments
+            .OrderBy(segment => segment.Index)
+            .Select(segment => TranslatedSegment.Create(
+                translationRevision.Id,
+                segment.Index,
+                segment.StartSeconds,
+                segment.EndSeconds,
+                segment.Text))
+            .ToArray();
+
+        await translationRepository.SaveRevisionAsync(
+            translationRevision,
+            translatedSegments,
+            cancellationToken).ConfigureAwait(false);
+        await WriteTranslationArtifactAsync(
+            currentState.ProjectState.Project.Id,
+            GetRequiredMediaAsset(currentState),
+            translationRevision,
+            translatedSegments,
+            stageRunId: translationStageRun.Id,
+            provenance: "generated-translation",
+            cancellationToken).ConfigureAwait(false);
+
+        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> SaveTranslationEditsAsync(
+        SaveTranslationEditsRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        TranslationRevision currentTranslationRevision = currentState.CurrentTranslationRevision
+            ?? throw new InvalidOperationException("The project does not contain a translation revision.");
+
+        if (currentTranslationRevision.Id != request.TranslationRevisionId)
+        {
+            throw new InvalidOperationException("Translation edits were based on an out-of-date revision.");
+        }
+
+        string targetLanguage = NormalizeSupportedTargetLanguage(request.TargetLanguage);
+        if (!string.Equals(currentTranslationRevision.TargetLanguage, targetLanguage, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Translation edits were based on a different target language.");
+        }
+
+        Dictionary<int, string> replacements = request.Segments.ToDictionary(
+            segment => segment.SegmentIndex,
+            segment => segment.Text);
+        int nextRevisionNumber = await translationRepository.GetNextRevisionNumberAsync(
+            currentState.ProjectState.Project.Id,
+            targetLanguage,
+            cancellationToken).ConfigureAwait(false);
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        TranslationRevision editedRevision = TranslationRevision.Create(
+            currentState.ProjectState.Project.Id,
+            stageRunId: null,
+            currentTranslationRevision.SourceTranscriptRevisionId,
+            targetLanguage,
+            nextRevisionNumber,
+            now);
+
+        TranslatedSegment[] editedSegments = currentState.TranslatedSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .Select(segment => TranslatedSegment.Create(
+                editedRevision.Id,
+                segment.SegmentIndex,
+                segment.StartSeconds,
+                segment.EndSeconds,
+                replacements.TryGetValue(segment.SegmentIndex, out string? replacement)
+                    ? replacement
+                    : segment.Text))
+            .ToArray();
+
+        await translationRepository.SaveRevisionAsync(editedRevision, editedSegments, cancellationToken).ConfigureAwait(false);
+        await WriteTranslationArtifactAsync(
+            currentState.ProjectState.Project.Id,
+            GetRequiredMediaAsset(currentState),
+            editedRevision,
+            editedSegments,
+            stageRunId: null,
+            provenance: "manual-edit",
+            cancellationToken).ConfigureAwait(false);
+
         return await OpenAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -217,7 +405,14 @@ public sealed class TranscriptProjectService
             .ToArray();
 
         await transcriptRepository.SaveRevisionAsync(revision, segments, cancellationToken).ConfigureAwait(false);
-        await WriteTranscriptArtifactAsync(projectId, mediaAsset, revision, segments, asrStageRun, cancellationToken).ConfigureAwait(false);
+        await WriteTranscriptArtifactAsync(
+            projectId,
+            mediaAsset,
+            revision,
+            segments,
+            asrStageRun.Id,
+            "generated-asr",
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task WriteSpeechRegionsArtifactAsync(
@@ -260,13 +455,14 @@ public sealed class TranscriptProjectService
         MediaAsset mediaAsset,
         TranscriptRevision revision,
         IReadOnlyList<TranscriptSegment> segments,
-        StageRunRecord stageRun,
+        Guid? stageRunId,
+        string provenance,
         CancellationToken cancellationToken)
     {
         string relativePath = ProjectArtifactPaths.GetTranscriptRevisionRelativePath(revision.RevisionNumber);
         await artifactStore.WriteJsonAsync(
             relativePath,
-            TranscriptRevisionArtifactDocument.From(revision, segments, "generated-asr"),
+            TranscriptRevisionArtifactDocument.From(revision, segments, provenance),
             cancellationToken).ConfigureAwait(false);
 
         FileFingerprint fingerprint = await fileFingerprintService.ComputeAsync(
@@ -285,11 +481,65 @@ public sealed class TranscriptProjectService
             SampleRate: null,
             ChannelCount: null,
             DateTimeOffset.UtcNow,
-            StageRunId: stageRun.Id,
-            Provenance: "generated-asr");
+            StageRunId: stageRunId,
+            Provenance: provenance);
 
         await mediaAssetRepository.SaveArtifactAsync(artifact, cancellationToken).ConfigureAwait(false);
     }
+
+    private async Task WriteTranslationArtifactAsync(
+        Guid projectId,
+        MediaAsset mediaAsset,
+        TranslationRevision revision,
+        IReadOnlyList<TranslatedSegment> segments,
+        Guid? stageRunId,
+        string provenance,
+        CancellationToken cancellationToken)
+    {
+        string relativePath = ProjectArtifactPaths.GetTranslationRevisionRelativePath(
+            revision.TargetLanguage,
+            revision.RevisionNumber);
+        await artifactStore.WriteJsonAsync(
+            relativePath,
+            TranslationRevisionArtifactDocument.From(revision, segments, provenance),
+            cancellationToken).ConfigureAwait(false);
+
+        FileFingerprint fingerprint = await fileFingerprintService.ComputeAsync(
+            artifactStore.GetPath(relativePath),
+            cancellationToken).ConfigureAwait(false);
+
+        var artifact = new ProjectArtifact(
+            Guid.NewGuid(),
+            projectId,
+            mediaAsset.Id,
+            ArtifactKind.TranslationRevision,
+            relativePath,
+            fingerprint.Sha256,
+            fingerprint.SizeBytes,
+            DurationSeconds: null,
+            SampleRate: null,
+            ChannelCount: null,
+            DateTimeOffset.UtcNow,
+            StageRunId: stageRunId,
+            Provenance: provenance);
+
+        await mediaAssetRepository.SaveArtifactAsync(artifact, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ProjectManifest> ReadProjectManifestAsync(
+        BabelProject project,
+        string? transcriptLanguage,
+        CancellationToken cancellationToken)
+    {
+        ProjectManifest? manifest = await artifactStore.ReadJsonAsync<ProjectManifest>(
+            ProjectArtifactPaths.ManifestRelativePath,
+            cancellationToken).ConfigureAwait(false);
+        return manifest ?? ProjectManifest.FromProject(project, transcriptLanguage);
+    }
+
+    private static MediaAsset GetRequiredMediaAsset(TranscriptProjectState state) =>
+        state.ProjectState.MediaAsset
+            ?? throw new InvalidOperationException("The project does not contain a primary media asset.");
 
     private static StageRunRecord ApplyRuntimeExecutionSummary(StageRunRecord stageRun, object stageEngine)
     {
@@ -307,6 +557,40 @@ public sealed class TranscriptProjectService
             summary.ModelAlias,
             summary.ModelVariant,
             summary.BootstrapDetail);
+    }
+
+    private static string NormalizeRequiredTranscriptLanguageCode(string languageCode)
+    {
+        string normalized = NormalizeTranscriptLanguageCode(languageCode)
+            ?? throw new InvalidOperationException("Transcript language is required.");
+        return normalized;
+    }
+
+    private static string NormalizeSupportedTargetLanguage(string targetLanguage)
+    {
+        string normalized = NormalizeRequiredTranscriptLanguageCode(targetLanguage);
+        if (!string.Equals(normalized, SpanishLanguageCode, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Milestone 7 only supports Spanish translation output.");
+        }
+
+        return normalized;
+    }
+
+    private static string? NormalizeTranscriptLanguageCode(string? languageCode)
+    {
+        if (string.IsNullOrWhiteSpace(languageCode))
+        {
+            return null;
+        }
+
+        string normalized = languageCode.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            EnglishLanguageCode => normalized,
+            SpanishLanguageCode => normalized,
+            _ => throw new InvalidOperationException("Milestone 7 only supports English or Spanish transcript language selection.")
+        };
     }
 
     private sealed record SpeechRegionsArtifactDocument(
@@ -342,7 +626,45 @@ public sealed class TranscriptProjectService
                     .ToArray());
     }
 
+    private sealed record TranslationRevisionArtifactDocument(
+        Guid RevisionId,
+        Guid? StageRunId,
+        Guid SourceTranscriptRevisionId,
+        string TargetLanguage,
+        int RevisionNumber,
+        string Provenance,
+        DateTimeOffset CreatedAtUtc,
+        IReadOnlyList<TranslatedSegmentArtifactDocument> Segments)
+    {
+        public static TranslationRevisionArtifactDocument From(
+            TranslationRevision revision,
+            IReadOnlyList<TranslatedSegment> segments,
+            string provenance) =>
+            new(
+                revision.Id,
+                revision.StageRunId,
+                revision.SourceTranscriptRevisionId,
+                revision.TargetLanguage,
+                revision.RevisionNumber,
+                provenance,
+                revision.CreatedAtUtc,
+                segments
+                    .OrderBy(segment => segment.SegmentIndex)
+                    .Select(segment => new TranslatedSegmentArtifactDocument(
+                        segment.SegmentIndex,
+                        segment.StartSeconds,
+                        segment.EndSeconds,
+                        segment.Text))
+                    .ToArray());
+    }
+
     private sealed record TranscriptSegmentArtifactDocument(
+        int SegmentIndex,
+        double StartSeconds,
+        double EndSeconds,
+        string Text);
+
+    private sealed record TranslatedSegmentArtifactDocument(
         int SegmentIndex,
         double StartSeconds,
         double EndSeconds,
