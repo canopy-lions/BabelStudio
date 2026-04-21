@@ -1,0 +1,24 @@
+namespace BabelStudio.Domain.Artifacts;
+
+public enum ArtifactKind
+{
+    NormalizedAudio = 1,
+    WaveformSummary = 2,
+    SpeechRegions = 3,
+    TranscriptRevision = 4
+}
+
+public sealed record ProjectArtifact(
+    Guid Id,
+    Guid ProjectId,
+    Guid MediaAssetId,
+    ArtifactKind Kind,
+    string RelativePath,
+    string Sha256,
+    long SizeBytes,
+    double? DurationSeconds,
+    int? SampleRate,
+    int? ChannelCount,
+    DateTimeOffset CreatedAtUtc,
+    Guid? StageRunId = null,
+    string? Provenance = null);
