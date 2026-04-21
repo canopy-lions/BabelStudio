@@ -7,6 +7,8 @@
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.6" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.ML" Version="1.8.2141" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />

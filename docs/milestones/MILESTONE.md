@@ -34,6 +34,46 @@ Do not move to feature expansion until the previous milestone has a boring, repe
 
 ---
 
+## Windows ML package rule
+
+`Microsoft.Windows.AI.MachineLearning` is a concrete runtime dependency, not a planner or UI dependency.
+
+Add it like this:
+
+- Pin the version in `Directory.Packages.props`.
+- Add `<PackageReference Include="Microsoft.WindowsAppSDK.ML" />` only in the project that actually executes ONNX through the Windows ML path.
+- Keep Windows ML bootstrap and provider registration inside `src/BabelStudio.Inference.Onnx/`.
+- Current C# bootstrap path should follow Microsoft Learn's `ExecutionProviderCatalog` APIs:
+  `var catalog = ExecutionProviderCatalog.GetDefault();`
+  then `await catalog.EnsureAndRegisterCertifiedAsync();` for the default online path, or `await catalog.RegisterCertifiedAsync();` when only already-installed providers should be registered.
+- Current C# prerequisites from Microsoft Learn are `.NET 8` or greater plus a Windows-specific target framework such as `net8.0-windows10.0.19041.0` or greater.
+- For unpackaged executable hosts, add `<WindowsPackageType>None</WindowsPackageType>` so the Windows App SDK bootstrapper is enabled.
+- For harness-style local execution where you want the runtime carried with the executable, set `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>`.
+- The executable host should reference `Microsoft.WindowsAppSDK` so the Windows App SDK runtime/bootstrap path is present. `Microsoft.WindowsAppSDK.ML` alone is not enough for an unpackaged host to run correctly.
+- If the repo still targets plain `net10.0`, keep any `WindowsMlExecutionProviderBootstrapper` scaffold in `BabelStudio.Inference.Onnx` as a non-executing shim until the Milestone 6 Windows-targeted TFM step is taken.
+- Smallest safe TFM change for Milestone 6:
+  multi-target `src/BabelStudio.Inference.Onnx/` as `net10.0;net10.0-windows10.0.19041.0`.
+  Put the real `ExecutionProviderCatalog` implementation only in the Windows target, and keep the base `net10.0` target as a deferred shim so non-Windows-specific consumers do not get forced onto Windows APIs too early.
+- Only widen the Windows-specific TFM to `src/BabelStudio.Benchmarks/` or the app shell when those projects need to actually execute the Windows ML bootstrap path.
+
+Do not add it to:
+
+- `src/BabelStudio.Domain/`
+- `src/BabelStudio.Application/`
+- `src/BabelStudio.Inference/`
+- `src/BabelStudio.Infrastructure/`
+- the WinUI app shell
+
+Milestone timing:
+
+- Milestone 1 may reference `Microsoft.Windows.AI.MachineLearning` in the harness only if needed to prove Windows ML viability on real hardware.
+- Milestone 5 must not reference or execute `Microsoft.Windows.AI.MachineLearning`; the planner should reason only about `ExecutionProviderKind` and runtime requirements.
+- Milestone 6 is the first real product milestone where `Microsoft.Windows.AI.MachineLearning` should become a product dependency, and it should be introduced through `src/BabelStudio.Inference.Onnx/`.
+
+If the repo has already passed Milestone 5, add `Microsoft.Windows.AI.MachineLearning` in the first Milestone 6 commit that introduces real stage execution in `BabelStudio.Inference.Onnx`.
+
+---
+
 ## Milestone 0 — Repository and architecture foundation
 
 ### Goal

@@ -450,6 +450,28 @@ public sealed class OnnxModelBenchmarkRunnerTests
             File.Delete(reportPath);
         }
     }
+
+    [Fact]
+    public async Task RunAsync_RecordsWindowsMlBootstrapOutcomeForNonCpuProviders()
+    {
+        var reportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
+
+        try
+        {
+            var runner = new OnnxModelBenchmarkRunner();
+            var report = await runner.RunAsync(
+                new BenchmarkRequest(SampleModelPath, reportPath, BenchmarkProviderPreference.Auto, 1),
+                CancellationToken.None);
+
+            Assert.Contains(
+                report.Notes,
+                note => note.Contains("Windows ML bootstrap", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(reportPath);
+        }
+    }
 }
 
 public sealed class BenchmarkReportWriterTests
