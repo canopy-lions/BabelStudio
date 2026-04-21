@@ -91,6 +91,22 @@ Met. The project database now stores `vad` / `asr` stage runs, transcript revisi
 - No app-level reopen path that could prove transcript persistence without recomputation.
 - No stored provenance linking transcript outputs back to stage execution.
 
+## Verification
+
+### Manual smoke test completed
+
+Completed on 2026-04-20 local time during live app validation.
+
+Verified workflow:
+
+- launched the WinUI app and opened local media into a fresh `.babelstudio` project folder
+- allowed ingest plus ONNX-backed `vad` / `asr` to complete
+- edited transcript text in the shell
+- saved the transcript and confirmed a persisted revision was created
+- closed and reopened the app
+- used `Open Project` to reopen the saved `.babelstudio` folder
+- confirmed the edited transcript persisted without recomputing the transcript on reopen
+
 ## Remaining risks intentionally deferred
 
 - Broader runtime hardening across more machines, providers, and bundled model combinations beyond the current transcript-stage baseline.
