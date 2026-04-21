@@ -225,6 +225,17 @@ internal static class SqliteMigrations
             CREATE INDEX IF NOT EXISTS IX_TranscriptRevisions_ProjectId ON TranscriptRevisions(ProjectId);
             CREATE INDEX IF NOT EXISTS IX_TranslationRevisions_ProjectId ON TranslationRevisions(ProjectId);
             CREATE INDEX IF NOT EXISTS IX_ConsentRecords_ProjectId ON ConsentRecords(ProjectId);
+            """),
+        new(
+            4,
+            "extend-stage-runs-with-runtime-context",
+            """
+            ALTER TABLE StageRuns ADD COLUMN RequestedProvider TEXT NULL;
+            ALTER TABLE StageRuns ADD COLUMN SelectedProvider TEXT NULL;
+            ALTER TABLE StageRuns ADD COLUMN RuntimeModelId TEXT NULL;
+            ALTER TABLE StageRuns ADD COLUMN RuntimeModelAlias TEXT NULL;
+            ALTER TABLE StageRuns ADD COLUMN RuntimeModelVariant TEXT NULL;
+            ALTER TABLE StageRuns ADD COLUMN BootstrapDetail TEXT NULL;
             """)
     ];
 }

@@ -7,6 +7,12 @@ public sealed class SqliteProjectDatabase
 {
     private const string StageRunIdColumnName = "stage_run_id";
     private const string ProvenanceColumnName = "provenance";
+    private const string RequestedProviderColumnName = "RequestedProvider";
+    private const string SelectedProviderColumnName = "SelectedProvider";
+    private const string RuntimeModelIdColumnName = "RuntimeModelId";
+    private const string RuntimeModelAliasColumnName = "RuntimeModelAlias";
+    private const string RuntimeModelVariantColumnName = "RuntimeModelVariant";
+    private const string BootstrapDetailColumnName = "BootstrapDetail";
     private readonly string databasePath;
 
     public SqliteProjectDatabase(string projectRootPath)
@@ -71,6 +77,12 @@ public sealed class SqliteProjectDatabase
                 StartedAtUtc TEXT NOT NULL,
                 CompletedAtUtc TEXT NULL,
                 FailureReason TEXT NULL,
+                RequestedProvider TEXT NULL,
+                SelectedProvider TEXT NULL,
+                RuntimeModelId TEXT NULL,
+                RuntimeModelAlias TEXT NULL,
+                RuntimeModelVariant TEXT NULL,
+                BootstrapDetail TEXT NULL,
                 FOREIGN KEY (ProjectId) REFERENCES projects(id) ON DELETE CASCADE
             );
 
@@ -107,6 +119,12 @@ public sealed class SqliteProjectDatabase
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         await EnsureArtifactColumnAsync(connection, StageRunIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureArtifactColumnAsync(connection, ProvenanceColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureStageRunColumnAsync(connection, RequestedProviderColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureStageRunColumnAsync(connection, SelectedProviderColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureStageRunColumnAsync(connection, RuntimeModelIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureStageRunColumnAsync(connection, RuntimeModelAliasColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureStageRunColumnAsync(connection, RuntimeModelVariantColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureStageRunColumnAsync(connection, BootstrapDetailColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -152,8 +170,41 @@ public sealed class SqliteProjectDatabase
         string columnName,
         CancellationToken cancellationToken)
     {
+        return await TableColumnExistsAsync(connection, "artifacts", columnName, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureStageRunColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await StageRunColumnExistsAsync(connection, columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
         await using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "PRAGMA table_info(artifacts);";
+        command.CommandText = $"ALTER TABLE StageRuns ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> StageRunColumnExistsAsync(
+        SqliteConnection connection,
+        string columnName,
+        CancellationToken cancellationToken)
+    {
+        return await TableColumnExistsAsync(connection, "StageRuns", columnName, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> TableColumnExistsAsync(
+        SqliteConnection connection,
+        string tableName,
+        string columnName,
+        CancellationToken cancellationToken)
+    {
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({tableName});";
 
         await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
