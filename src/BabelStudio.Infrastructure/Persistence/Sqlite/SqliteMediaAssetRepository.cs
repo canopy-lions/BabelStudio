@@ -57,6 +57,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             return null;
         }
 
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
@@ -135,6 +136,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             return [];
         }
 
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText =

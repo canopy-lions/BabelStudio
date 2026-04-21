@@ -132,33 +132,40 @@ public sealed class SqliteTranscriptRepository : ITranscriptRepository
             await revisionCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        await using SqliteCommand segmentCommand = connection.CreateCommand();
+        segmentCommand.Transaction = transaction;
+        segmentCommand.CommandText =
+            """
+            INSERT INTO transcript_segments (
+                id,
+                transcript_revision_id,
+                segment_index,
+                start_seconds,
+                end_seconds,
+                text)
+            VALUES (
+                $id,
+                $transcriptRevisionId,
+                $segmentIndex,
+                $startSeconds,
+                $endSeconds,
+                $text);
+            """;
+        SqliteParameter segmentIdParameter = segmentCommand.Parameters.Add("$id", SqliteType.Text);
+        SqliteParameter transcriptRevisionIdParameter = segmentCommand.Parameters.Add("$transcriptRevisionId", SqliteType.Text);
+        SqliteParameter segmentIndexParameter = segmentCommand.Parameters.Add("$segmentIndex", SqliteType.Integer);
+        SqliteParameter startSecondsParameter = segmentCommand.Parameters.Add("$startSeconds", SqliteType.Real);
+        SqliteParameter endSecondsParameter = segmentCommand.Parameters.Add("$endSeconds", SqliteType.Real);
+        SqliteParameter textParameter = segmentCommand.Parameters.Add("$text", SqliteType.Text);
+
         foreach (TranscriptSegment segment in segments.OrderBy(segment => segment.SegmentIndex))
         {
-            await using SqliteCommand segmentCommand = connection.CreateCommand();
-            segmentCommand.Transaction = transaction;
-            segmentCommand.CommandText =
-                """
-                INSERT INTO transcript_segments (
-                    id,
-                    transcript_revision_id,
-                    segment_index,
-                    start_seconds,
-                    end_seconds,
-                    text)
-                VALUES (
-                    $id,
-                    $transcriptRevisionId,
-                    $segmentIndex,
-                    $startSeconds,
-                    $endSeconds,
-                    $text);
-                """;
-            segmentCommand.Parameters.AddWithValue("$id", segment.Id.ToString("D"));
-            segmentCommand.Parameters.AddWithValue("$transcriptRevisionId", segment.TranscriptRevisionId.ToString("D"));
-            segmentCommand.Parameters.AddWithValue("$segmentIndex", segment.SegmentIndex);
-            segmentCommand.Parameters.AddWithValue("$startSeconds", segment.StartSeconds);
-            segmentCommand.Parameters.AddWithValue("$endSeconds", segment.EndSeconds);
-            segmentCommand.Parameters.AddWithValue("$text", segment.Text);
+            segmentIdParameter.Value = segment.Id.ToString("D");
+            transcriptRevisionIdParameter.Value = segment.TranscriptRevisionId.ToString("D");
+            segmentIndexParameter.Value = segment.SegmentIndex;
+            startSecondsParameter.Value = segment.StartSeconds;
+            endSecondsParameter.Value = segment.EndSeconds;
+            textParameter.Value = segment.Text;
             await segmentCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 

@@ -1,4 +1,4 @@
-using BabelStudio.App.Composition;
+using BabelStudio.Composition;
 using BabelStudio.App.ViewModels;
 using BabelStudio.Application.Transcripts;
 using Microsoft.UI.Xaml;
@@ -10,6 +10,33 @@ namespace BabelStudio.App.Views;
 public sealed partial class MainWindow : Window
 {
     private readonly TranscriptWorkspaceFactory workspaceFactory = new();
+    private static readonly HashSet<string> ReservedProjectFolderNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9"
+    };
+
+    private CancellationTokenSource? activeOperationCancellationSource;
     private TranscriptProjectService? currentService;
     private string? currentProjectRootPath;
 
@@ -17,9 +44,18 @@ public sealed partial class MainWindow : Window
     {
         ViewModel = new MainWindowViewModel();
         InitializeComponent();
+        Closed += MainWindow_Closed;
     }
 
     public MainWindowViewModel ViewModel { get; }
+
+    private void MainWindow_Closed(object sender, WindowEventArgs args)
+    {
+        activeOperationCancellationSource?.Cancel();
+        activeOperationCancellationSource?.Dispose();
+        activeOperationCancellationSource = null;
+        Closed -= MainWindow_Closed;
+    }
 
     private async void OpenMediaButton_Click(object sender, RoutedEventArgs e)
     {
@@ -84,12 +120,18 @@ public sealed partial class MainWindow : Window
 
     private async Task RunAsync(Func<CancellationToken, Task> action, string busyMessage)
     {
+        using var operationCancellationSource = new CancellationTokenSource();
+        activeOperationCancellationSource = operationCancellationSource;
         ViewModel.IsBusy = true;
         ViewModel.StatusMessage = busyMessage;
 
         try
         {
-            await action(CancellationToken.None).ConfigureAwait(true);
+            await action(operationCancellationSource.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (operationCancellationSource.IsCancellationRequested)
+        {
+            ViewModel.StatusMessage = "Operation canceled.";
         }
         catch (Exception ex)
         {
@@ -97,6 +139,11 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
+            if (ReferenceEquals(activeOperationCancellationSource, operationCancellationSource))
+            {
+                activeOperationCancellationSource = null;
+            }
+
             ViewModel.IsBusy = false;
         }
     }
@@ -143,12 +190,35 @@ public sealed partial class MainWindow : Window
         string directory = Path.GetDirectoryName(mediaPath)
             ?? throw new InvalidOperationException("Source media path does not have a parent directory.");
 
-        string sanitizedName = new(projectName.Trim().Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray());
-        if (string.IsNullOrWhiteSpace(sanitizedName))
-        {
-            sanitizedName = Path.GetFileNameWithoutExtension(mediaPath);
-        }
+        string sanitizedName = SanitizeProjectFolderName(projectName, Path.GetFileNameWithoutExtension(mediaPath));
 
         return Path.Combine(directory, $"{sanitizedName}.babelstudio");
+    }
+
+    private static string SanitizeProjectFolderName(string projectName, string fallbackName)
+    {
+        string sanitized = NormalizeProjectFolderName(projectName);
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            sanitized = NormalizeProjectFolderName(fallbackName);
+        }
+
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            sanitized = "Project";
+        }
+
+        if (ReservedProjectFolderNames.Contains(sanitized) || sanitized is "." or "..")
+        {
+            sanitized = $"{sanitized}_";
+        }
+
+        return sanitized;
+    }
+
+    private static string NormalizeProjectFolderName(string value)
+    {
+        string replaced = new(value.Trim().Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray());
+        return replaced.Trim().TrimEnd('.', ' ');
     }
 }

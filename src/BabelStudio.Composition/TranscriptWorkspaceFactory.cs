@@ -7,7 +7,7 @@ using BabelStudio.Media.Extraction;
 using BabelStudio.Media.Probe;
 using BabelStudio.Media.Waveforms;
 
-namespace BabelStudio.App.Composition;
+namespace BabelStudio.Composition;
 
 public sealed class TranscriptWorkspaceFactory
 {

@@ -19,6 +19,11 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<TranscriptSegmentItem> Segments { get; } = [];
 
+    public MainWindowViewModel()
+    {
+        Segments.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanSaveTranscript));
+    }
+
     public string ProjectNameDraft
     {
         get => projectNameDraft;

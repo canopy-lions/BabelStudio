@@ -22,6 +22,11 @@ public sealed class CommercialSafeEvaluator
             reasons.Add("Manifest does not allow commercial use.");
         }
 
+        if (!manifest.CommercialSafeMode)
+        {
+            reasons.Add("Manifest does not mark this model as commercial-safe mode eligible.");
+        }
+
         if (manifest.VoiceCloning && !manifest.RequiresUserConsent)
         {
             reasons.Add("Voice-cloning models must require user consent.");

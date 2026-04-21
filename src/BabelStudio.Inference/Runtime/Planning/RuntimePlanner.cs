@@ -186,16 +186,28 @@ public sealed class RuntimePlanner : IRuntimePlanner
                 }
 
                 string rootPath = cacheRecord.RootPath;
-                ExecutionProviderSmokeTestResult smokeResult = await executionProviderSmokeTester.SmokeTestAsync(
-                    new ExecutionProviderSmokeTestRequest(
-                        stage,
-                        candidate.Entry.ModelId,
-                        ResolvePrimaryAlias(candidate.Entry),
-                        variant.Alias,
-                        provider,
-                        rootPath,
-                        entryPath),
-                    cancellationToken).ConfigureAwait(false);
+                ExecutionProviderSmokeTestResult smokeResult;
+                try
+                {
+                    smokeResult = await executionProviderSmokeTester.SmokeTestAsync(
+                        new ExecutionProviderSmokeTestRequest(
+                            stage,
+                            candidate.Entry.ModelId,
+                            ResolvePrimaryAlias(candidate.Entry),
+                            variant.Alias,
+                            provider,
+                            rootPath,
+                            entryPath),
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    smokeResult = new ExecutionProviderSmokeTestResult(false, ex.Message);
+                }
 
                 if (smokeResult.Passed)
                 {

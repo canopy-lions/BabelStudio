@@ -348,6 +348,15 @@ public sealed class CommercialSafeEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_RejectsManifestWithoutCommercialSafeModeFlag()
+    {
+        CommercialSafeEvaluation result = evaluator.Evaluate(CreateManifest(commercialSafeMode: false));
+
+        Assert.False(result.IsCommercialSafe);
+        Assert.Contains(result.Reasons, reason => reason.Contains("commercial-safe mode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Evaluate_RequiresConsentForVoiceCloning()
     {
         CommercialSafeEvaluation result = evaluator.Evaluate(CreateManifest(
@@ -374,7 +383,8 @@ public sealed class CommercialSafeEvaluatorTests
         bool commercialAllowed = true,
         bool requiresAttribution = false,
         bool requiresUserConsent = false,
-        bool voiceCloning = false) =>
+        bool voiceCloning = false,
+        bool? commercialSafeMode = null) =>
         new(
             ModelId: "example/model",
             Task: task,
@@ -384,7 +394,7 @@ public sealed class CommercialSafeEvaluatorTests
             RequiresAttribution: requiresAttribution,
             RequiresUserConsent: requiresUserConsent,
             VoiceCloning: voiceCloning,
-            CommercialSafeMode: commercialAllowed && license is not ModelLicenseKind.Unknown and not ModelLicenseKind.NonCommercial,
+            CommercialSafeMode: commercialSafeMode ?? (commercialAllowed && license is not ModelLicenseKind.Unknown and not ModelLicenseKind.NonCommercial),
             SourceUrl: "",
             Revision: "",
             Sha256: "",

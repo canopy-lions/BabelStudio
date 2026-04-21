@@ -2,6 +2,7 @@ namespace BabelStudio.Domain.Artifacts;
 
 public enum ArtifactKind
 {
+    Unknown = 0,
     NormalizedAudio = 1,
     WaveformSummary = 2,
     SpeechRegions = 3,

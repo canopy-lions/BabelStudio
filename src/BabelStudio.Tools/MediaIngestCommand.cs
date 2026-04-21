@@ -50,7 +50,7 @@ public static class MediaIngestCommand
             WriteCreateSummary(output, options.ProjectRootPath, createResult);
             return 0;
         }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             error.WriteLine(ex.Message);
             return 1;
@@ -85,6 +85,7 @@ public static class MediaIngestCommand
         string projectRootPath,
         CreateProjectFromMediaResult result)
     {
+        int registeredArtifactCount = new ProjectArtifact[] { result.AudioArtifact, result.WaveformArtifact }.Length;
         writer.WriteLine($"Created project: {result.Project.Name}");
         writer.WriteLine($"Project root: {projectRootPath}");
         writer.WriteLine($"Database: {Path.Combine(projectRootPath, ProjectArtifactPaths.DatabaseFileName)}");
@@ -95,7 +96,7 @@ public static class MediaIngestCommand
         writer.WriteLine($"Waveform summary: {Path.Combine(projectRootPath, result.WaveformArtifact.RelativePath)}");
         writer.WriteLine($"Audio duration: {FormatDuration(result.AudioArtifact.DurationSeconds)}");
         writer.WriteLine($"Waveform duration: {FormatDuration(result.WaveformArtifact.DurationSeconds)}");
-        writer.WriteLine("Registered artifacts: 2");
+        writer.WriteLine($"Registered artifacts: {registeredArtifactCount}");
     }
 
     private static void WriteOpenSummary(

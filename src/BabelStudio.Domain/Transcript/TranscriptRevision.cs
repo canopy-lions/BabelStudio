@@ -23,6 +23,11 @@ public sealed record TranscriptRevision(
             throw new ArgumentOutOfRangeException(nameof(revisionNumber), "Revision number must be positive.");
         }
 
+        if (stageRunId.HasValue && stageRunId.Value == Guid.Empty)
+        {
+            throw new ArgumentException("Stage run id must be null or a non-empty GUID.", nameof(stageRunId));
+        }
+
         return new TranscriptRevision(
             Guid.NewGuid(),
             projectId,

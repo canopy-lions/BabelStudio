@@ -9,10 +9,17 @@ public static class Program
     public static async Task<int> Main(string[] args)
     {
         using var cancellationTokenSource = new CancellationTokenSource();
+        int cancelSignalCount = 0;
         ConsoleCancelEventHandler handler = (_, eventArgs) =>
         {
-            eventArgs.Cancel = true;
-            cancellationTokenSource.Cancel();
+            if (Interlocked.Increment(ref cancelSignalCount) == 1)
+            {
+                eventArgs.Cancel = true;
+                cancellationTokenSource.Cancel();
+                return;
+            }
+
+            eventArgs.Cancel = false;
         };
 
         Console.CancelKeyPress += handler;

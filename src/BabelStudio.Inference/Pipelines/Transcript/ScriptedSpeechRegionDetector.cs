@@ -11,9 +11,9 @@ public sealed class ScriptedSpeechRegionDetector : ISpeechRegionDetector
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (durationSeconds <= 0)
+        if (!double.IsFinite(durationSeconds) || durationSeconds <= 0)
         {
-            return Task.FromResult<IReadOnlyList<SpeechRegion>>([]);
+            return Task.FromResult<IReadOnlyList<SpeechRegion>>(Array.Empty<SpeechRegion>());
         }
 
         int segmentCount = Math.Clamp((int)Math.Ceiling(durationSeconds / 8d), 1, 6);

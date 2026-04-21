@@ -47,9 +47,9 @@ internal static class MediaFixtureFactory
 
         using (process)
         {
+            Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
             try
             {
-                Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
                 await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
                 string error = await errorTask.ConfigureAwait(false);
                 Assert.True(process.ExitCode == 0, $"ffmpeg failed to create test media: {error}");
@@ -64,6 +64,22 @@ internal static class MediaFixtureFactory
                     }
                 }
                 catch
+                {
+                }
+
+                try
+                {
+                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                try
+                {
+                    await errorTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                 }
 

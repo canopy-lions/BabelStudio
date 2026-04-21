@@ -67,7 +67,13 @@ internal static class WavePcm16
                     break;
             }
 
-            stream.Position = nextChunk + (chunkSize % 2);
+            long paddedChunkEnd = nextChunk + (chunkSize % 2);
+            if (paddedChunkEnd > stream.Length)
+            {
+                throw new InvalidOperationException("WAV chunk padding exceeded the file length.");
+            }
+
+            stream.Position = paddedChunkEnd;
         }
 
         return CreateInfo(audioFormat, channelCount, sampleRate, blockAlign, bitsPerSample, dataStart, dataLength);
@@ -113,7 +119,13 @@ internal static class WavePcm16
                     break;
             }
 
-            stream.Position = nextChunk + (chunkSize % 2);
+            long paddedChunkEnd = nextChunk + (chunkSize % 2);
+            if (paddedChunkEnd > stream.Length)
+            {
+                throw new InvalidOperationException("WAV chunk padding exceeded the file length.");
+            }
+
+            stream.Position = paddedChunkEnd;
         }
 
         return CreateInfo(audioFormat, channelCount, sampleRate, blockAlign, bitsPerSample, dataStart, dataLength);

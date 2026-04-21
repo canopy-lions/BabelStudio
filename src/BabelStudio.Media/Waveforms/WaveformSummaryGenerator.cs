@@ -53,9 +53,9 @@ public sealed class WaveformSummaryGenerator : IWaveformSummaryGenerator
             int framesRemaining = (int)Math.Min(framesPerRead, waveInfo.SampleFrames - frameIndex);
             int bytesToRead = framesRemaining * waveInfo.BlockAlign;
             int bytesRead = await ReadAtLeastAsync(stream, buffer, bytesToRead, cancellationToken).ConfigureAwait(false);
-            if (bytesRead == 0)
+            if (bytesRead != bytesToRead)
             {
-                break;
+                throw new InvalidOperationException("WAV payload ended before the declared sample data was fully read.");
             }
 
             ReadOnlySpan<byte> span = buffer.AsSpan(0, bytesRead);

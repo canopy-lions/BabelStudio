@@ -10,18 +10,19 @@ using BabelStudio.Domain.Transcript;
 
 namespace BabelStudio.Application.Tests;
 
-public sealed class TranscriptProjectServiceTests
+public sealed class TranscriptProjectServiceTests : IDisposable
 {
+    private readonly List<string> tempDirectories = [];
+
     [Fact]
     public async Task CreateAsync_generates_transcript_revision_and_stage_runs()
     {
-        string tempDirectory = Path.Combine(Path.GetTempPath(), "BabelStudio.Application.Tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDirectory);
+        string tempDirectory = CreateTempDirectory();
         string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
         await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
 
         var mediaRepository = new FakeMediaAssetRepository();
-        var artifactStore = new FakeArtifactStore();
+        var artifactStore = new FakeArtifactStore(Path.Combine(tempDirectory, "project"));
         var service = new TranscriptProjectService(
             new ProjectMediaIngestService(
                 new FakeProjectRepository(),
@@ -55,13 +56,12 @@ public sealed class TranscriptProjectServiceTests
     [Fact]
     public async Task SaveEditsAsync_creates_new_revision_without_overwriting_generated_revision()
     {
-        string tempDirectory = Path.Combine(Path.GetTempPath(), "BabelStudio.Application.Tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDirectory);
+        string tempDirectory = CreateTempDirectory();
         string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
         await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
 
         var mediaRepository = new FakeMediaAssetRepository();
-        var artifactStore = new FakeArtifactStore();
+        var artifactStore = new FakeArtifactStore(Path.Combine(tempDirectory, "project"));
         var transcriptRepository = new FakeTranscriptRepository();
         var service = new TranscriptProjectService(
             new ProjectMediaIngestService(
@@ -97,6 +97,34 @@ public sealed class TranscriptProjectServiceTests
         TranscriptRevision originalRevision = Assert.Single(transcriptRepository.Revisions, revision => revision.RevisionNumber == 1);
         IReadOnlyList<TranscriptSegment> originalSegments = transcriptRepository.SegmentsByRevisionId[originalRevision.Id];
         Assert.Equal("Generated segment 1.", originalSegments[0].Text);
+    }
+
+    public void Dispose()
+    {
+        foreach (string directory in tempDirectories)
+        {
+            try
+            {
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private string CreateTempDirectory()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), "BabelStudio.Application.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+        tempDirectories.Add(tempDirectory);
+        return tempDirectory;
     }
 
     private sealed class FakeProjectRepository : IProjectRepository
@@ -140,7 +168,12 @@ public sealed class TranscriptProjectServiceTests
     private sealed class FakeArtifactStore : IArtifactStore
     {
         private readonly Dictionary<string, object> reads = new(StringComparer.OrdinalIgnoreCase);
-        private readonly string rootPath = Path.Combine(Path.GetTempPath(), "BabelStudio.Application.Tests", Guid.NewGuid().ToString("N"), "project");
+        private readonly string rootPath;
+
+        public FakeArtifactStore(string rootPath)
+        {
+            this.rootPath = rootPath;
+        }
 
         public Task EnsureLayoutAsync(CancellationToken cancellationToken)
         {

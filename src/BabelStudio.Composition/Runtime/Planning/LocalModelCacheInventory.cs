@@ -1,8 +1,8 @@
 using BabelStudio.Domain;
-using BabelStudio.Inference.Runtime.Planning;
 using BabelStudio.Infrastructure.Persistence.Repositories;
+using BabelStudio.Inference.Runtime.Planning;
 
-namespace BabelStudio.Infrastructure.Runtime.Planning;
+namespace BabelStudio.Composition.Runtime.Planning;
 
 public sealed class LocalModelCacheInventory : IModelCacheInventory
 {

@@ -3,7 +3,7 @@ using BabelStudio.Domain;
 using BabelStudio.Inference.Runtime.ModelManifest;
 using BabelStudio.Inference.Runtime.Planning;
 using BabelStudio.Infrastructure.Persistence.Repositories;
-using BabelStudio.Infrastructure.Runtime.Planning;
+using BabelStudio.Composition.Runtime.Planning;
 using BabelStudio.Infrastructure.Settings;
 
 namespace BabelStudio.Inference.Tests;
@@ -505,7 +505,11 @@ public sealed class RuntimePlannerTests
                     Directory.Delete(RootPath, recursive: true);
                 }
             }
-            catch
+            catch (IOException)
+            {
+                // Best-effort cleanup for temp directories created by planner tests.
+            }
+            catch (UnauthorizedAccessException)
             {
                 // Best-effort cleanup for temp directories created by planner tests.
             }

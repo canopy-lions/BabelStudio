@@ -65,3 +65,6 @@ tools/marketing/output/
 scripts/
 reports/**/*.json
 benchmark-report*.json
+*.lscache
+*.csproj.lscache
+.claude/settings.local.json

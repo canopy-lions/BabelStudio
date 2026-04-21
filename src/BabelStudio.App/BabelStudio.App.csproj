@@ -8,7 +8,6 @@
     <WindowsPackageType>None</WindowsPackageType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,11 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
-    <ProjectReference Include="..\BabelStudio.Contracts\BabelStudio.Contracts.csproj" />
+    <ProjectReference Include="..\BabelStudio.Composition\BabelStudio.Composition.csproj" />
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
-    <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
-    <ProjectReference Include="..\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
-    <ProjectReference Include="..\BabelStudio.Media\BabelStudio.Media.csproj" />
   </ItemGroup>
 
 </Project>

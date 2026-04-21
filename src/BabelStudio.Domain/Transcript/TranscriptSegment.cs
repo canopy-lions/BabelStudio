@@ -25,14 +25,14 @@ public sealed record TranscriptSegment(
             throw new ArgumentOutOfRangeException(nameof(segmentIndex), "Segment index cannot be negative.");
         }
 
-        if (startSeconds < 0)
+        if (!double.IsFinite(startSeconds) || startSeconds < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(startSeconds), "Segment start must be non-negative.");
+            throw new ArgumentOutOfRangeException(nameof(startSeconds), "Segment start must be finite and non-negative.");
         }
 
-        if (endSeconds < startSeconds)
+        if (!double.IsFinite(endSeconds) || endSeconds < startSeconds)
         {
-            throw new ArgumentOutOfRangeException(nameof(endSeconds), "Segment end must be greater than or equal to the start.");
+            throw new ArgumentOutOfRangeException(nameof(endSeconds), "Segment end must be finite and greater than or equal to the start.");
         }
 
         if (string.IsNullOrWhiteSpace(text))

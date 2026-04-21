@@ -4,6 +4,11 @@ using BabelStudio.Domain.Projects;
 
 namespace BabelStudio.Application.Projects;
 
+public static class ProjectDocumentVersions
+{
+    public const int CurrentProjectSchemaVersion = 1;
+}
+
 public sealed record ProjectManifest(
     Guid ProjectId,
     string Name,
@@ -15,7 +20,7 @@ public sealed record ProjectManifest(
         new(
             project.Id,
             project.Name,
-            SchemaVersion: 1,
+            SchemaVersion: ProjectDocumentVersions.CurrentProjectSchemaVersion,
             project.CreatedAtUtc,
             project.UpdatedAtUtc);
 }

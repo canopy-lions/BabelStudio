@@ -46,7 +46,7 @@ public sealed class StageRunRepository : IStageRunRepository
         Guid projectId,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<StageRunRow> rows = (await connection.QueryAsync<StageRunRow>(new CommandDefinition(
+        IEnumerable<StageRunRow> rows = await connection.QueryAsync<StageRunRow>(new CommandDefinition(
             """
             SELECT Id, ProjectId, StageName, Status, StartedAtUtc, CompletedAtUtc, FailureReason
             FROM StageRuns
@@ -54,7 +54,7 @@ public sealed class StageRunRepository : IStageRunRepository
             ORDER BY StartedAtUtc, Id;
             """,
             new { ProjectId = SqliteValueConverters.ToDbValue(projectId) },
-            cancellationToken: cancellationToken))).AsList();
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
 
         return rows.Select(ToDomain).ToArray();
     }
