@@ -5,6 +5,8 @@ namespace BabelStudio.Infrastructure.Persistence.Sqlite;
 
 public sealed class SqliteProjectDatabase
 {
+    private const string StageRunIdColumnName = "stage_run_id";
+    private const string ProvenanceColumnName = "provenance";
     private readonly string databasePath;
 
     public SqliteProjectDatabase(string projectRootPath)
@@ -63,11 +65,50 @@ public sealed class SqliteProjectDatabase
                 FOREIGN KEY (media_asset_id) REFERENCES media_assets(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS StageRuns (
+                Id TEXT NOT NULL PRIMARY KEY,
+                ProjectId TEXT NOT NULL,
+                StageName TEXT NOT NULL,
+                Status TEXT NOT NULL,
+                StartedAtUtc TEXT NOT NULL,
+                CompletedAtUtc TEXT NULL,
+                FailureReason TEXT NULL,
+                FOREIGN KEY (ProjectId) REFERENCES projects(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS transcript_revisions (
+                id TEXT NOT NULL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                stage_run_id TEXT NULL,
+                revision_number INTEGER NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (stage_run_id) REFERENCES StageRuns(Id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS transcript_segments (
+                id TEXT NOT NULL PRIMARY KEY,
+                transcript_revision_id TEXT NOT NULL,
+                segment_index INTEGER NOT NULL,
+                start_seconds REAL NOT NULL,
+                end_seconds REAL NOT NULL,
+                text TEXT NOT NULL,
+                FOREIGN KEY (transcript_revision_id) REFERENCES transcript_revisions(id) ON DELETE CASCADE
+            );
+
             CREATE UNIQUE INDEX IF NOT EXISTS ix_artifacts_project_relative_path
                 ON artifacts (project_id, relative_path);
+            CREATE INDEX IF NOT EXISTS ix_stage_runs_project_id
+                ON StageRuns (ProjectId, StartedAtUtc);
+            CREATE INDEX IF NOT EXISTS ix_transcript_revisions_project_id
+                ON transcript_revisions (project_id, revision_number);
+            CREATE INDEX IF NOT EXISTS ix_transcript_segments_revision_id
+                ON transcript_segments (transcript_revision_id, segment_index);
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureArtifactColumnAsync(connection, StageRunIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureArtifactColumnAsync(connection, ProvenanceColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -80,5 +121,41 @@ public sealed class SqliteProjectDatabase
         await pragma.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
         return connection;
+    }
+
+    private static async Task EnsureArtifactColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await ArtifactColumnExistsAsync(connection, columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE artifacts ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> ArtifactColumnExistsAsync(
+        SqliteConnection connection,
+        string columnName,
+        CancellationToken cancellationToken)
+    {
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "PRAGMA table_info(artifacts);";
+
+        await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

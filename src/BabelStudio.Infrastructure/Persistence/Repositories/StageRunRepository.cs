@@ -39,6 +39,24 @@ public sealed class StageRunRepository : IStageRunRepository
         return row is null ? null : ToDomain(row);
     }
 
+    public async Task<IReadOnlyList<StageRunRecord>> ListByProjectAsync(
+        DbConnection connection,
+        Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<StageRunRow> rows = (await connection.QueryAsync<StageRunRow>(new CommandDefinition(
+            """
+            SELECT Id, ProjectId, StageName, Status, StartedAtUtc, CompletedAtUtc, FailureReason
+            FROM StageRuns
+            WHERE ProjectId = @ProjectId
+            ORDER BY StartedAtUtc, Id;
+            """,
+            new { ProjectId = SqliteValueConverters.ToDbValue(projectId) },
+            cancellationToken: cancellationToken))).AsList();
+
+        return rows.Select(ToDomain).ToArray();
+    }
+
     public Task CompleteAsync(
         DbConnection connection,
         StageRunRecord stageRun,
