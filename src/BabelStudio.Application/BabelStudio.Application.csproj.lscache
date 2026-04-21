@@ -80,9 +80,16 @@ Projects/
  ProjectDocuments.cs
  ProjectMediaIngestModels.cs
  ProjectMediaIngestService.cs
+Transcripts/
+ IProjectStageRunStore.cs
+ ITranscriptRepository.cs
+ TranscriptProjectModels.cs
+ TranscriptProjectService.cs
 
 [metadataReferences]
-../BabelStudio.Domain/obj/Debug/net10.0/ref/BabelStudio.Domain.dll
+../
+ BabelStudio.Contracts/obj/Debug/net10.0/ref/BabelStudio.Contracts.dll
+ BabelStudio.Domain/obj/Debug/net10.0/ref/BabelStudio.Domain.dll
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/10.0.6/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll

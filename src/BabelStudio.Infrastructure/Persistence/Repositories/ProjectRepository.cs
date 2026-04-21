@@ -8,12 +8,13 @@ namespace BabelStudio.Infrastructure.Persistence.Repositories;
 
 public sealed class ProjectRepository : IProjectRepository
 {
-    public Task CreateAsync(
+    public async Task CreateAsync(
         DbConnection connection,
         ProjectRecord project,
         DbTransaction? transaction = null,
-        CancellationToken cancellationToken = default) =>
-        connection.ExecuteAsync(new CommandDefinition(
+        CancellationToken cancellationToken = default)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO Projects (Id, Name, RootPath, CreatedAtUtc, UpdatedAtUtc)
             VALUES (@Id, @Name, @RootPath, @CreatedAtUtc, @UpdatedAtUtc);
@@ -27,7 +28,8 @@ public sealed class ProjectRepository : IProjectRepository
                 UpdatedAtUtc = SqliteValueConverters.ToDbValue(project.UpdatedAtUtc)
             },
             transaction,
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
 
     public async Task<ProjectRecord?> GetAsync(
         DbConnection connection,
@@ -41,7 +43,7 @@ public sealed class ProjectRepository : IProjectRepository
             WHERE Id = @Id;
             """,
             new { Id = SqliteValueConverters.ToDbValue(projectId) },
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
 
         return row is null
             ? null

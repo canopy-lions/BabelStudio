@@ -78,13 +78,18 @@ Persistence/Sqlite/
  SqliteMediaAssetRepository.cs
  SqliteProjectDatabase.cs
  SqliteProjectRepository.cs
+ SqliteProjectStageRunStore.cs
+ SqliteTranscriptRepository.cs
  SqliteValueConverters.cs
+Runtime/Planning/LocalModelCacheInventory.cs
 Settings/BabelStudioStoragePaths.cs
 
 [metadataReferences]
 ../
  BabelStudio.Application/obj/Debug/net10.0/ref/BabelStudio.Application.dll
+ BabelStudio.Contracts/obj/Debug/net10.0/ref/BabelStudio.Contracts.dll
  BabelStudio.Domain/obj/Debug/net10.0/ref/BabelStudio.Domain.dll
+ BabelStudio.Inference/obj/Debug/net10.0/ref/BabelStudio.Inference.dll
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/10.0.6/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll

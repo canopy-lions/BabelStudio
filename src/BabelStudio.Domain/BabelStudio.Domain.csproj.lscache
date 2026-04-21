@@ -57,6 +57,7 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 Artifacts.cs
 Artifacts/ProjectArtifact.cs
 Benchmarking.cs
+Common/RuntimePlanning.cs
 Database.cs
 Media/
  MediaAsset.cs
@@ -69,6 +70,9 @@ obj/Debug/net10.0/
 Projects.cs
 Projects/BabelProject.cs
 StageRuns.cs
+Transcript/
+ TranscriptRevision.cs
+ TranscriptSegment.cs
 
 [metadataReferences]
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/10.0.6/ref/net10.0/

@@ -63,3 +63,5 @@ tools/marketing/output/
 .github/instructions/codacy.instructions.md
 
 scripts/
+reports/**/*.json
+benchmark-report*.json

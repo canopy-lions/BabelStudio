@@ -1,12 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
     <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
     <ProjectReference Include="..\BabelStudio.Inference.Onnx\BabelStudio.Inference.Onnx.csproj" />
     <ProjectReference Include="..\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
-    <ProjectReference Include="..\BabelStudio.Media\BabelStudio.Media.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -14,6 +12,7 @@
     <TargetFrameworks>net10.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">

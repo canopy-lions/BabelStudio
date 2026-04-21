@@ -7,7 +7,7 @@ using BabelStudio.Media.Extraction;
 using BabelStudio.Media.Probe;
 using BabelStudio.Media.Waveforms;
 
-namespace BabelStudio.Benchmarks;
+namespace BabelStudio.Tools;
 
 public static class MediaIngestCommand
 {
@@ -50,20 +50,25 @@ public static class MediaIngestCommand
             WriteCreateSummary(output, options.ProjectRootPath, createResult);
             return 0;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             error.WriteLine(ex.Message);
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            error.WriteLine(ex.ToString());
             return 1;
         }
     }
 
     public static void WriteUsage(TextWriter writer)
     {
-        writer.WriteLine("BabelStudio.Benchmarks ingest");
+        writer.WriteLine("BabelStudio.Tools ingest");
         writer.WriteLine();
         writer.WriteLine("Usage:");
-        writer.WriteLine("  BabelStudio.Benchmarks ingest --project <path> --name <project-name> --media <path> [--ffmpeg <path>] [--ffprobe <path>]");
-        writer.WriteLine("  BabelStudio.Benchmarks ingest --project <path> --open [--ffmpeg <path>] [--ffprobe <path>]");
+        writer.WriteLine("  BabelStudio.Tools ingest --project <path> --name <project-name> --media <path> [--ffmpeg <path>] [--ffprobe <path>]");
+        writer.WriteLine("  BabelStudio.Tools ingest --project <path> --open [--ffmpeg <path>] [--ffprobe <path>]");
         writer.WriteLine();
         writer.WriteLine("Options:");
         writer.WriteLine("  --project <path>    Required project root, typically ending in .babelstudio.");
@@ -90,7 +95,7 @@ public static class MediaIngestCommand
         writer.WriteLine($"Waveform summary: {Path.Combine(projectRootPath, result.WaveformArtifact.RelativePath)}");
         writer.WriteLine($"Audio duration: {FormatDuration(result.AudioArtifact.DurationSeconds)}");
         writer.WriteLine($"Waveform duration: {FormatDuration(result.WaveformArtifact.DurationSeconds)}");
-        writer.WriteLine($"Registered artifacts: 2");
+        writer.WriteLine("Registered artifacts: 2");
     }
 
     private static void WriteOpenSummary(
@@ -335,9 +340,14 @@ public sealed class DefaultMediaIngestCommandRunner : IMediaIngestCommandRunner
                 $"Project path '{options.ProjectRootPath}' already contains Babel Studio artifacts. Use '--open' to inspect the existing project.");
         }
 
+        if (string.IsNullOrWhiteSpace(options.ProjectName) || string.IsNullOrWhiteSpace(options.SourceMediaPath))
+        {
+            throw new ArgumentException("Create mode requires both project name and source media path.");
+        }
+
         ProjectMediaIngestService service = CreateService(options.ProjectRootPath, options.FfmpegPath, options.FfprobePath);
         return await service.CreateAsync(
-            new CreateProjectFromMediaRequest(options.ProjectName!, options.SourceMediaPath!),
+            new CreateProjectFromMediaRequest(options.ProjectName, options.SourceMediaPath),
             cancellationToken).ConfigureAwait(false);
     }
 

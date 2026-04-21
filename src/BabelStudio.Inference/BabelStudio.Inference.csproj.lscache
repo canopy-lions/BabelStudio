@@ -59,6 +59,9 @@ obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
  BabelStudio.Inference.AssemblyInfo.cs
  BabelStudio.Inference.GlobalUsings.g.cs
+Pipelines/Transcript/
+ ScriptedAudioTranscriptionEngine.cs
+ ScriptedSpeechRegionDetector.cs
 Runtime/ModelManifest/
  BundledModelManifestRegistry.cs
  CommercialSafeEvaluator.cs
@@ -66,9 +69,17 @@ Runtime/ModelManifest/
  ModelManifest.cs
  ModelManifestLoader.cs
  ModelManifestValidationException.cs
+Runtime/Planning/
+ PlanningAbstractions.cs
+ RuntimePlanner.cs
+ StageRuntimePlan.cs
+ StageRuntimePlanningRequest.cs
+ StageRuntimeRequirements.cs
 
 [metadataReferences]
-../BabelStudio.Domain/obj/Debug/net10.0/ref/BabelStudio.Domain.dll
+../
+ BabelStudio.Contracts/obj/Debug/net10.0/ref/BabelStudio.Contracts.dll
+ BabelStudio.Domain/obj/Debug/net10.0/ref/BabelStudio.Domain.dll
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/10.0.6/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll

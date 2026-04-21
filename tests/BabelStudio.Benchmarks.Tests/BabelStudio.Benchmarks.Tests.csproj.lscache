@@ -66,11 +66,13 @@ obj/Debug/net10.0/
 ../../src/
  BabelStudio.Application/obj/Debug/net10.0/ref/BabelStudio.Application.dll
  BabelStudio.Benchmarks/obj/Debug/net10.0/ref/BabelStudio.Benchmarks.dll
+ BabelStudio.Contracts/obj/Debug/net10.0/ref/BabelStudio.Contracts.dll
  BabelStudio.Domain/obj/Debug/net10.0/ref/BabelStudio.Domain.dll
  BabelStudio.Inference.Onnx/obj/Debug/net10.0/ref/BabelStudio.Inference.Onnx.dll
  BabelStudio.Inference/obj/Debug/net10.0/ref/BabelStudio.Inference.dll
  BabelStudio.Infrastructure/obj/Debug/net10.0/ref/BabelStudio.Infrastructure.dll
  BabelStudio.Media/obj/Debug/net10.0/ref/BabelStudio.Media.dll
+ BabelStudio.Tools/obj/Debug/net10.0/ref/BabelStudio.Tools.dll
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/10.0.6/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll

@@ -66,7 +66,7 @@ public sealed class FfmpegAudioExtractionService : IAudioExtractionService
             throw new InvalidOperationException("ffmpeg completed without producing a normalized audio file.");
         }
 
-        WavePcm16Info waveInfo = WavePcm16.ReadInfo(fullDestinationPath);
+        WavePcm16Info waveInfo = await WavePcm16.ReadInfoAsync(fullDestinationPath, cancellationToken).ConfigureAwait(false);
         return new AudioExtractionResult(
             fullDestinationPath,
             waveInfo.DurationSeconds,

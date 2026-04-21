@@ -94,6 +94,16 @@ public sealed record BenchmarkRunRecord(
             throw new ArgumentException("Report path is required.", nameof(reportPath));
         }
 
+        if (string.IsNullOrWhiteSpace(requestedProvider))
+        {
+            throw new ArgumentException("Requested provider is required.", nameof(requestedProvider));
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedProvider))
+        {
+            throw new ArgumentException("Selected provider is required.", nameof(selectedProvider));
+        }
+
         return new BenchmarkRunRecord(
             Guid.NewGuid(),
             modelId.Trim(),

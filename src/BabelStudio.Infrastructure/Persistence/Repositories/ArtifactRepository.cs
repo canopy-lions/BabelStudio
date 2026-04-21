@@ -8,12 +8,13 @@ namespace BabelStudio.Infrastructure.Persistence.Repositories;
 
 public sealed class ArtifactRepository : IArtifactRepository
 {
-    public Task RegisterAsync(
+    public async Task RegisterAsync(
         DbConnection connection,
         ArtifactRecord artifact,
         DbTransaction? transaction = null,
-        CancellationToken cancellationToken = default) =>
-        connection.ExecuteAsync(new CommandDefinition(
+        CancellationToken cancellationToken = default)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO Artifacts (Id, ProjectId, StageRunId, Kind, RelativePath, ContentHash, Provenance, CreatedAtUtc)
             VALUES (@Id, @ProjectId, @StageRunId, @Kind, @RelativePath, @ContentHash, @Provenance, @CreatedAtUtc);
@@ -30,7 +31,8 @@ public sealed class ArtifactRepository : IArtifactRepository
                 CreatedAtUtc = SqliteValueConverters.ToDbValue(artifact.CreatedAtUtc)
             },
             transaction,
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
 
     public async Task<IReadOnlyList<ArtifactRecord>> ListByProjectAsync(
         DbConnection connection,
@@ -45,7 +47,7 @@ public sealed class ArtifactRepository : IArtifactRepository
             ORDER BY CreatedAtUtc, Id;
             """,
             new { ProjectId = SqliteValueConverters.ToDbValue(projectId) },
-            cancellationToken: cancellationToken))).AsList();
+            cancellationToken: cancellationToken)).ConfigureAwait(false)).AsList();
 
         return rows
             .Select(row => new ArtifactRecord(

@@ -65,8 +65,8 @@ public static class ModelManifestLoader
         string sourceUrl = ReadOptionalString(element, "source_url");
         string revision = ReadOptionalString(element, "revision");
         string sha256 = ReadOptionalString(element, "sha256");
-        string? rootPath = ReadOptionalNullableString(element, "root_path");
-        string? benchmarkEntry = ReadOptionalNullableString(element, "benchmark_entry");
+        string? rootPath = ReadOptionalNullableString(element, "root_path", path, sourceName);
+        string? benchmarkEntry = ReadOptionalNullableString(element, "benchmark_entry", path, sourceName);
         IReadOnlyList<string> aliases = ReadAliases(element, path, sourceName);
         IReadOnlyList<ModelVariantManifest> variants = ReadVariants(element, path, sourceName);
         HashVerificationPolicy hashVerificationPolicy = ReadHashVerificationPolicy(element, path, sourceName);
@@ -258,7 +258,11 @@ public static class ModelManifestLoader
             : string.Empty;
     }
 
-    private static string? ReadOptionalNullableString(JsonElement element, string propertyName)
+    private static string? ReadOptionalNullableString(
+        JsonElement element,
+        string propertyName,
+        string path,
+        string sourceName)
     {
         if (!element.TryGetProperty(propertyName, out JsonElement property))
         {
@@ -272,7 +276,8 @@ public static class ModelManifestLoader
 
         return property.ValueKind is JsonValueKind.String
             ? property.GetString()?.Trim()
-            : null;
+            : throw new ModelManifestValidationException(
+                $"Manifest '{sourceName}' field '{path}.{propertyName}' must be a string or null.");
     }
 
     private static bool ReadRequiredBoolean(JsonElement element, string propertyName, string path, string sourceName)
@@ -293,31 +298,28 @@ public static class ModelManifestLoader
     }
 
     private static ModelTask ParseTask(string value, string path, string sourceName) =>
-        value.ToLowerInvariant() switch
-        {
-            "asr" => ModelTask.Asr,
-            "translation" => ModelTask.Translation,
-            "tts" => ModelTask.Tts,
-            "diarization" => ModelTask.Diarization,
-            "vad" => ModelTask.Vad,
-            "separation" => ModelTask.Separation,
-            _ => throw new ModelManifestValidationException(
-                $"Manifest '{sourceName}' field '{path}.task' value '{value}' is invalid. Expected asr, translation, tts, diarization, vad, or separation.")
-        };
+        TryParse(
+            () => ModelManifestText.ParseTask(value),
+            () => new ModelManifestValidationException(
+                $"Manifest '{sourceName}' field '{path}.task' value '{value}' is invalid. Expected asr, translation, tts, diarization, vad, or separation."));
 
     private static ModelLicenseKind ParseLicense(string value, string path, string sourceName) =>
-        value.ToLowerInvariant() switch
+        TryParse(
+            () => ModelManifestText.ParseLicense(value),
+            () => new ModelManifestValidationException(
+                $"Manifest '{sourceName}' field '{path}.license' value '{value}' is invalid. Expected MIT, Apache-2.0, CC-BY-4.0, custom, unknown, non-commercial, or noncommercial."));
+
+    private static T TryParse<T>(Func<T> parser, Func<Exception> errorFactory)
+    {
+        try
         {
-            "mit" => ModelLicenseKind.Mit,
-            "apache-2.0" => ModelLicenseKind.Apache20,
-            "cc-by-4.0" => ModelLicenseKind.CcBy40,
-            "custom" => ModelLicenseKind.Custom,
-            "unknown" => ModelLicenseKind.Unknown,
-            "non-commercial" => ModelLicenseKind.NonCommercial,
-            "noncommercial" => ModelLicenseKind.NonCommercial,
-            _ => throw new ModelManifestValidationException(
-                $"Manifest '{sourceName}' field '{path}.license' value '{value}' is invalid. Expected MIT, Apache-2.0, CC-BY-4.0, custom, unknown, or non-commercial.")
-        };
+            return parser();
+        }
+        catch (ArgumentException)
+        {
+            throw errorFactory();
+        }
+    }
 
     private static HashVerificationMode ParseHashVerificationMode(string value, string path, string sourceName) =>
         value.ToLowerInvariant() switch

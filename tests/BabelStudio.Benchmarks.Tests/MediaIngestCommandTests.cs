@@ -3,6 +3,7 @@ using BabelStudio.Application.Projects;
 using BabelStudio.Domain.Artifacts;
 using BabelStudio.Domain.Media;
 using BabelStudio.Domain.Projects;
+using BabelStudio.Tools;
 
 namespace BabelStudio.Benchmarks.Tests;
 
@@ -127,10 +128,11 @@ public sealed class MediaIngestCommandTests
         {
             LastOptions = options;
             DateTimeOffset now = DateTimeOffset.UtcNow;
+            string sourcePath = Path.GetFullPath(Path.Combine("media", "sample.mp4"));
             var project = new BabelProject(Guid.NewGuid(), "Sample", now, now);
             var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, "sample.mp4", "hash-source", 1024, now, "mov,mp4,m4a,3gp,3g2,mj2", 1.25, true, true, now);
             var sourceReference = new SourceMediaReference(
-                @"C:\media\sample.mp4",
+                sourcePath,
                 "sample.mp4",
                 new FileFingerprint("hash-source", 1024, now),
                 new MediaProbeSnapshot("mov,mp4,m4a,3gp,3g2,mj2", "QuickTime / MOV", 1.25, 2048, [new MediaAudioStream(0, "aac", 2, 44100, 1.25)], [new MediaVideoStream(1, "h264", 64, 64, 24, 1.25)]),
@@ -139,7 +141,7 @@ public sealed class MediaIngestCommandTests
             [
                 new ProjectArtifact(Guid.NewGuid(), project.Id, mediaAsset.Id, ArtifactKind.NormalizedAudio, ProjectArtifactPaths.NormalizedAudioRelativePath, "hash-audio", 2048, 1.25, 48000, 1, now)
             ];
-            return Task.FromResult(new OpenProjectResult(project, mediaAsset, sourceReference, SourceMediaStatus.Missing, "Source media file was not found at 'C:\\media\\sample.mp4'.", artifacts));
+            return Task.FromResult(new OpenProjectResult(project, mediaAsset, sourceReference, SourceMediaStatus.Missing, $"Source media file was not found at '{sourcePath}'.", artifacts));
         }
     }
 }

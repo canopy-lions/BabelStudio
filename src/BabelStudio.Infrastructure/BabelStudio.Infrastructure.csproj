@@ -4,11 +4,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
+    <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
   </ItemGroup>
 
   <ItemGroup>

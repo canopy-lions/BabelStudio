@@ -60,10 +60,12 @@ obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
  BabelStudio.Inference.Tests.AssemblyInfo.cs
  BabelStudio.Inference.Tests.GlobalUsings.g.cs
+RuntimePlannerTests.cs
 
 [metadataReferences]
 ../../src/
  BabelStudio.Application/obj/Debug/net10.0/ref/BabelStudio.Application.dll
+ BabelStudio.Contracts/obj/Debug/net10.0/ref/BabelStudio.Contracts.dll
  BabelStudio.Domain/obj/Debug/net10.0/ref/BabelStudio.Domain.dll
  BabelStudio.Inference/obj/Debug/net10.0/ref/BabelStudio.Inference.dll
  BabelStudio.Infrastructure/obj/Debug/net10.0/ref/BabelStudio.Infrastructure.dll
