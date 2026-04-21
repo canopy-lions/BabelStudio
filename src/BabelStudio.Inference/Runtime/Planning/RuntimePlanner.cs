@@ -41,7 +41,20 @@ public sealed class RuntimePlanner : IRuntimePlanner
 
         if (!stageRequirements.TryGetValue(request.Stage, out StageRuntimeRequirements? requirements))
         {
-            throw new InvalidOperationException($"Runtime stage '{request.Stage}' is not configured for milestone 5 planning.");
+            throw new InvalidOperationException($"Runtime stage '{request.Stage}' is not configured for runtime planning.");
+        }
+
+        if (request.Stage is RuntimeStage.Translation &&
+            !IsSupportedTranslationPair(request.SourceLanguage, request.TargetLanguage))
+        {
+            string sourceLanguage = NormalizeLanguageCode(request.SourceLanguage) ?? "unknown";
+            string targetLanguage = NormalizeLanguageCode(request.TargetLanguage) ?? "unknown";
+            return CreateBlockedPlan(
+                request.Stage,
+                request.CommercialSafeMode,
+                new RuntimePlanFallback(
+                    RuntimePlanFallbackCode.UnsupportedLanguagePair,
+                    $"Milestone 7 only supports en -> es translation. Requested pair was {sourceLanguage} -> {targetLanguage}."));
         }
 
         HardwareProfile hardwareProfile = await hardwareProfileProvider.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
@@ -100,9 +113,9 @@ public sealed class RuntimePlanner : IRuntimePlanner
         return CreateBlockedPlan(
             request.Stage,
             request.CommercialSafeMode,
-            new RuntimePlanFallback(
-                RuntimePlanFallbackCode.NoCompatibleVariant,
-                $"No compatible {requirements.RequiredTask.ToManifestValue()} variant could be planned for milestone 5 providers."));
+                new RuntimePlanFallback(
+                    RuntimePlanFallbackCode.NoCompatibleVariant,
+                $"No compatible {requirements.RequiredTask.ToManifestValue()} variant could be planned for the current provider policy."));
     }
 
     private RankedManifestEntry[] RankEntries(
@@ -478,6 +491,15 @@ public sealed class RuntimePlanner : IRuntimePlanner
 
     private static string ResolvePrimaryAlias(BundledModelManifestEntry entry) =>
         entry.Aliases.FirstOrDefault() ?? entry.ModelId;
+
+    private static bool IsSupportedTranslationPair(string? sourceLanguage, string? targetLanguage) =>
+        string.Equals(NormalizeLanguageCode(sourceLanguage), "en", StringComparison.Ordinal) &&
+        string.Equals(NormalizeLanguageCode(targetLanguage), "es", StringComparison.Ordinal);
+
+    private static string? NormalizeLanguageCode(string? languageCode) =>
+        string.IsNullOrWhiteSpace(languageCode)
+            ? null
+            : languageCode.Trim().ToLowerInvariant();
 
     private sealed record RankedManifestEntry(
         BundledModelManifestEntry Entry,

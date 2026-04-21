@@ -38,6 +38,13 @@ internal static class Milestone5StageRuntimeRequirementsCatalog
                 [ "whisper-tiny-onnx", "whisper-tiny", "whisper-tiny-local" ],
                 [ ExecutionProviderKind.DirectMl, ExecutionProviderKind.Cpu ],
                 [ "fp16", "q4f16" ],
-                [ "int8", "quantized", "uint8", "q4" ])
+                [ "int8", "quantized", "uint8", "q4" ]),
+            [RuntimeStage.Translation] = new(
+                RuntimeStage.Translation,
+                ModelTask.Translation,
+                [ "opus-en-es", "helsinki-opus-en-es" ],
+                [ ExecutionProviderKind.DirectMl, ExecutionProviderKind.Cpu ],
+                [ "merged-decoder", "fp16" ],
+                [ "merged-decoder", "fp16" ])
         };
 }
