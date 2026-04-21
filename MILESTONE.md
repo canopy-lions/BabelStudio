@@ -20,7 +20,7 @@ This means agent tasks should always produce both the real engine and the fake a
 
 **Diarization moved to M10** (before TTS) to enable multi-speaker voice assignment before the TTS stage runs.
 
-**Real-model translation made explicit in M9** since M7 may have used partial stubs for some language pairs.
+**Expanded translation routing made explicit in M9.** M7 now covers the real direct English <-> Spanish Opus-MT slice; M9 expands that into broader pair routing and MADLAD pivot support.
 
 **TTS timing reconciliation added as M12.** Duration mismatch between translated speech and original timing has no existing milestone.
 
@@ -844,11 +844,11 @@ TranslatedSegment and TtsTake records as stale. Add unit tests using existing fa
 
 ---
 
-## Milestone 9 — Translation with real Opus-MT and MADLAD-400
+## Milestone 9 — Expanded translation routing with Opus-MT and MADLAD-400
 
 ### Goal
 
-Ensure the translation stage uses real ONNX models for all supported language pairs. Deliver a testable slice where the user selects a language, runs translation, and reviews translated text alongside the video player from M8.
+Expand the real translation stage beyond M7's direct English <-> Spanish slice. Add broader pair routing, MADLAD pivot fallback, and playback-integrated translation review alongside the video player from M8.
 
 ### Deliverables
 
@@ -862,10 +862,10 @@ src/BabelStudio.App/
 
 Features:
 
-- `OpusMtTranslationEngine`: ONNX encoder-decoder wrapper for Helsinki-NLP Opus-MT pairs (may already exist from M7 — verify and complete if partial)
+- `OpusMtTranslationEngine`: expand the existing M7 ONNX encoder-decoder wrapper beyond the direct English <-> Spanish pairs
 - `MadladTranslationEngine`: ONNX wrapper for MADLAD-400 as pivot router for language pairs without a direct Opus-MT model
 - `TranslationLanguageRouter`: selects direct Opus-MT pair or MADLAD pivot path based on what is installed in the model cache; reports which pairs are unavailable due to missing models
-- SentencePiece tokenizer integration via `Microsoft.ML.Tokenizers` for Opus-MT (may already exist from M7)
+- SentencePiece tokenizer integration via `Microsoft.ML.Tokenizers` for Opus-MT, hardened for broader pair coverage
 - Language coverage matrix: a declarative record of which direct pairs are supported and which fall back to pivot; surfaced in the translation language selector
 - Translation language selector in UI: dropdown bound to `TranslationLanguageRouter.SupportedTargetLanguages`
 - Translated segments shown in a split view synced to the video player: clicking a source segment also shows the translated segment and seeks video
@@ -2415,11 +2415,11 @@ M5  Runtime planner / model cache
   ↓
 M6  Transcript vertical slice   (real Silero VAD + Whisper Large-V3-Turbo ONNX)
   ↓
-M7  Translation slice           (real Opus-MT ONNX — may be partial; completed in M9)
+M7  Translation slice           (real direct Opus-MT EN <-> ES)
   ↓
 M8  Video player, segment editor, settings, project management
   ↓
-M9  Translation with real models (Opus-MT direct + MADLAD-400 pivot, full language router)
+M9  Expanded translation routing (Opus-MT direct + MADLAD-400 pivot, broader language router)
   ↓
 M10 Speaker diarization         (SortFormer ONNX)
   ↓
