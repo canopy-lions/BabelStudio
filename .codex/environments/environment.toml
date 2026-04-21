@@ -30,3 +30,8 @@ command = "dotnet test"
 name = "Run"
 icon = "run"
 command = "dotnet run --project src\\BabelStudio.App\\BabelStudio.App.csproj"
+
+[[actions]]
+name = "Clean"
+icon = "tool"
+command = "dotnet clean"
