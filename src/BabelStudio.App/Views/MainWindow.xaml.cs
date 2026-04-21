@@ -2,6 +2,7 @@ using BabelStudio.Composition;
 using BabelStudio.App.ViewModels;
 using BabelStudio.Application.Transcripts;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -40,6 +41,7 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? activeOperationCancellationSource;
     private TranscriptProjectService? currentService;
     private string? currentProjectRootPath;
+    private bool isApplyingProjectState;
 
     public MainWindow()
     {
@@ -82,7 +84,7 @@ public sealed partial class MainWindow : Window
                 new CreateTranscriptProjectRequest(ViewModel.ProjectNameDraft, mediaPath),
                 cancellationToken).ConfigureAwait(true);
 
-            ViewModel.ApplyProjectState(state, projectRootPath);
+            ApplyProjectState(state, projectRootPath);
         }, "Creating project, extracting audio, and generating transcript...");
     }
 
@@ -99,7 +101,7 @@ public sealed partial class MainWindow : Window
             currentService = workspaceFactory.Create(projectRootPath);
             currentProjectRootPath = projectRootPath;
             TranscriptProjectState state = await currentService.OpenAsync(cancellationToken).ConfigureAwait(true);
-            ViewModel.ApplyProjectState(state, projectRootPath);
+            ApplyProjectState(state, projectRootPath);
         }, "Opening project...");
     }
 
@@ -121,8 +123,80 @@ public sealed partial class MainWindow : Window
         await RunAsync(async cancellationToken =>
         {
             TranscriptProjectState state = await currentService.SaveEditsAsync(request, cancellationToken).ConfigureAwait(true);
-            ViewModel.ApplyProjectState(state, currentProjectRootPath);
+            ApplyProjectState(state, currentProjectRootPath);
         }, "Saving transcript edits...");
+    }
+
+    private async void TranslateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            ViewModel.StatusMessage = "Load a project before generating a translation.";
+            return;
+        }
+
+        if (!ViewModel.CanTranslate)
+        {
+            ViewModel.StatusMessage = ViewModel.TranscriptLanguageSummary;
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            if (ViewModel.HasTranscriptLanguageChangePending)
+            {
+                TranscriptProjectState updatedLanguageState = await currentService.SetTranscriptLanguageAsync(
+                    new SetTranscriptLanguageRequest(ViewModel.SelectedTranscriptLanguageCode),
+                    cancellationToken).ConfigureAwait(true);
+                ApplyProjectState(updatedLanguageState, currentProjectRootPath);
+            }
+
+            TranscriptProjectState state = await currentService.GenerateTranslationAsync(
+                new GenerateTranslationRequest(ViewModel.SelectedTranscriptLanguageCode ?? string.Empty, "es"),
+                cancellationToken).ConfigureAwait(true);
+            ApplyProjectState(state, currentProjectRootPath);
+        }, "Generating Spanish translation...");
+    }
+
+    private async void SaveTranslationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            ViewModel.StatusMessage = "Load a project before saving translation edits.";
+            return;
+        }
+
+        SaveTranslationEditsRequest? request = ViewModel.CreateSaveTranslationRequest();
+        if (request is null)
+        {
+            ViewModel.StatusMessage = "There is no translation revision to save.";
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.SaveTranslationEditsAsync(request, cancellationToken).ConfigureAwait(true);
+            ApplyProjectState(state, currentProjectRootPath);
+        }, "Saving translation edits...");
+    }
+
+    private async void TranscriptLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (isApplyingProjectState ||
+            currentService is null ||
+            string.IsNullOrWhiteSpace(currentProjectRootPath) ||
+            !ViewModel.HasTranscriptLanguageChangePending)
+        {
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.SetTranscriptLanguageAsync(
+                new SetTranscriptLanguageRequest(ViewModel.SelectedTranscriptLanguageCode),
+                cancellationToken).ConfigureAwait(true);
+            ApplyProjectState(state, currentProjectRootPath);
+        }, "Saving transcript language...");
     }
 
     private void CopyErrorButton_Click(object sender, RoutedEventArgs e)
@@ -240,5 +314,18 @@ public sealed partial class MainWindow : Window
     {
         string replaced = new(value.Trim().Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray());
         return replaced.Trim().TrimEnd('.', ' ');
+    }
+
+    private void ApplyProjectState(TranscriptProjectState state, string projectRootPath)
+    {
+        isApplyingProjectState = true;
+        try
+        {
+            ViewModel.ApplyProjectState(state, projectRootPath);
+        }
+        finally
+        {
+            isApplyingProjectState = false;
+        }
     }
 }

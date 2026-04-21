@@ -5,14 +5,16 @@ namespace BabelStudio.App.ViewModels;
 public sealed class TranscriptSegmentItem : ObservableObject
 {
     private string text;
+    private string translationText;
 
-    public TranscriptSegmentItem(TranscriptSegment segment)
+    public TranscriptSegmentItem(TranscriptSegment segment, string translationText)
     {
         SegmentId = segment.Id;
         SegmentIndex = segment.SegmentIndex;
         StartSeconds = segment.StartSeconds;
         EndSeconds = segment.EndSeconds;
         text = segment.Text;
+        this.translationText = translationText;
     }
 
     public Guid SegmentId { get; }
@@ -29,5 +31,11 @@ public sealed class TranscriptSegmentItem : ObservableObject
     {
         get => text;
         set => SetProperty(ref text, value);
+    }
+
+    public string TranslationText
+    {
+        get => translationText;
+        set => SetProperty(ref translationText, value);
     }
 }

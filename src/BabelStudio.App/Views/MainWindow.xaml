@@ -21,22 +21,39 @@
             <Button Content="Open Media" Click="OpenMediaButton_Click" />
             <Button Content="Open Project" Click="OpenProjectButton_Click" />
             <Button Content="Save Transcript" Click="SaveTranscriptButton_Click" IsEnabled="{x:Bind ViewModel.CanSaveTranscript, Mode=OneWay}" />
+            <Button Content="{x:Bind ViewModel.TranslateButtonText, Mode=OneWay}"
+                    Click="TranslateButton_Click"
+                    IsEnabled="{x:Bind ViewModel.CanTranslate, Mode=OneWay}" />
+            <Button Content="Save Translation"
+                    Click="SaveTranslationButton_Click"
+                    IsEnabled="{x:Bind ViewModel.CanSaveTranslation, Mode=OneWay}" />
         </StackPanel>
 
         <Grid Grid.Row="1" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="260" />
             </Grid.ColumnDefinitions>
 
             <TextBlock VerticalAlignment="Center" Text="Project Name" />
             <TextBox Grid.Column="1"
                      MinWidth="280"
                      Text="{x:Bind ViewModel.ProjectNameDraft, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Transcript Language" />
+            <ComboBox Grid.Column="3"
+                      PlaceholderText="Choose language"
+                      ItemsSource="{x:Bind ViewModel.TranscriptLanguageOptions, Mode=OneWay}"
+                      DisplayMemberPath="DisplayName"
+                      SelectedValuePath="Code"
+                      SelectedValue="{x:Bind ViewModel.SelectedTranscriptLanguageCode, Mode=TwoWay}"
+                      SelectionChanged="TranscriptLanguageComboBox_SelectionChanged" />
         </Grid>
 
         <Grid Grid.Row="2" ColumnSpacing="16">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -63,6 +80,15 @@
                     <TextBlock Text="{x:Bind ViewModel.TranscriptRevisionLabel, Mode=OneWay}" TextWrapping="WrapWholeWords" />
                 </StackPanel>
             </Border>
+
+            <Border Grid.Column="3" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                <StackPanel Spacing="4">
+                    <TextBlock FontWeight="SemiBold" Text="Translation" />
+                    <TextBlock Text="{x:Bind ViewModel.TranslationStageStatus, Mode=OneWay}" TextWrapping="WrapWholeWords" />
+                    <TextBlock Text="{x:Bind ViewModel.TranslationRevisionLabel, Mode=OneWay}" TextWrapping="WrapWholeWords" />
+                    <TextBlock Text="{x:Bind ViewModel.TranslationRefreshStatus, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
         </Grid>
 
         <Grid Grid.Row="3" ColumnSpacing="16">
@@ -82,11 +108,18 @@
                                 </Grid.ColumnDefinitions>
 
                                 <TextBlock VerticalAlignment="Top" Text="{x:Bind DisplayTimeRange}" />
-                                <TextBox Grid.Column="1"
-                                         AcceptsReturn="True"
-                                         MinHeight="64"
-                                         Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock FontWeight="SemiBold" Text="Transcript" />
+                                    <TextBox AcceptsReturn="True"
+                                             MinHeight="64"
+                                             Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             TextWrapping="Wrap" />
+                                    <TextBlock FontWeight="SemiBold" Text="Spanish Draft" />
+                                    <TextBox AcceptsReturn="True"
+                                             MinHeight="64"
+                                             Text="{x:Bind TranslationText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>
@@ -98,6 +131,8 @@
                 <TextBlock Text="{x:Bind ViewModel.ProjectRootPath, Mode=OneWay}" TextWrapping="WrapWholeWords" />
                 <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Media" />
                 <TextBlock Text="{x:Bind ViewModel.MediaPath, Mode=OneWay}" TextWrapping="WrapWholeWords" />
+                <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Transcript Language" />
+                <TextBlock Text="{x:Bind ViewModel.TranscriptLanguageSummary, Mode=OneWay}" TextWrapping="WrapWholeWords" />
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
                     <TextBlock FontWeight="SemiBold" Text="Status" />
                     <Button Content="Copy Error"
