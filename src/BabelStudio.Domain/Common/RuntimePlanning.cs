@@ -29,7 +29,8 @@ public enum RuntimePlanFallbackCode
     ProviderSmokeTestFailed = 2,
     ModelNotCached = 3,
     CommercialSafeExcluded = 4,
-    NoCompatibleVariant = 5
+    NoCompatibleVariant = 5,
+    UnsupportedLanguagePair = 6
 }
 
 public enum RuntimePlanWarningCode
