@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
+    <ProjectReference Include="..\BabelStudio.Contracts\BabelStudio.Contracts.csproj" />
+    <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
+    <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
+    <ProjectReference Include="..\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
+    <ProjectReference Include="..\BabelStudio.Media\BabelStudio.Media.csproj" />
+  </ItemGroup>
+
+</Project>
