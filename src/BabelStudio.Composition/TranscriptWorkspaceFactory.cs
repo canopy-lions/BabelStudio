@@ -11,6 +11,7 @@ using BabelStudio.Inference.Runtime.ModelManifest;
 using BabelStudio.Inference.Runtime.Planning;
 using BabelStudio.Infrastructure.FileSystem;
 using BabelStudio.Infrastructure.Persistence.Sqlite;
+using BabelStudio.Inference.Onnx.OpusMt;
 using BabelStudio.Media.Extraction;
 using BabelStudio.Media.Probe;
 using BabelStudio.Media.Waveforms;
@@ -48,12 +49,14 @@ public sealed class TranscriptWorkspaceFactory
                 new WaveformSummaryGenerator(),
                 new Sha256FileFingerprintService()),
             new SqliteTranscriptRepository(database),
+            new SqliteTranslationRepository(database),
             new SqliteProjectStageRunStore(database),
             mediaRepository,
             artifactStore,
             new Sha256FileFingerprintService(),
             new SileroVadSpeechRegionDetector(runtimePlanner, modelPathResolver),
-            new WhisperOnnxAudioTranscriptionEngine(runtimePlanner, modelPathResolver));
+            new WhisperOnnxAudioTranscriptionEngine(runtimePlanner, modelPathResolver),
+            new OpusMtTranslationEngine(runtimePlanner, modelPathResolver));
     }
 
     private static BundledModelManifestRegistry LoadManifestRegistry()
