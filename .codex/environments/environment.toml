@@ -25,3 +25,8 @@ command = "dotnet build"
 name = "Test"
 icon = "test"
 command = "dotnet test"
+
+[[actions]]
+name = "Run"
+icon = "run"
+command = "dotnet run --project src\\BabelStudio.App\\BabelStudio.App.csproj"
