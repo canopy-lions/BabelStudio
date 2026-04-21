@@ -28,6 +28,10 @@ model-cache/
 *.bin
 *.safetensors
 *.gguf
+!src/BabelStudio.Inference.Onnx/
+!src/BabelStudio.Inference.Onnx/**
+src/BabelStudio.Inference.Onnx/bin/
+src/BabelStudio.Inference.Onnx/obj/
 
 # Media/artifacts
 *.mp4

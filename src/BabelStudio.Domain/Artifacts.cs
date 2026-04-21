@@ -29,12 +29,17 @@ public sealed record ArtifactRecord(
             throw new ArgumentException("Artifact kind is required.", nameof(kind));
         }
 
+        string normalizedKind = kind.Trim();
+        string normalizedRelativePath = relativePath.Trim();
+        string normalizedContentHash = contentHash.Trim();
+        string normalizedProvenance = provenance.Trim();
+
         if (string.IsNullOrWhiteSpace(relativePath))
         {
             throw new ArgumentException("Artifact relative path is required.", nameof(relativePath));
         }
 
-        if (Path.IsPathRooted(relativePath))
+        if (IsAbsoluteArtifactPath(normalizedRelativePath))
         {
             throw new ArgumentException("Artifact paths must be project-relative.", nameof(relativePath));
         }
@@ -53,10 +58,32 @@ public sealed record ArtifactRecord(
             Guid.NewGuid(),
             projectId,
             stageRunId,
-            kind.Trim(),
-            relativePath.Trim(),
-            contentHash.Trim(),
-            provenance.Trim(),
+            normalizedKind,
+            normalizedRelativePath,
+            normalizedContentHash,
+            normalizedProvenance,
             createdAtUtc);
     }
+
+    private static bool IsAbsoluteArtifactPath(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return true;
+        }
+
+        if (path.StartsWith(@"\\", StringComparison.Ordinal) ||
+            path.StartsWith("//", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return path.Length >= 2 &&
+               IsAsciiLetter(path[0]) &&
+               path[1] == ':';
+    }
+
+    private static bool IsAsciiLetter(char value) =>
+        (value >= 'A' && value <= 'Z') ||
+        (value >= 'a' && value <= 'z');
 }

@@ -14,14 +14,16 @@ public sealed class DomainModelTests
         Assert.Equal(project.CreatedAtUtc, project.UpdatedAtUtc);
     }
 
-    [Fact]
-    public void RegisterArtifact_RejectsRootedPath()
+    [Theory]
+    [InlineData(@"D:\absolute\artifact.json")]
+    [InlineData(@"\\server\share\artifact.json")]
+    public void RegisterArtifact_RejectsAbsolutePath(string path)
     {
         Assert.Throws<ArgumentException>(() => ArtifactRecord.Register(
             Guid.NewGuid(),
             null,
             "transcript",
-            @"D:\absolute\artifact.json",
+            path,
             "abc123",
             "asr-stage",
             DateTimeOffset.UtcNow));

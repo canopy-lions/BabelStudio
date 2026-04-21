@@ -49,4 +49,15 @@ public sealed class FileSystemArtifactStoreTests
         using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(finalPath));
         Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
     }
+
+    [Theory]
+    [InlineData(@"D:\absolute\artifact.json")]
+    [InlineData(@"\\server\share\artifact.json")]
+    public void CreateWriteHandle_RejectsAbsolutePath(string path)
+    {
+        string projectRoot = Path.Combine(Path.GetTempPath(), "BabelStudio.Infrastructure.Tests", Guid.NewGuid().ToString("N"), "AbsolutePath.babelstudio");
+        var store = new FileSystemArtifactStore(projectRoot);
+
+        Assert.Throws<InvalidOperationException>(() => store.CreateWriteHandle(path));
+    }
 }

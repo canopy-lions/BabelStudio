@@ -106,15 +106,16 @@ public sealed class FileSystemArtifactStore : IArtifactStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
 
-        string normalized = relativePath.Replace('/', Path.DirectorySeparatorChar)
-            .Replace('\\', Path.DirectorySeparatorChar)
-            .TrimStart(Path.DirectorySeparatorChar);
+        string normalized = relativePath.Trim()
+            .Replace('/', Path.DirectorySeparatorChar)
+            .Replace('\\', Path.DirectorySeparatorChar);
 
-        if (Path.IsPathRooted(normalized))
+        if (IsAbsoluteArtifactPath(normalized))
         {
             throw new InvalidOperationException($"Artifact path '{relativePath}' must be project-relative.");
         }
 
+        normalized = normalized.TrimStart(Path.DirectorySeparatorChar);
         string[] segments = normalized.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
         if (segments.Any(static segment => segment == ".."))
         {
@@ -123,4 +124,26 @@ public sealed class FileSystemArtifactStore : IArtifactStore
 
         return Path.Combine(segments);
     }
+
+    private static bool IsAbsoluteArtifactPath(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return true;
+        }
+
+        if (path.StartsWith(@"\\", StringComparison.Ordinal) ||
+            path.StartsWith("//", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return path.Length >= 2 &&
+               IsAsciiLetter(path[0]) &&
+               path[1] == ':';
+    }
+
+    private static bool IsAsciiLetter(char value) =>
+        (value >= 'A' && value <= 'Z') ||
+        (value >= 'a' && value <= 'z');
 }
