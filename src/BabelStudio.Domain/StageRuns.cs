@@ -7,6 +7,50 @@ public enum StageRunStatus
     Failed
 }
 
+public sealed record StageRunRuntimeInfo
+{
+    public StageRunRuntimeInfo(
+        string requestedProvider,
+        string selectedProvider,
+        string? modelId = null,
+        string? modelAlias = null,
+        string? modelVariant = null,
+        string? bootstrapDetail = null)
+    {
+        RequestedProvider = NormalizeRequired(requestedProvider, nameof(requestedProvider));
+        SelectedProvider = NormalizeRequired(selectedProvider, nameof(selectedProvider));
+        ModelId = NormalizeOptional(modelId);
+        ModelAlias = NormalizeOptional(modelAlias);
+        ModelVariant = NormalizeOptional(modelVariant);
+        BootstrapDetail = NormalizeOptional(bootstrapDetail);
+    }
+
+    public string RequestedProvider { get; init; }
+
+    public string SelectedProvider { get; init; }
+
+    public string? ModelId { get; init; }
+
+    public string? ModelAlias { get; init; }
+
+    public string? ModelVariant { get; init; }
+
+    public string? BootstrapDetail { get; init; }
+
+    private static string NormalizeRequired(string value, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("Provider is required.", paramName);
+        }
+
+        return value.Trim();
+    }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
+
 public sealed record StageRunRecord(
     Guid Id,
     Guid ProjectId,
@@ -14,7 +58,8 @@ public sealed record StageRunRecord(
     StageRunStatus Status,
     DateTimeOffset StartedAtUtc,
     DateTimeOffset? CompletedAtUtc,
-    string? FailureReason)
+    string? FailureReason,
+    StageRunRuntimeInfo? RuntimeInfo = null)
 {
     public static StageRunRecord Start(Guid projectId, string stageName, DateTimeOffset startedAtUtc)
     {
@@ -29,6 +74,28 @@ public sealed record StageRunRecord(
         }
 
         return new StageRunRecord(Guid.NewGuid(), projectId, stageName.Trim(), StageRunStatus.Running, startedAtUtc, null, null);
+    }
+
+    public StageRunRecord WithRuntimeInfo(StageRunRuntimeInfo? runtimeInfo) =>
+        this with
+        {
+            RuntimeInfo = runtimeInfo
+        };
+
+    public StageRunRecord WithRuntimeInfo(
+        string requestedProvider,
+        string selectedProvider,
+        string? modelId = null,
+        string? modelAlias = null,
+        string? modelVariant = null,
+        string? bootstrapDetail = null) =>
+        WithRuntimeInfo(new StageRunRuntimeInfo(
+            requestedProvider,
+            selectedProvider,
+            modelId,
+            modelAlias,
+            modelVariant,
+            bootstrapDetail));
     }
 
     public StageRunRecord Complete(DateTimeOffset completedAtUtc)
