@@ -2,6 +2,7 @@ using BabelStudio.Composition;
 using BabelStudio.App.ViewModels;
 using BabelStudio.Application.Transcripts;
 using Microsoft.UI.Xaml;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 
@@ -48,6 +49,12 @@ public sealed partial class MainWindow : Window
     }
 
     public MainWindowViewModel ViewModel { get; }
+
+    public void ReportUnhandledException(Exception exception, string context)
+    {
+        ViewModel.ReportException(exception, context);
+        ViewModel.IsBusy = false;
+    }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
@@ -118,12 +125,25 @@ public sealed partial class MainWindow : Window
         }, "Saving transcript edits...");
     }
 
+    private void CopyErrorButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(ViewModel.LastErrorReport))
+        {
+            return;
+        }
+
+        var dataPackage = new DataPackage();
+        dataPackage.SetText(ViewModel.LastErrorReport);
+        Clipboard.SetContent(dataPackage);
+        Clipboard.Flush();
+        ViewModel.StatusMessage = "Error details copied to clipboard.";
+    }
+
     private async Task RunAsync(Func<CancellationToken, Task> action, string busyMessage)
     {
         using var operationCancellationSource = new CancellationTokenSource();
         activeOperationCancellationSource = operationCancellationSource;
-        ViewModel.IsBusy = true;
-        ViewModel.StatusMessage = busyMessage;
+        ViewModel.BeginOperation(busyMessage);
 
         try
         {
@@ -135,7 +155,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            ViewModel.StatusMessage = ex.Message;
+            ViewModel.ReportException(ex, busyMessage);
         }
         finally
         {

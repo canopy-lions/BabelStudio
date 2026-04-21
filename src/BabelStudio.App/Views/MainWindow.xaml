@@ -98,7 +98,12 @@
                 <TextBlock Text="{x:Bind ViewModel.ProjectRootPath, Mode=OneWay}" TextWrapping="WrapWholeWords" />
                 <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Media" />
                 <TextBlock Text="{x:Bind ViewModel.MediaPath, Mode=OneWay}" TextWrapping="WrapWholeWords" />
-                <TextBlock FontWeight="SemiBold" Margin="0,12,0,0" Text="Status" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+                    <TextBlock FontWeight="SemiBold" Text="Status" />
+                    <Button Content="Copy Error"
+                            Click="CopyErrorButton_Click"
+                            IsEnabled="{x:Bind ViewModel.CanCopyError, Mode=OneWay}" />
+                </StackPanel>
                 <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" TextWrapping="WrapWholeWords" />
             </StackPanel>
         </Grid>
