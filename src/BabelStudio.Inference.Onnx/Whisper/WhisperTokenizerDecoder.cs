@@ -7,34 +7,45 @@ internal sealed class WhisperTokenizerDecoder
 {
     private readonly IReadOnlyDictionary<int, string> tokenTextById;
     private readonly IReadOnlySet<int> suppressedTokens;
-    private readonly IReadOnlyList<int> initialPromptTokens;
+    private readonly IReadOnlySet<int> languageTokenIds;
     private readonly IReadOnlyDictionary<char, byte> byteDecoder;
+    private readonly int decoderStartToken;
     private readonly int endOfTranscriptToken;
+    private readonly int? transcribeToken;
+    private readonly int? noTimestampsToken;
     private readonly int timestampBeginToken;
 
     private WhisperTokenizerDecoder(
         IReadOnlyDictionary<int, string> tokenTextById,
         IReadOnlySet<int> suppressedTokens,
-        IReadOnlyList<int> initialPromptTokens,
+        IReadOnlySet<int> languageTokenIds,
         IReadOnlyDictionary<char, byte> byteDecoder,
+        int decoderStartToken,
         int endOfTranscriptToken,
+        int? transcribeToken,
+        int? noTimestampsToken,
         int timestampBeginToken)
     {
         this.tokenTextById = tokenTextById;
         this.suppressedTokens = suppressedTokens;
-        this.initialPromptTokens = initialPromptTokens;
+        this.languageTokenIds = languageTokenIds;
         this.byteDecoder = byteDecoder;
+        this.decoderStartToken = decoderStartToken;
         this.endOfTranscriptToken = endOfTranscriptToken;
+        this.transcribeToken = transcribeToken;
+        this.noTimestampsToken = noTimestampsToken;
         this.timestampBeginToken = timestampBeginToken;
     }
 
-    public IReadOnlyList<int> InitialPromptTokens => initialPromptTokens;
+    public int DecoderStartToken => decoderStartToken;
 
     public int EndOfTranscriptToken => endOfTranscriptToken;
 
     public int TimestampBeginToken => timestampBeginToken;
 
     public IReadOnlySet<int> SuppressedTokens => suppressedTokens;
+
+    public IReadOnlySet<int> LanguageTokenIds => languageTokenIds;
 
     public static WhisperTokenizerDecoder Load(string modelRootPath)
     {
@@ -81,22 +92,50 @@ internal sealed class WhisperTokenizerDecoder
             }
         }
 
-        List<int> promptTokens = [ config.DecoderStartTokenId ];
-        foreach (int token in config.ForcedDecoderIds)
-        {
-            if (token != config.DecoderStartTokenId)
-            {
-                promptTokens.Add(token);
-            }
-        }
+        HashSet<int> languageTokenIds = tokenTextById
+            .Where(static pair => IsLanguageTokenText(pair.Value))
+            .Select(static pair => pair.Key)
+            .ToHashSet();
+
+        int? transcribeToken = FindTokenId(tokenTextById, "<|transcribe|>");
+        int? noTimestampsToken = FindTokenId(tokenTextById, "<|notimestamps|>");
 
         return new WhisperTokenizerDecoder(
             tokenTextById,
             suppressed,
-            promptTokens,
+            languageTokenIds,
             BuildByteDecoder(),
+            config.DecoderStartTokenId,
             config.EndOfTranscriptTokenId,
+            transcribeToken,
+            noTimestampsToken,
             timestampBeginToken);
+    }
+
+    public IReadOnlyList<int> BuildTranscriptionPrompt(int? languageTokenId)
+    {
+        var promptTokens = new List<int>(capacity: 4)
+        {
+            decoderStartToken
+        };
+
+        if (languageTokenId is int languageToken &&
+            languageTokenIds.Contains(languageToken))
+        {
+            promptTokens.Add(languageToken);
+        }
+
+        if (transcribeToken is int taskToken)
+        {
+            promptTokens.Add(taskToken);
+        }
+
+        if (noTimestampsToken is int timestampsToken)
+        {
+            promptTokens.Add(timestampsToken);
+        }
+
+        return promptTokens;
     }
 
     public string DecodeText(IEnumerable<int> tokenIds)
@@ -153,20 +192,6 @@ internal sealed class WhisperTokenizerDecoder
         int decoderStartTokenId = root.GetProperty("decoder_start_token_id").GetInt32();
         int endOfTranscriptTokenId = root.GetProperty("eos_token_id").GetInt32();
 
-        List<int> forcedDecoderIds = [];
-        if (root.TryGetProperty("forced_decoder_ids", out JsonElement forcedElement))
-        {
-            foreach (JsonElement pair in forcedElement.EnumerateArray())
-            {
-                if (pair.ValueKind != JsonValueKind.Array || pair.GetArrayLength() < 2)
-                {
-                    continue;
-                }
-
-                forcedDecoderIds.Add(pair[1].GetInt32());
-            }
-        }
-
         List<int> suppressTokens = root.TryGetProperty("suppress_tokens", out JsonElement suppressElement) &&
                                    suppressElement.ValueKind is JsonValueKind.Array
             ? suppressElement.EnumerateArray().Select(static element => element.GetInt32()).ToList()
@@ -180,9 +205,34 @@ internal sealed class WhisperTokenizerDecoder
         return new WhisperModelConfig(
             decoderStartTokenId,
             endOfTranscriptTokenId,
-            forcedDecoderIds,
             suppressTokens,
             beginSuppressTokens);
+    }
+
+    private static int? FindTokenId(IReadOnlyDictionary<int, string> tokenTextById, string tokenText)
+    {
+        foreach ((int tokenId, string value) in tokenTextById)
+        {
+            if (value.Equals(tokenText, StringComparison.Ordinal))
+            {
+                return tokenId;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsLanguageTokenText(string tokenText)
+    {
+        if (!tokenText.StartsWith("<|", StringComparison.Ordinal) ||
+            !tokenText.EndsWith("|>", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string inner = tokenText[2..^2];
+        return inner.Length is >= 2 and <= 5 &&
+               inner.All(static ch => ch is >= 'a' and <= 'z');
     }
 
     private static IReadOnlyDictionary<char, byte> BuildByteDecoder()
@@ -220,7 +270,6 @@ internal sealed class WhisperTokenizerDecoder
     private sealed record WhisperModelConfig(
         int DecoderStartTokenId,
         int EndOfTranscriptTokenId,
-        IReadOnlyList<int> ForcedDecoderIds,
         IReadOnlyList<int> SuppressTokens,
         IReadOnlyList<int> BeginSuppressTokens);
 }

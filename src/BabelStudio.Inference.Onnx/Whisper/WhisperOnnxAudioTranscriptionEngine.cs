@@ -131,7 +131,9 @@ public sealed class WhisperOnnxAudioTranscriptionEngine : IAudioTranscriptionEng
         Tensor<float> encoderHiddenStates,
         CancellationToken cancellationToken)
     {
-        var generated = tokenizer.InitialPromptTokens.Select(static token => (long)token).ToList();
+        int? detectedLanguageToken = DetectLanguageToken(decoderSession, tokenizer, encoderHiddenStates);
+        IReadOnlyList<int> promptTokens = tokenizer.BuildTranscriptionPrompt(detectedLanguageToken);
+        var generated = promptTokens.Select(static token => (long)token).ToList();
         int maxTokens = 448;
 
         for (int step = generated.Count; step < maxTokens; step++)
@@ -153,7 +155,26 @@ public sealed class WhisperOnnxAudioTranscriptionEngine : IAudioTranscriptionEng
             generated.Add(nextToken);
         }
 
-        return Task.FromResult(generated.Skip(tokenizer.InitialPromptTokens.Count).Select(static token => (int)token).ToList());
+        return Task.FromResult(generated.Skip(promptTokens.Count).Select(static token => (int)token).ToList());
+    }
+
+    private static int? DetectLanguageToken(
+        InferenceSession decoderSession,
+        WhisperTokenizerDecoder tokenizer,
+        Tensor<float> encoderHiddenStates)
+    {
+        if (tokenizer.LanguageTokenIds.Count == 0)
+        {
+            return null;
+        }
+
+        using var decoderInputs = CreateDecoderInputs([ tokenizer.DecoderStartToken ], encoderHiddenStates);
+        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> decoderResults = decoderSession.Run(decoderInputs.Values);
+        Tensor<float> logits = decoderResults.Single(static result => result.Name == "logits").AsTensor<float>();
+
+        int sequenceLength = logits.Dimensions[1];
+        int bestToken = SelectBestToken(logits, sequenceLength - 1, tokenizer.LanguageTokenIds);
+        return bestToken >= 0 ? bestToken : null;
     }
 
     private static int SelectNextToken(
@@ -181,6 +202,26 @@ public sealed class WhisperOnnxAudioTranscriptionEngine : IAudioTranscriptionEng
             {
                 bestValue = value;
                 bestToken = tokenIndex;
+            }
+        }
+
+        return bestToken;
+    }
+
+    private static int SelectBestToken(
+        Tensor<float> logits,
+        int timeIndex,
+        IEnumerable<int> candidateTokenIds)
+    {
+        int bestToken = -1;
+        float bestValue = float.NegativeInfinity;
+        foreach (int tokenId in candidateTokenIds)
+        {
+            float value = logits[0, timeIndex, tokenId];
+            if (value > bestValue)
+            {
+                bestValue = value;
+                bestToken = tokenId;
             }
         }
 
