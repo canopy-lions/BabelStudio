@@ -6,7 +6,7 @@ namespace BabelStudio.Application.Projects;
 
 public static class ProjectDocumentVersions
 {
-    public const int CurrentProjectSchemaVersion = 1;
+    public const int CurrentProjectSchemaVersion = 2;
 }
 
 public sealed record ProjectManifest(
@@ -14,15 +14,29 @@ public sealed record ProjectManifest(
     string Name,
     int SchemaVersion,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc)
+    DateTimeOffset UpdatedAtUtc,
+    string? TranscriptLanguage = null)
 {
-    public static ProjectManifest FromProject(BabelProject project) =>
+    public static ProjectManifest FromProject(BabelProject project, string? transcriptLanguage = null) =>
         new(
             project.Id,
             project.Name,
             SchemaVersion: ProjectDocumentVersions.CurrentProjectSchemaVersion,
             project.CreatedAtUtc,
-            project.UpdatedAtUtc);
+            project.UpdatedAtUtc,
+            NormalizeLanguageCode(transcriptLanguage));
+
+    public ProjectManifest WithTranscriptLanguage(string? transcriptLanguage) =>
+        this with
+        {
+            SchemaVersion = ProjectDocumentVersions.CurrentProjectSchemaVersion,
+            TranscriptLanguage = NormalizeLanguageCode(transcriptLanguage)
+        };
+
+    private static string? NormalizeLanguageCode(string? transcriptLanguage) =>
+        string.IsNullOrWhiteSpace(transcriptLanguage)
+            ? null
+            : transcriptLanguage.Trim().ToLowerInvariant();
 }
 
 public sealed record SourceMediaReference(
