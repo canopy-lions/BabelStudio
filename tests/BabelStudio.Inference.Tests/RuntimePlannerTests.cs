@@ -230,6 +230,57 @@ public sealed class RuntimePlannerTests
     }
 
     [Fact]
+    public async Task PlanAsync_TranslationEnToEs_ReturnsReadyBundledOpusPlan()
+    {
+        using var workspace = new RuntimePlannerTestWorkspace();
+        BundledModelManifestRegistry registry = LoadBundledRegistry();
+
+        string cacheRoot = workspace.CreateCacheRoot("Helsinki-NLP/opus-mt-en-es");
+        workspace.WriteCacheFile(cacheRoot, "encoder_model.onnx");
+        workspace.WriteCacheFile(cacheRoot, "decoder_model_merged.onnx");
+
+        RuntimePlanner planner = CreatePlanner(
+            registry,
+            [ new("Helsinki-NLP/opus-mt-en-es", cacheRoot, "main", "sha", DateTimeOffset.UtcNow) ],
+            [ new(ExecutionProviderKind.DirectMl, false, "DirectML disabled for this test.") ],
+            _ => throw new InvalidOperationException("Smoke tests should not run for CPU-only plans."));
+
+        StageRuntimePlan plan = await planner.PlanAsync(new StageRuntimePlanningRequest(
+            RuntimeStage.Translation,
+            CommercialSafeMode: true,
+            SourceLanguage: "en",
+            TargetLanguage: "es"));
+
+        Assert.Equal(StageRuntimePlanStatus.Ready, plan.Status);
+        Assert.Equal("Helsinki-NLP/opus-mt-en-es", plan.ModelId);
+        Assert.Equal("opus-en-es", plan.ModelAlias);
+        Assert.Equal("merged-decoder", plan.Variant);
+        Assert.Equal(ExecutionProviderKind.Cpu, plan.ExecutionProvider);
+        Assert.Contains(plan.Warnings, warning => warning.Code == RuntimePlanWarningCode.CommercialSafeModeActive);
+    }
+
+    [Fact]
+    public async Task PlanAsync_TranslationEsToEn_ReturnsBlockedUnsupportedLanguagePair()
+    {
+        RuntimePlanner planner = CreatePlanner(
+            LoadBundledRegistry(),
+            [],
+            [ new(ExecutionProviderKind.DirectMl, true) ],
+            _ => new ExecutionProviderSmokeTestResult(true));
+
+        StageRuntimePlan plan = await planner.PlanAsync(new StageRuntimePlanningRequest(
+            RuntimeStage.Translation,
+            CommercialSafeMode: true,
+            SourceLanguage: "es",
+            TargetLanguage: "en"));
+
+        Assert.Equal(StageRuntimePlanStatus.Blocked, plan.Status);
+        Assert.NotNull(plan.Fallback);
+        Assert.Equal(RuntimePlanFallbackCode.UnsupportedLanguagePair, plan.Fallback!.Code);
+        Assert.Contains(plan.Warnings, warning => warning.Code == RuntimePlanWarningCode.CommercialSafeModeActive);
+    }
+
+    [Fact]
     public async Task PlanAsync_NonCpuProviderNeverReturnsReadyWithoutPassingSmokeTest()
     {
         using var workspace = new RuntimePlannerTestWorkspace();

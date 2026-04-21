@@ -141,7 +141,7 @@ public sealed class MediaIngestCommandTests
             [
                 new ProjectArtifact(Guid.NewGuid(), project.Id, mediaAsset.Id, ArtifactKind.NormalizedAudio, ProjectArtifactPaths.NormalizedAudioRelativePath, "hash-audio", 2048, 1.25, 48000, 1, now)
             ];
-            return Task.FromResult(new OpenProjectResult(project, mediaAsset, sourceReference, SourceMediaStatus.Missing, $"Source media file was not found at '{sourcePath}'.", artifacts));
+            return Task.FromResult(new OpenProjectResult(project, mediaAsset, sourceReference, SourceMediaStatus.Missing, $"Source media file was not found at '{sourcePath}'.", artifacts, TranscriptLanguage: null));
         }
     }
 }

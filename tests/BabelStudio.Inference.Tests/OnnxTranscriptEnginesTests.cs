@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using BabelStudio.Contracts.Pipeline;
 using BabelStudio.Domain;
 using BabelStudio.Inference.Onnx;
+using BabelStudio.Inference.Onnx.OpusMt;
 using BabelStudio.Inference.Onnx.SileroVad;
 using BabelStudio.Inference.Onnx.Whisper;
 using BabelStudio.Inference.Runtime.Planning;
@@ -78,6 +79,39 @@ public sealed class OnnxTranscriptEnginesTests
                 File.Delete(wavePath);
             }
         }
+    }
+
+    [Fact]
+    public async Task OpusMtTranslationEngine_RunsBundledModelOnTinyEnglishFixture()
+    {
+        var engine = new OpusMtTranslationEngine(
+            new StubRuntimePlanner(new StageRuntimePlan
+            {
+                Stage = RuntimeStage.Translation,
+                Status = StageRuntimePlanStatus.Ready,
+                ModelId = "Helsinki-NLP/opus-mt-en-es",
+                ModelAlias = "opus-en-es",
+                Variant = "merged-decoder",
+                ExecutionProvider = ExecutionProviderKind.Cpu
+            }),
+            BenchmarkModelPathResolver.CreateDefault());
+
+        IReadOnlyList<TranslatedTextSegment> segments = await engine.TranslateAsync(
+            new TranslationRequest(
+                "en",
+                "es",
+                [ new TranslationInputSegment(0, 0.0, 1.0, "Hello world.") ],
+                CommercialSafeMode: true,
+                PreferredModelAlias: "opus-en-es"),
+            CancellationToken.None);
+
+        TranslatedTextSegment segment = Assert.Single(segments);
+        Assert.Equal(0, segment.Index);
+        Assert.False(string.IsNullOrWhiteSpace(segment.Text));
+        Assert.NotNull(engine.LastExecutionSummary);
+        Assert.Equal("cpu", engine.LastExecutionSummary!.SelectedProvider);
+        Assert.Equal("opus-en-es", engine.LastExecutionSummary.ModelAlias);
+        Assert.Equal("merged-decoder", engine.LastExecutionSummary.ModelVariant);
     }
 
     private static string CreateSilenceWaveFile(double durationSeconds)

@@ -7,6 +7,7 @@ using BabelStudio.Domain.Artifacts;
 using BabelStudio.Domain.Media;
 using BabelStudio.Domain.Projects;
 using BabelStudio.Domain.Transcript;
+using BabelStudio.Domain.Translation;
 
 namespace BabelStudio.Application.Tests;
 
@@ -21,26 +22,8 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
         await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
 
-        var mediaRepository = new FakeMediaAssetRepository();
-        var artifactStore = new FakeArtifactStore(Path.Combine(tempDirectory, "project"));
-        var service = new TranscriptProjectService(
-            new ProjectMediaIngestService(
-                new FakeProjectRepository(),
-                mediaRepository,
-                artifactStore,
-                new FakeMediaProbe(),
-                new FakeAudioExtractionService(),
-                new FakeWaveformSummaryGenerator(),
-                new FakeFileFingerprintService()),
-            new FakeTranscriptRepository(),
-            new FakeProjectStageRunStore(),
-            mediaRepository,
-            artifactStore,
-            new FakeFileFingerprintService(),
-            new FakeSpeechRegionDetector(),
-            new FakeAudioTranscriptionEngine());
-
-        TranscriptProjectState result = await service.CreateAsync(
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        TranscriptProjectState result = await scope.Service.CreateAsync(
             new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
             CancellationToken.None);
 
@@ -49,6 +32,8 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         Assert.Equal(2, result.StageRuns.Count);
         Assert.All(result.StageRuns, stageRun => Assert.Equal(StageRunStatus.Completed, stageRun.Status));
         Assert.Equal(2, result.TranscriptSegments.Count);
+        Assert.Null(result.CurrentTranslationRevision);
+        Assert.Null(result.TranscriptLanguage);
         Assert.Contains(result.ProjectState.Artifacts, artifact => artifact.Kind == ArtifactKind.SpeechRegions);
         Assert.Contains(result.ProjectState.Artifacts, artifact => artifact.Kind == ArtifactKind.TranscriptRevision);
     }
@@ -60,31 +45,12 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
         await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
 
-        var mediaRepository = new FakeMediaAssetRepository();
-        var artifactStore = new FakeArtifactStore(Path.Combine(tempDirectory, "project"));
-        var transcriptRepository = new FakeTranscriptRepository();
-        var service = new TranscriptProjectService(
-            new ProjectMediaIngestService(
-                new FakeProjectRepository(),
-                mediaRepository,
-                artifactStore,
-                new FakeMediaProbe(),
-                new FakeAudioExtractionService(),
-                new FakeWaveformSummaryGenerator(),
-                new FakeFileFingerprintService()),
-            transcriptRepository,
-            new FakeProjectStageRunStore(),
-            mediaRepository,
-            artifactStore,
-            new FakeFileFingerprintService(),
-            new FakeSpeechRegionDetector(),
-            new FakeAudioTranscriptionEngine());
-
-        TranscriptProjectState created = await service.CreateAsync(
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        TranscriptProjectState created = await scope.Service.CreateAsync(
             new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
             CancellationToken.None);
 
-        TranscriptProjectState saved = await service.SaveEditsAsync(
+        TranscriptProjectState saved = await scope.Service.SaveEditsAsync(
             new SaveTranscriptEditsRequest(
                 created.CurrentTranscriptRevision!.Id,
                 [new EditedTranscriptSegment(created.TranscriptSegments[0].Id, "Edited segment text.")]),
@@ -94,9 +60,101 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         Assert.Equal(2, saved.CurrentTranscriptRevision!.RevisionNumber);
         Assert.Equal("Edited segment text.", saved.TranscriptSegments[0].Text);
 
-        TranscriptRevision originalRevision = Assert.Single(transcriptRepository.Revisions, revision => revision.RevisionNumber == 1);
-        IReadOnlyList<TranscriptSegment> originalSegments = transcriptRepository.SegmentsByRevisionId[originalRevision.Id];
+        TranscriptRevision originalRevision = Assert.Single(scope.TranscriptRepository.Revisions, revision => revision.RevisionNumber == 1);
+        IReadOnlyList<TranscriptSegment> originalSegments = scope.TranscriptRepository.SegmentsByRevisionId[originalRevision.Id];
         Assert.Equal("Generated segment 1.", originalSegments[0].Text);
+    }
+
+    [Fact]
+    public async Task GenerateTranslationAsync_creates_translation_revision_and_transcript_edits_mark_it_needing_refresh()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+
+        TranscriptProjectState languageSet = await scope.Service.SetTranscriptLanguageAsync(
+            new SetTranscriptLanguageRequest("en"),
+            CancellationToken.None);
+        TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
+            new GenerateTranslationRequest("en", "es"),
+            CancellationToken.None);
+
+        Assert.Equal("en", languageSet.TranscriptLanguage);
+        Assert.NotNull(translated.CurrentTranslationRevision);
+        Assert.Equal(1, translated.CurrentTranslationRevision!.RevisionNumber);
+        Assert.False(translated.IsTranslationStale);
+        Assert.Equal(2, translated.TranslatedSegments.Count);
+        Assert.Equal("Segmento generado 1.", translated.TranslatedSegments[0].Text);
+        Assert.Contains(translated.ProjectState.Artifacts, artifact => artifact.Kind == ArtifactKind.TranslationRevision);
+        Assert.Contains(translated.StageRuns, stageRun => stageRun.StageName == "translation" && stageRun.Status == StageRunStatus.Completed);
+
+        TranscriptProjectState transcriptEdited = await scope.Service.SaveEditsAsync(
+            new SaveTranscriptEditsRequest(
+                translated.CurrentTranscriptRevision!.Id,
+                [new EditedTranscriptSegment(translated.TranscriptSegments[0].Id, "Updated transcript text.")]),
+            CancellationToken.None);
+
+        Assert.True(transcriptEdited.IsTranslationStale);
+        Assert.NotNull(transcriptEdited.CurrentTranslationRevision);
+        Assert.Equal(1, transcriptEdited.CurrentTranslationRevision!.RevisionNumber);
+    }
+
+    [Fact]
+    public async Task SaveTranslationEditsAsync_creates_new_revision_without_overwriting_generated_translation()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+        await scope.Service.SetTranscriptLanguageAsync(new SetTranscriptLanguageRequest("en"), CancellationToken.None);
+        TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
+            new GenerateTranslationRequest("en", "es"),
+            CancellationToken.None);
+
+        TranscriptProjectState saved = await scope.Service.SaveTranslationEditsAsync(
+            new SaveTranslationEditsRequest(
+                translated.CurrentTranslationRevision!.Id,
+                "es",
+                [new EditedTranslatedSegment(0, "Traduccion editada.")]),
+            CancellationToken.None);
+
+        Assert.NotNull(saved.CurrentTranslationRevision);
+        Assert.Equal(2, saved.CurrentTranslationRevision!.RevisionNumber);
+        Assert.Equal("Traduccion editada.", saved.TranslatedSegments[0].Text);
+
+        TranslationRevision generatedRevision = Assert.Single(scope.TranslationRepository.Revisions, revision => revision.RevisionNumber == 1);
+        TranslationRevision editedRevision = Assert.Single(scope.TranslationRepository.Revisions, revision => revision.RevisionNumber == 2);
+        Assert.Equal(generatedRevision.SourceTranscriptRevisionId, editedRevision.SourceTranscriptRevisionId);
+
+        IReadOnlyList<TranslatedSegment> generatedSegments = scope.TranslationRepository.SegmentsByRevisionId[generatedRevision.Id];
+        Assert.Equal("Segmento generado 1.", generatedSegments[0].Text);
+    }
+
+    [Fact]
+    public async Task OpenAsync_when_manifest_has_no_transcript_language_returns_unknown_language_state()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+
+        scope.ArtifactStore.Remove(ProjectArtifactPaths.ManifestRelativePath);
+        TranscriptProjectState reopened = await scope.Service.OpenAsync(CancellationToken.None);
+
+        Assert.Null(reopened.TranscriptLanguage);
     }
 
     public void Dispose()
@@ -119,6 +177,35 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         }
     }
 
+    private FakeServiceScope CreateScope(string tempDirectory)
+    {
+        var mediaRepository = new FakeMediaAssetRepository();
+        var artifactStore = new FakeArtifactStore(Path.Combine(tempDirectory, "project"));
+        var transcriptRepository = new FakeTranscriptRepository();
+        var translationRepository = new FakeTranslationRepository();
+        var stageRunStore = new FakeProjectStageRunStore();
+        var service = new TranscriptProjectService(
+            new ProjectMediaIngestService(
+                new FakeProjectRepository(),
+                mediaRepository,
+                artifactStore,
+                new FakeMediaProbe(),
+                new FakeAudioExtractionService(),
+                new FakeWaveformSummaryGenerator(),
+                new FakeFileFingerprintService()),
+            transcriptRepository,
+            translationRepository,
+            stageRunStore,
+            mediaRepository,
+            artifactStore,
+            new FakeFileFingerprintService(),
+            new FakeSpeechRegionDetector(),
+            new FakeAudioTranscriptionEngine(),
+            new FakeTranslationEngine());
+
+        return new FakeServiceScope(service, artifactStore, transcriptRepository, translationRepository);
+    }
+
     private string CreateTempDirectory()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), "BabelStudio.Application.Tests", Guid.NewGuid().ToString("N"));
@@ -126,6 +213,12 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         tempDirectories.Add(tempDirectory);
         return tempDirectory;
     }
+
+    private sealed record FakeServiceScope(
+        TranscriptProjectService Service,
+        FakeArtifactStore ArtifactStore,
+        FakeTranscriptRepository TranscriptRepository,
+        FakeTranslationRepository TranslationRepository);
 
     private sealed class FakeProjectRepository : IProjectRepository
     {
@@ -219,6 +312,16 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             return Task.FromResult<T?>(default);
         }
 
+        public void Remove(string relativePath)
+        {
+            reads.Remove(relativePath);
+            string path = GetPath(relativePath);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+
         public string GetPath(string relativePath) => Path.GetFullPath(Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
 
         public bool Exists(string relativePath) => File.Exists(GetPath(relativePath));
@@ -286,6 +389,38 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         }
     }
 
+    private sealed class FakeTranslationRepository : ITranslationRepository
+    {
+        public List<TranslationRevision> Revisions { get; } = [];
+
+        public Dictionary<Guid, IReadOnlyList<TranslatedSegment>> SegmentsByRevisionId { get; } = new();
+
+        public Task<TranslationRevision?> GetCurrentRevisionAsync(Guid projectId, string targetLanguage, CancellationToken cancellationToken) =>
+            Task.FromResult(Revisions
+                .Where(revision => revision.ProjectId == projectId && revision.TargetLanguage == targetLanguage)
+                .OrderByDescending(revision => revision.RevisionNumber)
+                .FirstOrDefault());
+
+        public Task<IReadOnlyList<TranslatedSegment>> GetSegmentsAsync(Guid translationRevisionId, CancellationToken cancellationToken) =>
+            Task.FromResult(SegmentsByRevisionId.TryGetValue(translationRevisionId, out IReadOnlyList<TranslatedSegment>? segments)
+                ? segments
+                : (IReadOnlyList<TranslatedSegment>)[]);
+
+        public Task<int> GetNextRevisionNumberAsync(Guid projectId, string targetLanguage, CancellationToken cancellationToken) =>
+            Task.FromResult(Revisions
+                .Where(revision => revision.ProjectId == projectId && revision.TargetLanguage == targetLanguage)
+                .Select(revision => revision.RevisionNumber)
+                .DefaultIfEmpty(0)
+                .Max() + 1);
+
+        public Task SaveRevisionAsync(TranslationRevision revision, IReadOnlyList<TranslatedSegment> segments, CancellationToken cancellationToken)
+        {
+            Revisions.Add(revision);
+            SegmentsByRevisionId[revision.Id] = segments;
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FakeProjectStageRunStore : IProjectStageRunStore
     {
         private readonly List<StageRunRecord> stageRuns = [];
@@ -332,5 +467,21 @@ public sealed class TranscriptProjectServiceTests : IDisposable
                 new RecognizedTranscriptSegment(0, regions[0].StartSeconds, regions[0].EndSeconds, "Generated segment 1."),
                 new RecognizedTranscriptSegment(1, regions[1].StartSeconds, regions[1].EndSeconds, "Generated segment 2.")
             ]);
+    }
+
+    private sealed class FakeTranslationEngine : ITranslationEngine
+    {
+        public Task<IReadOnlyList<TranslatedTextSegment>> TranslateAsync(
+            TranslationRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TranslatedTextSegment>>(
+            request.Segments
+                .OrderBy(segment => segment.Index)
+                .Select(segment => new TranslatedTextSegment(
+                    segment.Index,
+                    segment.StartSeconds,
+                    segment.EndSeconds,
+                    $"Segmento generado {segment.Index + 1}."))
+                .ToArray());
     }
 }
