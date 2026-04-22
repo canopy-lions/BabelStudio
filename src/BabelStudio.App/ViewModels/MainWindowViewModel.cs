@@ -19,10 +19,13 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool isBusy;
     private string? lastErrorReport;
     private string mediaPath = "No media selected.";
+    private string playbackAssessmentWarning = string.Empty;
     private string playbackBackendLabel = "No media loaded.";
     private double playbackDurationSeconds;
     private string playbackPositionText = "00:00 / 00:00";
     private double playbackPositionSeconds;
+    private bool playbackLoaded;
+    private string playbackRuntimeWarning = string.Empty;
     private string playbackWarning = string.Empty;
     private string persistedTranscriptLanguageCode = string.Empty;
     private string projectNameDraft = "New Project";
@@ -263,7 +266,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool CanCopyError => !string.IsNullOrWhiteSpace(lastErrorReport);
 
-    public bool CanPlayMedia => HasPlaybackBackend;
+    public bool CanPlayMedia => HasPlaybackBackend && playbackLoaded;
 
     public string? LastErrorReport => lastErrorReport;
 
@@ -412,11 +415,22 @@ public sealed class MainWindowViewModel : ObservableObject
     public void ApplyPlaybackAssessment(PlaybackCapabilityAssessment? assessment, bool hasBackend)
     {
         HasPlaybackBackend = hasBackend;
+        OnPropertyChanged(nameof(CanPlayMedia));
+
         if (assessment is null)
         {
+            playbackAssessmentWarning = string.Empty;
+            playbackRuntimeWarning = string.Empty;
+            playbackLoaded = false;
             PlaybackBackendLabel = "No media loaded.";
-            PlaybackWarning = string.Empty;
+            UpdatePlaybackWarning();
             return;
+        }
+
+        playbackAssessmentWarning = assessment.WarningMessage ?? string.Empty;
+        if (!hasBackend)
+        {
+            playbackLoaded = false;
         }
 
         PlaybackBackendLabel = assessment.PreferredBackend switch
@@ -426,18 +440,18 @@ public sealed class MainWindowViewModel : ObservableObject
             PlaybackBackendKind.LibMpvFallback => "libmpv fallback required",
             _ => assessment.PreferredBackend.ToString()
         };
-        PlaybackWarning = assessment.WarningMessage ?? string.Empty;
+        UpdatePlaybackWarning();
     }
 
     public void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot)
     {
+        playbackLoaded = snapshot.IsLoaded;
+        playbackRuntimeWarning = snapshot.WarningMessage ?? string.Empty;
         PlaybackPositionSeconds = snapshot.Position.TotalSeconds;
-        if (snapshot.Duration > TimeSpan.Zero)
-        {
-            PlaybackDurationSeconds = snapshot.Duration.TotalSeconds;
-        }
-
+        PlaybackDurationSeconds = snapshot.Duration > TimeSpan.Zero ? snapshot.Duration.TotalSeconds : 0d;
         PlaybackPositionText = $"{FormatClock(snapshot.Position)} / {FormatClock(snapshot.Duration)}";
+        UpdatePlaybackWarning();
+        OnPropertyChanged(nameof(CanPlayMedia));
         UpdateActiveSegment(PlaybackPositionSeconds);
     }
 
@@ -621,6 +635,22 @@ public sealed class MainWindowViewModel : ObservableObject
             .Where(stageRun => stageRun.Status is StageRunStatus.Failed)
             .OrderByDescending(stageRun => stageRun.StartedAtUtc)
             .FirstOrDefault();
+    }
+
+    private void UpdatePlaybackWarning()
+    {
+        string[] warnings =
+        [
+            playbackAssessmentWarning,
+            playbackRuntimeWarning
+        ];
+
+        PlaybackWarning = string.Join(
+            ' ',
+            warnings
+                .Where(warning => !string.IsNullOrWhiteSpace(warning))
+                .Select(warning => warning.Trim())
+                .Distinct(StringComparer.Ordinal));
     }
 
     private string BuildExceptionErrorReport(Exception exception, string context)

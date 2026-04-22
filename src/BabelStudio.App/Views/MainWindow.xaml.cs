@@ -469,7 +469,7 @@ public sealed partial class MainWindow : Window
         ViewModel.ApplyPlaybackSnapshot(result.Snapshot);
         WaveformCanvas.Invalidate();
 
-        if (result.IsBackendAvailable)
+        if (result.IsBackendAvailable && result.Snapshot.IsLoaded)
         {
             playbackTimer.Start();
         }
@@ -484,6 +484,11 @@ public sealed partial class MainWindow : Window
     {
         PlaybackSnapshot snapshot = await shellServices.PlaybackService.GetSnapshotAsync(CancellationToken.None).ConfigureAwait(true);
         ViewModel.ApplyPlaybackSnapshot(snapshot);
+        if (!snapshot.IsLoaded)
+        {
+            playbackTimer.Stop();
+        }
+
         WaveformCanvas.Invalidate();
     }
 
