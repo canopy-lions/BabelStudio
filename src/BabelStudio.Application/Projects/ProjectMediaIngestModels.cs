@@ -15,6 +15,9 @@ public sealed record CreateProjectFromMediaResult(
     ProjectArtifact AudioArtifact,
     ProjectArtifact WaveformArtifact);
 
+public sealed record RelocateSourceMediaRequest(
+    string NewSourceMediaPath);
+
 public sealed record OpenProjectResult(
     BabelProject Project,
     MediaAsset? MediaAsset,

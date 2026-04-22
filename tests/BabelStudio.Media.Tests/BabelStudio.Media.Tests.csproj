@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BabelStudio.Media\BabelStudio.Media.csproj" />
+    <ProjectReference Include="..\..\src\BabelStudio.Media.Playback\BabelStudio.Media.Playback.csproj" />
   </ItemGroup>
 
 </Project>

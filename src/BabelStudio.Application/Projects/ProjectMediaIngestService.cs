@@ -75,6 +75,7 @@ public sealed class ProjectMediaIngestService
         var mediaAsset = new MediaAsset(
             Guid.NewGuid(),
             project.Id,
+            fullSourcePath,
             sourceReference.OriginalFileName,
             sourceFingerprint.Sha256,
             sourceFingerprint.SizeBytes,
@@ -176,6 +177,59 @@ public sealed class ProjectMediaIngestService
             message,
             artifacts,
             manifest?.TranscriptLanguage);
+    }
+
+    public async Task<OpenProjectResult> RelocateSourceAsync(
+        RelocateSourceMediaRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.NewSourceMediaPath);
+
+        BabelProject? project = await projectRepository.GetAsync(cancellationToken).ConfigureAwait(false);
+        if (project is null)
+        {
+            throw new InvalidOperationException("Project database does not contain a project record.");
+        }
+
+        SourceMediaReference? existingSourceReference = await artifactStore.ReadJsonAsync<SourceMediaReference>(
+            ProjectArtifactPaths.SourceReferenceRelativePath,
+            cancellationToken).ConfigureAwait(false);
+        MediaAsset mediaAsset = await mediaAssetRepository.GetPrimaryAsync(project.Id, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("The project does not contain a primary media asset.");
+
+        string fullSourcePath = Path.GetFullPath(request.NewSourceMediaPath);
+        if (!File.Exists(fullSourcePath))
+        {
+            throw new FileNotFoundException("Relocated source media file was not found.", fullSourcePath);
+        }
+
+        FileFingerprint fingerprint = await fileFingerprintService.ComputeAsync(fullSourcePath, cancellationToken).ConfigureAwait(false);
+        string expectedFingerprint = existingSourceReference?.Fingerprint.Sha256 ?? mediaAsset.FingerprintSha256;
+        if (!string.Equals(fingerprint.Sha256, expectedFingerprint, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"The selected file does not match the ingested source media fingerprint. Expected '{expectedFingerprint}', but found '{fingerprint.Sha256}'.");
+        }
+
+        MediaProbeSnapshot probe = await mediaProbe.ProbeAsync(fullSourcePath, cancellationToken).ConfigureAwait(false);
+        var updatedReference = new SourceMediaReference(
+            fullSourcePath,
+            Path.GetFileName(fullSourcePath),
+            fingerprint,
+            probe,
+            DateTimeOffset.UtcNow);
+
+        await artifactStore.WriteJsonAsync(
+            ProjectArtifactPaths.SourceReferenceRelativePath,
+            updatedReference,
+            cancellationToken).ConfigureAwait(false);
+        await mediaAssetRepository.UpdateSourcePathAsync(
+            mediaAsset.Id,
+            updatedReference.OriginalPath,
+            updatedReference.OriginalFileName,
+            cancellationToken).ConfigureAwait(false);
+
+        return await OpenAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<(SourceMediaStatus Status, string? Message)> ResolveSourceStatusAsync(

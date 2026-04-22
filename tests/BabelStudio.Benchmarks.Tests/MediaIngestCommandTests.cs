@@ -112,7 +112,7 @@ public sealed class MediaIngestCommandTests
             LastOptions = options;
             DateTimeOffset now = DateTimeOffset.UtcNow;
             var project = new BabelProject(Guid.NewGuid(), options.ProjectName!, now, now);
-            var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, "sample.mp4", "hash-source", 1024, now, "mov,mp4,m4a,3gp,3g2,mj2", 1.25, true, true, now);
+            var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, options.SourceMediaPath!, "sample.mp4", "hash-source", 1024, now, "mov,mp4,m4a,3gp,3g2,mj2", 1.25, true, true, now);
             var sourceReference = new SourceMediaReference(
                 options.SourceMediaPath!,
                 "sample.mp4",
@@ -130,7 +130,7 @@ public sealed class MediaIngestCommandTests
             DateTimeOffset now = DateTimeOffset.UtcNow;
             string sourcePath = Path.GetFullPath(Path.Combine("media", "sample.mp4"));
             var project = new BabelProject(Guid.NewGuid(), "Sample", now, now);
-            var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, "sample.mp4", "hash-source", 1024, now, "mov,mp4,m4a,3gp,3g2,mj2", 1.25, true, true, now);
+            var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, sourcePath, "sample.mp4", "hash-source", 1024, now, "mov,mp4,m4a,3gp,3g2,mj2", 1.25, true, true, now);
             var sourceReference = new SourceMediaReference(
                 sourcePath,
                 "sample.mp4",

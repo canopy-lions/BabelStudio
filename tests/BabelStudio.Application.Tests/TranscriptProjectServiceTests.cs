@@ -66,6 +66,73 @@ public sealed class TranscriptProjectServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SplitSegmentAsync_creates_two_segments_covering_original_duration()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        TranscriptProjectState created = await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+
+        TranscriptProjectState split = await scope.Service.SplitSegmentAsync(
+            new SplitTranscriptSegmentRequest(created.CurrentTranscriptRevision!.Id, created.TranscriptSegments[0].Id, 2.9),
+            CancellationToken.None);
+
+        Assert.Equal(3, split.TranscriptSegments.Count);
+        Assert.Equal(0.0, split.TranscriptSegments[0].StartSeconds, 3);
+        Assert.Equal(2.9, split.TranscriptSegments[0].EndSeconds, 3);
+        Assert.Equal(2.9, split.TranscriptSegments[1].StartSeconds, 3);
+        Assert.Equal(5.8, split.TranscriptSegments[1].EndSeconds, 3);
+    }
+
+    [Fact]
+    public async Task MergeSegmentsAsync_creates_single_segment_spanning_selected_pair()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        TranscriptProjectState created = await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+
+        TranscriptProjectState merged = await scope.Service.MergeSegmentsAsync(
+            new MergeTranscriptSegmentsRequest(
+                created.CurrentTranscriptRevision!.Id,
+                created.TranscriptSegments[0].Id,
+                created.TranscriptSegments[1].Id),
+            CancellationToken.None);
+
+        TranscriptSegment mergedSegment = Assert.Single(merged.TranscriptSegments);
+        Assert.Equal(0.0, mergedSegment.StartSeconds, 3);
+        Assert.Equal(11.8, mergedSegment.EndSeconds, 3);
+        Assert.Contains("Generated segment 1.", mergedSegment.Text);
+        Assert.Contains("Generated segment 2.", mergedSegment.Text);
+    }
+
+    [Fact]
+    public async Task TrimSegmentAsync_rejects_overlap_with_adjacent_segment()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        TranscriptProjectState created = await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            scope.Service.TrimSegmentAsync(
+                new TrimTranscriptSegmentRequest(created.CurrentTranscriptRevision!.Id, created.TranscriptSegments[0].Id, 0.0, 6.5),
+                CancellationToken.None));
+    }
+
+    [Fact]
     public async Task GenerateTranslationAsync_creates_translation_revision_and_transcript_edits_mark_it_needing_refresh()
     {
         string tempDirectory = CreateTempDirectory();
@@ -268,6 +335,24 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         public Task SaveAsync(MediaAsset asset, CancellationToken cancellationToken)
         {
             mediaAsset = asset;
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateSourcePathAsync(
+            Guid mediaAssetId,
+            string sourceFilePath,
+            string sourceFileName,
+            CancellationToken cancellationToken)
+        {
+            if (mediaAsset is not null && mediaAsset.Id == mediaAssetId)
+            {
+                mediaAsset = mediaAsset with
+                {
+                    SourceFilePath = sourceFilePath,
+                    SourceFileName = sourceFileName
+                };
+            }
+
             return Task.CompletedTask;
         }
 

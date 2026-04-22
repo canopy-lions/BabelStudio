@@ -105,7 +105,19 @@ public sealed class TranscriptProjectService
             translatedSegments,
             isTranslationStale,
             openResult.TranscriptLanguage,
-            stageRuns);
+            stageRuns,
+            await ReadWaveformSummaryAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    public async Task<TranscriptProjectState> RelocateSourceAsync(
+        RelocateTranscriptSourceRequest request,
+        CancellationToken cancellationToken)
+    {
+        await projectMediaIngestService.RelocateSourceAsync(
+            new RelocateSourceMediaRequest(request.NewSourceMediaPath),
+            cancellationToken).ConfigureAwait(false);
+
+        return await OpenAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<TranscriptProjectState> SaveEditsAsync(
@@ -113,35 +125,19 @@ public sealed class TranscriptProjectService
         CancellationToken cancellationToken)
     {
         TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
-        TranscriptRevision currentRevision = currentState.CurrentTranscriptRevision
-            ?? throw new InvalidOperationException("The project does not contain a transcript revision.");
-
-        if (currentRevision.Id != request.TranscriptRevisionId)
-        {
-            throw new InvalidOperationException("Transcript edits were based on an out-of-date revision.");
-        }
+        TranscriptRevision currentRevision = GetRequiredTranscriptRevision(currentState);
+        EnsureRevisionMatches(currentRevision, request.TranscriptRevisionId, "Transcript edits were based on an out-of-date revision.");
 
         Dictionary<Guid, string> replacements = request.Segments.ToDictionary(
             segment => segment.SegmentId,
             segment => segment.Text,
             comparer: EqualityComparer<Guid>.Default);
 
-        int nextRevisionNumber = await transcriptRepository.GetNextRevisionNumberAsync(
-            currentState.ProjectState.Project.Id,
-            cancellationToken).ConfigureAwait(false);
-
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        TranscriptRevision editedRevision = TranscriptRevision.Create(
-            currentState.ProjectState.Project.Id,
-            stageRunId: null,
-            nextRevisionNumber,
-            now);
-
         TranscriptSegment[] editedSegments = currentState.TranscriptSegments
             .OrderBy(segment => segment.SegmentIndex)
-            .Select(segment => TranscriptSegment.Create(
-                editedRevision.Id,
-                segment.SegmentIndex,
+            .Select((segment, index) => TranscriptSegment.Create(
+                currentRevision.Id,
+                index,
                 segment.StartSeconds,
                 segment.EndSeconds,
                 replacements.TryGetValue(segment.Id, out string? replacement)
@@ -149,17 +145,168 @@ public sealed class TranscriptProjectService
                     : segment.Text))
             .ToArray();
 
-        await transcriptRepository.SaveRevisionAsync(editedRevision, editedSegments, cancellationToken).ConfigureAwait(false);
-        await WriteTranscriptArtifactAsync(
-            currentState.ProjectState.Project.Id,
-            GetRequiredMediaAsset(currentState),
-            editedRevision,
-            editedSegments,
-            stageRunId: null,
-            provenance: "manual-edit",
-            cancellationToken).ConfigureAwait(false);
+        return await SaveTranscriptRevisionAsync(currentState, editedSegments, "manual-edit", cancellationToken).ConfigureAwait(false);
+    }
 
-        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+    public async Task<TranscriptProjectState> SplitSegmentAsync(
+        SplitTranscriptSegmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        TranscriptRevision currentRevision = GetRequiredTranscriptRevision(currentState);
+        EnsureRevisionMatches(currentRevision, request.TranscriptRevisionId, "Segment split was based on an out-of-date transcript revision.");
+
+        TranscriptSegment[] existingSegments = currentState.TranscriptSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .ToArray();
+        int targetIndex = Array.FindIndex(existingSegments, segment => segment.Id == request.SegmentId);
+        if (targetIndex < 0)
+        {
+            throw new InvalidOperationException("The selected segment was not found in the current transcript revision.");
+        }
+
+        TranscriptSegment targetSegment = existingSegments[targetIndex];
+        if (!double.IsFinite(request.SplitSeconds) ||
+            request.SplitSeconds <= targetSegment.StartSeconds ||
+            request.SplitSeconds >= targetSegment.EndSeconds)
+        {
+            throw new InvalidOperationException("Split time must fall inside the selected segment.");
+        }
+
+        (string leftText, string rightText) = SplitSegmentText(targetSegment.Text);
+        var revisedSegments = new List<TranscriptSegment>(existingSegments.Length + 1);
+        int revisedIndex = 0;
+        foreach (TranscriptSegment segment in existingSegments)
+        {
+            if (segment.Id != targetSegment.Id)
+            {
+                revisedSegments.Add(TranscriptSegment.Create(
+                    currentRevision.Id,
+                    revisedIndex++,
+                    segment.StartSeconds,
+                    segment.EndSeconds,
+                    segment.Text));
+                continue;
+            }
+
+            revisedSegments.Add(TranscriptSegment.Create(
+                currentRevision.Id,
+                revisedIndex++,
+                segment.StartSeconds,
+                request.SplitSeconds,
+                leftText));
+            revisedSegments.Add(TranscriptSegment.Create(
+                currentRevision.Id,
+                revisedIndex++,
+                request.SplitSeconds,
+                segment.EndSeconds,
+                rightText));
+        }
+
+        return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-split", cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> MergeSegmentsAsync(
+        MergeTranscriptSegmentsRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        TranscriptRevision currentRevision = GetRequiredTranscriptRevision(currentState);
+        EnsureRevisionMatches(currentRevision, request.TranscriptRevisionId, "Segment merge was based on an out-of-date transcript revision.");
+
+        TranscriptSegment[] existingSegments = currentState.TranscriptSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .ToArray();
+        TranscriptSegment firstSegment = existingSegments.FirstOrDefault(segment => segment.Id == request.FirstSegmentId)
+            ?? throw new InvalidOperationException("The first selected segment was not found in the current transcript revision.");
+        TranscriptSegment secondSegment = existingSegments.FirstOrDefault(segment => segment.Id == request.SecondSegmentId)
+            ?? throw new InvalidOperationException("The second selected segment was not found in the current transcript revision.");
+
+        TranscriptSegment left = firstSegment.SegmentIndex <= secondSegment.SegmentIndex ? firstSegment : secondSegment;
+        TranscriptSegment right = ReferenceEquals(left, firstSegment) ? secondSegment : firstSegment;
+        if (right.SegmentIndex - left.SegmentIndex != 1)
+        {
+            throw new InvalidOperationException("Only adjacent transcript segments can be merged.");
+        }
+
+        var revisedSegments = new List<TranscriptSegment>(existingSegments.Length - 1);
+        int revisedIndex = 0;
+        foreach (TranscriptSegment segment in existingSegments)
+        {
+            if (segment.Id == left.Id)
+            {
+                revisedSegments.Add(TranscriptSegment.Create(
+                    currentRevision.Id,
+                    revisedIndex++,
+                    left.StartSeconds,
+                    right.EndSeconds,
+                    MergeSegmentText(left.Text, right.Text)));
+                continue;
+            }
+
+            if (segment.Id == right.Id)
+            {
+                continue;
+            }
+
+            revisedSegments.Add(TranscriptSegment.Create(
+                currentRevision.Id,
+                revisedIndex++,
+                segment.StartSeconds,
+                segment.EndSeconds,
+                segment.Text));
+        }
+
+        return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-merge", cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> TrimSegmentAsync(
+        TrimTranscriptSegmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        TranscriptRevision currentRevision = GetRequiredTranscriptRevision(currentState);
+        EnsureRevisionMatches(currentRevision, request.TranscriptRevisionId, "Segment trim was based on an out-of-date transcript revision.");
+
+        if (!double.IsFinite(request.StartSeconds) ||
+            !double.IsFinite(request.EndSeconds) ||
+            request.StartSeconds < 0 ||
+            request.EndSeconds < request.StartSeconds)
+        {
+            throw new InvalidOperationException("Trim start and end times must be finite, non-negative, and ordered.");
+        }
+
+        TranscriptSegment[] existingSegments = currentState.TranscriptSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .ToArray();
+        int targetIndex = Array.FindIndex(existingSegments, segment => segment.Id == request.SegmentId);
+        if (targetIndex < 0)
+        {
+            throw new InvalidOperationException("The selected segment was not found in the current transcript revision.");
+        }
+
+        TranscriptSegment targetSegment = existingSegments[targetIndex];
+        double previousEnd = targetIndex == 0 ? 0d : existingSegments[targetIndex - 1].EndSeconds;
+        double nextStart = targetIndex == existingSegments.Length - 1 ? double.PositiveInfinity : existingSegments[targetIndex + 1].StartSeconds;
+        if (request.StartSeconds < previousEnd || request.EndSeconds > nextStart)
+        {
+            throw new InvalidOperationException("Trimmed segment timing would overlap an adjacent segment.");
+        }
+
+        var revisedSegments = new List<TranscriptSegment>(existingSegments.Length);
+        int revisedIndex = 0;
+        foreach (TranscriptSegment segment in existingSegments)
+        {
+            bool isTarget = segment.Id == targetSegment.Id;
+            revisedSegments.Add(TranscriptSegment.Create(
+                currentRevision.Id,
+                revisedIndex++,
+                isTarget ? request.StartSeconds : segment.StartSeconds,
+                isTarget ? request.EndSeconds : segment.EndSeconds,
+                segment.Text));
+        }
+
+        return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-trim", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<TranscriptProjectState> SetTranscriptLanguageAsync(
@@ -190,8 +337,7 @@ public sealed class TranscriptProjectService
         CancellationToken cancellationToken)
     {
         TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
-        TranscriptRevision currentTranscriptRevision = currentState.CurrentTranscriptRevision
-            ?? throw new InvalidOperationException("The project does not contain a transcript revision.");
+        TranscriptRevision currentTranscriptRevision = GetRequiredTranscriptRevision(currentState);
 
         string sourceLanguage = NormalizeRequiredTranscriptLanguageCode(request.SourceLanguage);
         string targetLanguage = NormalizeSupportedTargetLanguage(request.TargetLanguage, sourceLanguage);
@@ -335,6 +481,46 @@ public sealed class TranscriptProjectService
             editedSegments,
             stageRunId: null,
             provenance: "manual-edit",
+            cancellationToken).ConfigureAwait(false);
+
+        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<TranscriptProjectState> SaveTranscriptRevisionAsync(
+        TranscriptProjectState currentState,
+        IReadOnlyList<TranscriptSegment> segments,
+        string provenance,
+        CancellationToken cancellationToken)
+    {
+        int nextRevisionNumber = await transcriptRepository.GetNextRevisionNumberAsync(
+            currentState.ProjectState.Project.Id,
+            cancellationToken).ConfigureAwait(false);
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        TranscriptRevision editedRevision = TranscriptRevision.Create(
+            currentState.ProjectState.Project.Id,
+            stageRunId: null,
+            nextRevisionNumber,
+            now);
+
+        TranscriptSegment[] revisedSegments = segments
+            .OrderBy(segment => segment.SegmentIndex)
+            .Select((segment, index) => TranscriptSegment.Create(
+                editedRevision.Id,
+                index,
+                segment.StartSeconds,
+                segment.EndSeconds,
+                segment.Text))
+            .ToArray();
+
+        await transcriptRepository.SaveRevisionAsync(editedRevision, revisedSegments, cancellationToken).ConfigureAwait(false);
+        await WriteTranscriptArtifactAsync(
+            currentState.ProjectState.Project.Id,
+            GetRequiredMediaAsset(currentState),
+            editedRevision,
+            revisedSegments,
+            stageRunId: null,
+            provenance,
             cancellationToken).ConfigureAwait(false);
 
         return await OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -540,6 +726,56 @@ public sealed class TranscriptProjectService
             ProjectArtifactPaths.ManifestRelativePath,
             cancellationToken).ConfigureAwait(false);
         return manifest ?? ProjectManifest.FromProject(project, transcriptLanguage);
+    }
+
+    private Task<WaveformSummary?> ReadWaveformSummaryAsync(CancellationToken cancellationToken)
+    {
+        return artifactStore.ReadJsonAsync<WaveformSummary>(
+            ProjectArtifactPaths.WaveformSummaryRelativePath,
+            cancellationToken);
+    }
+
+    private static TranscriptRevision GetRequiredTranscriptRevision(TranscriptProjectState state) =>
+        state.CurrentTranscriptRevision
+            ?? throw new InvalidOperationException("The project does not contain a transcript revision.");
+
+    private static void EnsureRevisionMatches(TranscriptRevision revision, Guid expectedRevisionId, string message)
+    {
+        if (revision.Id != expectedRevisionId)
+        {
+            throw new InvalidOperationException(message);
+        }
+    }
+
+    private static (string Left, string Right) SplitSegmentText(string text)
+    {
+        string trimmed = text.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return ("[split]", "[split]");
+        }
+
+        string[] words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length <= 1)
+        {
+            return (trimmed, trimmed);
+        }
+
+        int midpoint = words.Length / 2;
+        return (
+            string.Join(' ', words.Take(midpoint)),
+            string.Join(' ', words.Skip(midpoint)));
+    }
+
+    private static string MergeSegmentText(string first, string second)
+    {
+        string left = first.Trim();
+        string right = second.Trim();
+        return string.IsNullOrWhiteSpace(left)
+            ? right
+            : string.IsNullOrWhiteSpace(right)
+                ? left
+                : $"{left} {right}";
     }
 
     private static MediaAsset GetRequiredMediaAsset(TranscriptProjectState state) =>

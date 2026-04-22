@@ -7,6 +7,12 @@ public interface IMediaAssetRepository
 {
     Task SaveAsync(MediaAsset asset, CancellationToken cancellationToken);
 
+    Task UpdateSourcePathAsync(
+        Guid mediaAssetId,
+        string sourceFilePath,
+        string sourceFileName,
+        CancellationToken cancellationToken);
+
     Task<MediaAsset?> GetPrimaryAsync(Guid projectId, CancellationToken cancellationToken);
 
     Task SaveArtifactAsync(ProjectArtifact artifact, CancellationToken cancellationToken);

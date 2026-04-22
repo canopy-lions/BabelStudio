@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Transcripts;
 using BabelStudio.Domain;
+using BabelStudio.Media.Playback;
 
 namespace BabelStudio.App.ViewModels;
 
@@ -9,21 +11,34 @@ public sealed class MainWindowViewModel : ObservableObject
     private Guid? currentTranscriptRevisionId;
     private Guid? currentTranslationRevisionId;
     private string? currentTranslationTargetLanguageCode;
+    private WaveformSummary? currentWaveformSummary;
+    private string currentSubtitleText = string.Empty;
+    private string defaultSourceLanguageCode = "en";
+    private string defaultTargetLanguageCode = "es";
+    private bool hasPlaybackBackend;
+    private bool isBusy;
     private string? lastErrorReport;
-    private string? persistedTranscriptLanguageCode;
-    private string? selectedTranscriptLanguageCode;
+    private string mediaPath = "No media selected.";
+    private string playbackBackendLabel = "No media loaded.";
+    private double playbackDurationSeconds;
+    private string playbackPositionText = "00:00 / 00:00";
+    private double playbackPositionSeconds;
+    private string playbackWarning = string.Empty;
+    private string persistedTranscriptLanguageCode = string.Empty;
     private string projectNameDraft = "New Project";
     private string projectRootPath = "No project loaded.";
-    private string mediaPath = "No media selected.";
+    private string selectedModelTier = "balanced";
+    private string? selectedTranscriptLanguageCode;
     private string sourceStatus = "No project loaded.";
-    private string vadStageStatus = "Not run";
-    private string asrStageStatus = "Not run";
+    private string statusMessage = "Open media to create a project, or open an existing .babelstudio folder.";
+    private string translationRefreshStatus = "Not translated";
+    private string translationRevisionLabel = "No translation loaded.";
     private string translationStageStatus = "Not run";
     private string transcriptRevisionLabel = "No transcript loaded.";
-    private string translationRevisionLabel = "No translation loaded.";
-    private string translationRefreshStatus = "Not translated";
-    private string statusMessage = "Open media to create a project, or open an existing .babelstudio folder.";
-    private bool isBusy;
+    private string vadStageStatus = "Not run";
+    private string asrStageStatus = "Not run";
+    private string windowLayoutSummary = "Window layout not captured yet.";
+    private bool commercialSafeMode = true;
 
     public MainWindowViewModel()
     {
@@ -36,10 +51,27 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<TranscriptSegmentItem> Segments { get; } = [];
 
+    public ObservableCollection<RecentProjectItem> RecentProjects { get; } = [];
+
     public IReadOnlyList<TranscriptLanguageChoice> TranscriptLanguageOptions { get; } =
     [
         new("en", "English"),
         new("es", "Spanish")
+    ];
+
+    public IReadOnlyList<ModelTierChoice> ModelTierOptions { get; } =
+    [
+        new("fast", "Fast"),
+        new("balanced", "Balanced"),
+        new("quality", "Quality")
+    ];
+
+    public IReadOnlyList<PlaybackSpeedChoice> PlaybackSpeedOptions { get; } =
+    [
+        new(0.5, "0.5x"),
+        new(1.0, "1x"),
+        new(1.25, "1.25x"),
+        new(1.5, "1.5x")
     ];
 
     public string ProjectNameDraft
@@ -139,6 +171,84 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
+    public string DefaultSourceLanguageCode
+    {
+        get => defaultSourceLanguageCode;
+        set => SetProperty(ref defaultSourceLanguageCode, NormalizeLanguageCode(value) ?? "en");
+    }
+
+    public string DefaultTargetLanguageCode
+    {
+        get => defaultTargetLanguageCode;
+        set => SetProperty(ref defaultTargetLanguageCode, NormalizeLanguageCode(value) ?? "es");
+    }
+
+    public string SelectedModelTier
+    {
+        get => selectedModelTier;
+        set => SetProperty(ref selectedModelTier, string.IsNullOrWhiteSpace(value) ? "balanced" : value.Trim().ToLowerInvariant());
+    }
+
+    public bool CommercialSafeMode
+    {
+        get => commercialSafeMode;
+        set => SetProperty(ref commercialSafeMode, value);
+    }
+
+    public string WindowLayoutSummary
+    {
+        get => windowLayoutSummary;
+        private set => SetProperty(ref windowLayoutSummary, value);
+    }
+
+    public string PlaybackBackendLabel
+    {
+        get => playbackBackendLabel;
+        private set => SetProperty(ref playbackBackendLabel, value);
+    }
+
+    public string PlaybackWarning
+    {
+        get => playbackWarning;
+        private set => SetProperty(ref playbackWarning, value);
+    }
+
+    public string PlaybackPositionText
+    {
+        get => playbackPositionText;
+        private set => SetProperty(ref playbackPositionText, value);
+    }
+
+    public double PlaybackPositionSeconds
+    {
+        get => playbackPositionSeconds;
+        private set => SetProperty(ref playbackPositionSeconds, value);
+    }
+
+    public double PlaybackDurationSeconds
+    {
+        get => playbackDurationSeconds;
+        private set => SetProperty(ref playbackDurationSeconds, value);
+    }
+
+    public string CurrentSubtitleText
+    {
+        get => currentSubtitleText;
+        private set => SetProperty(ref currentSubtitleText, value);
+    }
+
+    public bool HasPlaybackBackend
+    {
+        get => hasPlaybackBackend;
+        private set => SetProperty(ref hasPlaybackBackend, value);
+    }
+
+    public WaveformSummary? CurrentWaveformSummary
+    {
+        get => currentWaveformSummary;
+        private set => SetProperty(ref currentWaveformSummary, value);
+    }
+
     public bool CanSaveTranscript => !IsBusy && currentTranscriptRevisionId is not null && Segments.Count > 0;
 
     public bool CanTranslate =>
@@ -152,6 +262,8 @@ public sealed class MainWindowViewModel : ObservableObject
         Segments.Count > 0;
 
     public bool CanCopyError => !string.IsNullOrWhiteSpace(lastErrorReport);
+
+    public bool CanPlayMedia => HasPlaybackBackend;
 
     public string? LastErrorReport => lastErrorReport;
 
@@ -172,6 +284,45 @@ public sealed class MainWindowViewModel : ObservableObject
             _ => "Choose whether the transcript is English or Spanish."
         };
 
+    public void ApplySettings(StudioSettings settings)
+    {
+        DefaultSourceLanguageCode = settings.DefaultSourceLanguage ?? "en";
+        DefaultTargetLanguageCode = settings.DefaultTargetLanguage ?? "es";
+        SelectedModelTier = settings.ModelTierPreference;
+        CommercialSafeMode = settings.CommercialSafeMode;
+        WindowLayoutSummary = settings.WindowLayout.Width is null || settings.WindowLayout.Height is null
+            ? "Window layout will be captured after the first save."
+            : $"{settings.WindowLayout.Width:0}x{settings.WindowLayout.Height:0}" +
+              (settings.WindowLayout.IsMaximized ? " (maximized)" : string.Empty);
+
+        RecentProjects.Clear();
+        foreach (RecentProjectEntry entry in settings.RecentProjects.OrderByDescending(entry => entry.LastOpenedAtUtc))
+        {
+            RecentProjects.Add(new RecentProjectItem(entry.ProjectName, entry.ProjectPath, entry.LastOpenedAtUtc));
+        }
+
+        if (currentTranscriptRevisionId is null && string.IsNullOrWhiteSpace(SelectedTranscriptLanguageCode))
+        {
+            SelectedTranscriptLanguageCode = DefaultSourceLanguageCode;
+        }
+    }
+
+    public StudioSettings CreateSettings(WindowLayoutSettings windowLayout)
+    {
+        RecentProjectEntry[] recentProjects = RecentProjects
+            .OrderByDescending(entry => entry.LastOpenedAtUtc)
+            .Select(entry => new RecentProjectEntry(entry.ProjectName, entry.ProjectPath, entry.LastOpenedAtUtc))
+            .ToArray();
+
+        return new StudioSettings(
+            DefaultSourceLanguageCode,
+            DefaultTargetLanguageCode,
+            SelectedModelTier,
+            CommercialSafeMode,
+            windowLayout,
+            recentProjects);
+    }
+
     public void SetProjectNameFromMedia(string mediaPath)
     {
         string fileName = Path.GetFileNameWithoutExtension(mediaPath);
@@ -185,13 +336,17 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         currentTranscriptRevisionId = state.CurrentTranscriptRevision?.Id;
         currentTranslationRevisionId = state.CurrentTranslationRevision?.Id;
-        persistedTranscriptLanguageCode = NormalizeLanguageCode(state.TranscriptLanguage);
+        persistedTranscriptLanguageCode = NormalizeLanguageCode(state.TranscriptLanguage) ?? string.Empty;
         currentTranslationTargetLanguageCode = NormalizeLanguageCode(state.CurrentTranslationRevision?.TargetLanguage) ??
                                                GetTranslationTargetLanguageCode(persistedTranscriptLanguageCode);
-        SelectedTranscriptLanguageCode = persistedTranscriptLanguageCode;
+        SelectedTranscriptLanguageCode = string.IsNullOrWhiteSpace(persistedTranscriptLanguageCode)
+            ? DefaultSourceLanguageCode
+            : persistedTranscriptLanguageCode;
 
         ProjectRootPath = loadedProjectRootPath;
-        MediaPath = state.ProjectState.SourceReference?.OriginalPath ?? "Source media reference missing.";
+        MediaPath = state.ProjectState.SourceReference?.OriginalPath ?? state.ProjectState.MediaAsset?.SourceFilePath ?? "Source media reference missing.";
+        CurrentWaveformSummary = state.WaveformSummary;
+        PlaybackDurationSeconds = state.WaveformSummary?.DurationSeconds ?? state.ProjectState.MediaAsset?.DurationSeconds ?? 0d;
 
         string statusSummary = state.ProjectState.SourceStatus.ToString();
         if (!string.IsNullOrWhiteSpace(state.ProjectState.SourceStatusMessage))
@@ -243,6 +398,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ClearError();
         }
 
+        UpdateActiveSegment(PlaybackPositionSeconds);
+
         OnPropertyChanged(nameof(CanSaveTranscript));
         OnPropertyChanged(nameof(CanTranslate));
         OnPropertyChanged(nameof(CanSaveTranslation));
@@ -250,6 +407,55 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(TranslationEditorLabel));
         OnPropertyChanged(nameof(HasTranscriptLanguageChangePending));
         OnPropertyChanged(nameof(TranscriptLanguageSummary));
+    }
+
+    public void ApplyPlaybackAssessment(PlaybackCapabilityAssessment? assessment, bool hasBackend)
+    {
+        HasPlaybackBackend = hasBackend;
+        if (assessment is null)
+        {
+            PlaybackBackendLabel = "No media loaded.";
+            PlaybackWarning = string.Empty;
+            return;
+        }
+
+        PlaybackBackendLabel = assessment.PreferredBackend switch
+        {
+            PlaybackBackendKind.MediaFoundation => "Media Foundation",
+            PlaybackBackendKind.FfmpegFallback => "FFmpeg fallback required",
+            PlaybackBackendKind.LibMpvFallback => "libmpv fallback required",
+            _ => assessment.PreferredBackend.ToString()
+        };
+        PlaybackWarning = assessment.WarningMessage ?? string.Empty;
+    }
+
+    public void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot)
+    {
+        PlaybackPositionSeconds = snapshot.Position.TotalSeconds;
+        if (snapshot.Duration > TimeSpan.Zero)
+        {
+            PlaybackDurationSeconds = snapshot.Duration.TotalSeconds;
+        }
+
+        PlaybackPositionText = $"{FormatClock(snapshot.Position)} / {FormatClock(snapshot.Duration)}";
+        UpdateActiveSegment(PlaybackPositionSeconds);
+    }
+
+    public void UpdateActiveSegment(double playbackPositionInSeconds)
+    {
+        TranscriptSegmentItem? activeSegment = null;
+        foreach (TranscriptSegmentItem segment in Segments)
+        {
+            bool isActive = playbackPositionInSeconds >= segment.StartSeconds &&
+                            playbackPositionInSeconds <= segment.EndSeconds;
+            segment.IsActive = isActive;
+            if (isActive)
+            {
+                activeSegment = segment;
+            }
+        }
+
+        CurrentSubtitleText = activeSegment?.Text ?? string.Empty;
     }
 
     public void BeginOperation(string busyMessage)
@@ -301,6 +507,31 @@ public sealed class MainWindowViewModel : ObservableObject
             Segments.Select(segment => new EditedTranslatedSegment(segment.SegmentIndex, segment.TranslationText)).ToArray());
     }
 
+    public SplitTranscriptSegmentRequest? CreateSplitRequest(TranscriptSegmentItem segment, double splitSeconds)
+    {
+        return currentTranscriptRevisionId is null
+            ? null
+            : new SplitTranscriptSegmentRequest(currentTranscriptRevisionId.Value, segment.SegmentId, splitSeconds);
+    }
+
+    public TrimTranscriptSegmentRequest? CreateTrimRequest(TranscriptSegmentItem segment)
+    {
+        return currentTranscriptRevisionId is null
+            ? null
+            : new TrimTranscriptSegmentRequest(currentTranscriptRevisionId.Value, segment.SegmentId, segment.StartSeconds, segment.EndSeconds);
+    }
+
+    public MergeTranscriptSegmentsRequest? CreateMergeRequest(IReadOnlyList<TranscriptSegmentItem> selectedSegments)
+    {
+        if (currentTranscriptRevisionId is null || selectedSegments.Count != 2)
+        {
+            return null;
+        }
+
+        TranscriptSegmentItem[] ordered = selectedSegments.OrderBy(segment => segment.SegmentIndex).ToArray();
+        return new MergeTranscriptSegmentsRequest(currentTranscriptRevisionId.Value, ordered[0].SegmentId, ordered[1].SegmentId);
+    }
+
     public string? GetRequestedTranslationTargetLanguageCode() => RequestedTranslationTargetLanguageCode;
 
     private static string BuildStageStatus(IReadOnlyList<StageRunRecord> stageRuns, string stageName)
@@ -347,7 +578,7 @@ public sealed class MainWindowViewModel : ObservableObject
             string translationDisplayName = GetLanguageDisplayName(state.CurrentTranslationRevision.TargetLanguage).ToLowerInvariant();
             return state.IsTranslationStale
                 ? $"Project loaded. Existing {translationDisplayName} translation needs refresh after transcript changes."
-                : "Project loaded. Edit transcript or translation text and save to create a new revision.";
+                : "Project loaded. Edit transcript timing, transcript text, or translation text and save to create a new revision.";
         }
 
         string? targetLanguageCode = GetTranslationTargetLanguageCode(state.TranscriptLanguage);
@@ -466,4 +697,16 @@ public sealed class MainWindowViewModel : ObservableObject
             "es" => "Spanish",
             _ => "Translation"
         };
+
+    private static string FormatClock(TimeSpan value)
+    {
+        if (value <= TimeSpan.Zero)
+        {
+            return "00:00";
+        }
+
+        return value.TotalHours >= 1d
+            ? value.ToString(@"hh\:mm\:ss")
+            : value.ToString(@"mm\:ss");
+    }
 }

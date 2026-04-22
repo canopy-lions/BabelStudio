@@ -15,6 +15,9 @@
     </ProjectReference>
     <ProjectReference Include="..\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
     <ProjectReference Include="..\BabelStudio.Media\BabelStudio.Media.csproj" />
+    <ProjectReference Include="..\BabelStudio.Media.Playback\BabelStudio.Media.Playback.csproj">
+      <SetTargetFramework>TargetFramework=$(TargetFramework)</SetTargetFramework>
+    </ProjectReference>
   </ItemGroup>
 
 </Project>

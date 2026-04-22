@@ -24,6 +24,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             INSERT INTO media_assets (
                 id,
                 project_id,
+                source_file_path,
                 source_file_name,
                 fingerprint_sha256,
                 source_size_bytes,
@@ -36,6 +37,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             VALUES (
                 $id,
                 $projectId,
+                $sourceFilePath,
                 $sourceFileName,
                 $fingerprintSha256,
                 $sourceSizeBytes,
@@ -47,6 +49,31 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
                 $createdAtUtc);
             """;
         BindMediaAsset(command, asset);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UpdateSourcePathAsync(
+        Guid mediaAssetId,
+        string sourceFilePath,
+        string sourceFileName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFileName);
+
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE media_assets
+            SET source_file_path = $sourceFilePath,
+                source_file_name = $sourceFileName
+            WHERE id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", mediaAssetId.ToString("D"));
+        command.Parameters.AddWithValue("$sourceFilePath", sourceFilePath);
+        command.Parameters.AddWithValue("$sourceFileName", sourceFileName);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -64,6 +91,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
             """
             SELECT id,
                    project_id,
+                   source_file_path,
                    source_file_name,
                    fingerprint_sha256,
                    source_size_bytes,
@@ -174,6 +202,7 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
     {
         command.Parameters.AddWithValue("$id", asset.Id.ToString("D"));
         command.Parameters.AddWithValue("$projectId", asset.ProjectId.ToString("D"));
+        command.Parameters.AddWithValue("$sourceFilePath", asset.SourceFilePath);
         command.Parameters.AddWithValue("$sourceFileName", asset.SourceFileName);
         command.Parameters.AddWithValue("$fingerprintSha256", asset.FingerprintSha256);
         command.Parameters.AddWithValue("$sourceSizeBytes", asset.SourceSizeBytes);
@@ -189,15 +218,16 @@ public sealed class SqliteMediaAssetRepository : IMediaAssetRepository
         new(
             Guid.Parse(reader.GetString(0)),
             Guid.Parse(reader.GetString(1)),
-            reader.GetString(2),
+            reader.IsDBNull(2) ? reader.GetString(3) : reader.GetString(2),
             reader.GetString(3),
-            reader.GetInt64(4),
-            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc)),
-            reader.GetString(6),
-            reader.GetDouble(7),
-            reader.GetInt64(8) == 1,
+            reader.GetString(4),
+            reader.GetInt64(5),
+            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(6), DateTimeKind.Utc)),
+            reader.GetString(7),
+            reader.GetDouble(8),
             reader.GetInt64(9) == 1,
-            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(10), DateTimeKind.Utc)));
+            reader.GetInt64(10) == 1,
+            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(11), DateTimeKind.Utc)));
 
     private static void BindArtifact(SqliteCommand command, ProjectArtifact artifact)
     {

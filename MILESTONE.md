@@ -579,6 +579,11 @@ Example runtime plan:
 * Provider availability is confused with model compatibility.
 * Users see “GPU ready” before a real model passes.
 
+### Fakes and test doubles
+
+- `FakeExecutionProviderDiscovery` in `tests/BabelStudio.TestDoubles/`: returns a configurable set of available execution providers (e.g. DirectML available, CPU available, Windows ML unavailable); no DXGI or system calls; used for all planner path tests
+- `FakeModelCache` in `tests/BabelStudio.TestDoubles/`: returns configurable installed/missing/corrupt state per model ID and variant; no disk access; used in missing-model and commercial-safe-exclusion tests
+
 ### Tests
 
 * GPU available plan test.
@@ -657,9 +662,14 @@ Features:
 * Transcript edits overwrite generated provenance.
 * Long-running tasks block UI.
 
+### Fakes and test doubles
+
+- `FakeVadEngine` in `tests/BabelStudio.TestDoubles/`: returns a hard-coded list of voiced speech intervals from a fixture JSON; no audio I/O or model loading; used in all application-layer VAD stage tests
+- `FakeAsrEngine` in `tests/BabelStudio.TestDoubles/`: returns a deterministic list of `TranscriptSegment` records (fixed text, fixed timestamps) for any audio input; no ONNX session; used in transcript persistence, stage-run commit, and stale-marker tests
+
 ### Tests
 
-* Application use case tests with fake ASR.
+* Application use case tests with `FakeAsrEngine`.
 * Transcript persistence test.
 * Stage-run commit test.
 * UI smoke test if practical.
@@ -720,9 +730,13 @@ Features:
 * Pivot translation quality issues.
 * Users expect perfect translation.
 
+### Fakes and test doubles
+
+- `FakeTranslationEngine` in `tests/BabelStudio.TestDoubles/`: returns a hard-coded translated string per source segment (prefixes text with `[TRANSLATED]`); records the last source text and language pair it was called with; instantaneous; no I/O; used in all translation use case, stale marker, and commercial-safe filtering tests
+
 ### Tests
 
-* Translation use case with fake translator.
+* Translation use case with `FakeTranslationEngine`.
 * Stale marker test.
 * Provider metadata test.
 * Commercial-safe filtering test.
@@ -783,6 +797,8 @@ Features:
 ### Fakes and test doubles
 
 - `FakeMediaPlayer` implementing `IMediaPlayer`: in-memory position tracking, no actual media file access; used in all `PlaybackService` unit tests
+- `FakeSettingsService` in `tests/BabelStudio.TestDoubles/`: in-memory settings store; returns configurable defaults; used in all tests that depend on `ISettingsService` without touching the filesystem
+- `FakeRecentProjectsRepository` in `tests/BabelStudio.TestDoubles/`: in-memory list of recent project entries; configurable initial state; used for recent-projects ordering and eviction tests
 - Existing `FakeTranscriptRepository` covers segment split/merge persistence tests
 
 ### Acceptance criteria
@@ -886,6 +902,7 @@ Features:
 ### Fakes and test doubles
 
 - `FakeTranslationEngine` in `tests/BabelStudio.TestDoubles/`: returns a hard-coded translated string per source segment (e.g. prefixes text with `[TRANSLATED]`); instantaneous; no I/O
+- `FakeTranslationLanguageRouter` in `tests/BabelStudio.TestDoubles/`: returns a configurable set of supported language pairs and routing paths (direct or pivot); used in all router logic tests without requiring model presence
 - All application-layer use case tests use `FakeTranslationEngine`
 - Integration tests with real Opus-MT and MADLAD run only when fixture models are present; skip otherwise
 
@@ -1077,9 +1094,10 @@ Features:
 ### Fakes and test doubles
 
 - `FakeTtsEngine` in `tests/BabelStudio.TestDoubles/`: returns a pre-generated tiny silent WAV fixture for any input; exposes `LastInputText` and `LastVoicepack` for assertion; no I/O
+- `FakePhonemizer` in `tests/BabelStudio.TestDoubles/`: returns a fixed phoneme string for any input text; used in all tests that must not invoke the espeak-ng subprocess
+- `FakeVoiceCatalog` in `tests/BabelStudio.TestDoubles/`: returns a configurable list of voicepack entries by language and gender; used in speaker-to-voice assignment and language mismatch warning tests without loading real voicepack manifests
 - All application use case tests (stale markers, batch regeneration, voice assignment) use `FakeTtsEngine`
 - Integration test runs real Kokoro ONNX against a short text fixture; skipped if model not present
-- `FakePhonehmizer` for tests that should not invoke espeak-ng subprocess
 
 ### Acceptance criteria
 
@@ -1344,7 +1362,8 @@ No new ONNX models.
 ### Fakes and test doubles
 
 - `FakeMixRenderer` in `tests/BabelStudio.TestDoubles/`: accepts `MixPlan` and time range; returns a fixed-length silent WAV; records calls for assertion
-- All `MixPlanBuilder` and application tests use fake renderer and fake artifact store
+- `FakeArtifactStore` in `tests/BabelStudio.TestDoubles/`: in-memory implementation of `IArtifactStore`; registers artifact records without writing to disk; configurable to return pre-seeded artifact paths; used in all mix plan and export pipeline tests
+- All `MixPlanBuilder` and application tests use `FakeMixRenderer` and `FakeArtifactStore`
 
 ### Acceptance criteria
 
@@ -1431,6 +1450,7 @@ Features:
 ### Fakes and test doubles
 
 - `FakeExportRenderer` in `tests/BabelStudio.TestDoubles/`: records `ExportPlan` it was called with; writes a tiny fixture MP4 from pre-generated bytes; used in application export use case tests
+- `FakeLoudnessNormalizer` in `tests/BabelStudio.TestDoubles/`: records the LUFS target it was called with; returns input audio path unchanged; used to test export pipeline orchestration without invoking two-pass FFmpeg loudnorm
 - FFmpeg command builders tested with unit tests against expected filter graph strings
 
 ### Acceptance criteria
@@ -1602,7 +1622,8 @@ Features:
 ### Fakes and test doubles
 
 - `FakeVoiceCloneTtsEngine` in `tests/BabelStudio.TestDoubles/`: extends `FakeTtsEngine`; records reference clip ID it was called with; returns same silent WAV fixture; throws `ConsentRequiredException` if consent state is not set
-- All consent, commercial-safe, and reference clip tests use the fake
+- `FakeConsentService` in `tests/BabelStudio.TestDoubles/`: in-memory consent state store; consent can be pre-set or pre-cleared in test setup; does not persist to disk; used in all consent-gate and commercial-safe-mode tests
+- All consent, commercial-safe, and reference clip tests use the fakes
 - Integration test with real Chatterbox ONNX skipped if model not present
 
 ### Acceptance criteria
@@ -1689,6 +1710,7 @@ Features:
 ### Fakes and test doubles
 
 - `FakeDiagnosticsCollector` in `tests/BabelStudio.TestDoubles/`: returns a fixed `DiagnosticsSnapshot` with known values; used in bundle export tests
+- `FakeAppHealthMonitor` in `tests/BabelStudio.TestDoubles/`: in-memory implementation of `IAppHealthMonitor`; accepts stage completion and failure events; returns configurable health summary; used in health summary display and settings panel tests
 - Path redaction logic tested with known Windows-style paths containing a known username
 
 ### Acceptance criteria
@@ -1782,6 +1804,7 @@ Features:
 ### Fakes and test doubles
 
 - `FakeBenchmarkScenario` in `tests/BabelStudio.TestDoubles/`: returns a fixed `BenchmarkResult` with configurable RTF and memory values; used for preset recommendation threshold tests
+- `FakeHardwareProfiler` in `tests/BabelStudio.TestDoubles/`: returns a configurable `HardwareProfile` with controllable adapter name, driver version, VRAM, and RAM values; used to test driver-change invalidation and runtime planner provider selection without DXGI calls
 
 ### Acceptance criteria
 
@@ -1853,6 +1876,11 @@ Features:
 - Win2D render budget: waveform strip and timeline maintain ≥ 60 fps on a 2-hour project at all zoom levels; add segment draw-call virtualization if not already in place from M22
 - Export pipeline throughput: 30-minute project exports in < 10 minutes on reference DirectML hardware; hardware spec documented in test
 - Profiling report: document findings, root causes, and fixes; committed to `docs/performance/profiling-report.md`
+
+### Fakes and test doubles
+
+- `FakeOnnxSessionPool` in `tests/BabelStudio.TestDoubles/`: in-memory session registry; records model path, session open count, and last-used timestamps; configurable cold-load delay; used to verify that real session pool implementations do not re-open a session that is already warm
+- SQLite query timing tests use a real on-disk database with a seeded 1,000-segment fixture (not a fake); the fixture is created once per test run and shared across repository timing assertions
 
 ### Acceptance criteria
 
@@ -1943,7 +1971,8 @@ Features:
 ### Fakes and test doubles
 
 - `FakeModelDownloader` in `tests/BabelStudio.TestDoubles/`: writes a fixture byte sequence to the target path; emits progress events; supports simulated failure and interruption
-- `FakeHashVerifier` with configurable pass/fail per file
+- `FakeHashVerifier` in `tests/BabelStudio.TestDoubles/`: returns configurable pass/fail per file path; used to test corrupt-file detection and re-download triggering without computing real SHA-256
+- `FakeHuggingFaceHubClient` in `tests/BabelStudio.TestDoubles/`: returns configurable model metadata and download URLs for given `model_id`/`revision` pairs; simulates network errors and 404 responses; used in all model manager tests without making real HTTP calls
 
 ### Acceptance criteria
 
@@ -2024,7 +2053,9 @@ Features:
 
 ### Fakes and test doubles
 
-- `TimelineViewModel` tests use fake segment and take repositories; no Win2D rendering in tests
+- `FakeTtsTakeRepository` in `tests/BabelStudio.TestDoubles/`: in-memory collection of `TtsTake` records; configurable initial state including stale flags and take kind; used in timeline view model tests to drive segment color-state and command availability
+- `FakeSpeakerRepository` in `tests/BabelStudio.TestDoubles/`: in-memory collection of `Speaker` records and lane assignments; used in timeline speaker-lane rendering and speaker color tests
+- `TimelineViewModel` tests use `FakeTtsTakeRepository`, `FakeSpeakerRepository`, and the existing fake transcript/translation repositories; no Win2D rendering in tests
 - Command availability tests do not require a real canvas
 
 ### Acceptance criteria
@@ -2187,6 +2218,10 @@ Features:
 - Export license manifest: JSON alongside export listing all models used, licenses, and attribution requirements
 - Third-party notices generator: `THIRD_PARTY_NOTICES.txt` generated per export from attribution-required models
 - Voice cloning warning: visible in UI whenever voice cloning is active, regardless of commercial-safe mode state
+
+### Fakes and test doubles
+
+- `FakeModelManifestRepository` in `tests/BabelStudio.TestDoubles/`: in-memory collection of `ModelManifest` records with configurable `commercial_allowed`, `license`, `requires_attribution`, and `voice_cloning` fields; used in all `CommercialSafeModeService` and export manifest tests without needing real manifest files on disk
 
 ### Acceptance criteria
 
@@ -2490,3 +2525,45 @@ then voice cloning  M17
 ```
 
 Babel Studio becomes valuable when the pipeline is reliable enough that users trust it. Architecture and milestones must protect that trust from day one.
+
+---
+
+## Complete fakes inventory
+
+All fakes live in `tests/BabelStudio.TestDoubles/`. Every interface with an ONNX-backed or I/O-bound real implementation must have a corresponding fake before its milestone is considered complete.
+
+| Fake | Interface | Introduced | Purpose |
+|---|---|---|---|
+| `FakeExecutionProviderDiscovery` | `IExecutionProviderDiscovery` | M5 | Configurable provider availability; no DXGI or system calls |
+| `FakeModelCache` | `IModelCache` | M5 | Configurable installed/missing/corrupt state per model ID; no disk access |
+| `FakeVadEngine` | `IVoiceActivityDetector` | M6 | Returns hard-coded speech intervals from fixture JSON; no I/O |
+| `FakeAsrEngine` | `ITranscriptionEngine` | M6 | Returns deterministic `TranscriptSegment` list; no ONNX session |
+| `FakeTranslationEngine` | `ITranslationEngine` | M7 | Returns `[TRANSLATED]`-prefixed strings; applies glossary hints via string substitution (extended M9) |
+| `FakeMediaPlayer` | `IMediaPlayer` | M8 | In-memory position tracking; no media file access |
+| `FakeSettingsService` | `ISettingsService` | M8 | In-memory settings store; no filesystem access |
+| `FakeRecentProjectsRepository` | `IRecentProjectsRepository` | M8 | In-memory recent project list; configurable state |
+| `FakeTranslationLanguageRouter` | `ITranslationLanguageRouter` | M9 | Configurable supported pair set and routing path (direct or pivot) |
+| `FakeDiarizationEngine` | `IDiarizationEngine` | M10 | Returns hard-coded speaker turns from a fixture JSON |
+| `FakeTtsEngine` | `ITtsEngine` | M11 | Returns tiny silent WAV; exposes `LastInputText`, `LastVoicepack` |
+| `FakePhonemizer` | `IGraphemeToPhoneme` | M11 | Returns fixed phoneme string; no espeak-ng subprocess |
+| `FakeVoiceCatalog` | `IVoiceCatalog` | M11 | Configurable voicepack list by language and gender |
+| `FakeAudioTimeStretchService` | `IAudioTimeStretchService` | M12 | Records stretch ratio; returns input WAV unchanged |
+| `FakeStemSeparationEngine` | `IStemSeparationEngine` | M13 | Writes input WAV as both vocals and instrumental; no inference |
+| `FakeMixRenderer` | `IMixRenderer` | M14 | Returns fixed-length silent WAV; records calls |
+| `FakeArtifactStore` | `IArtifactStore` | M14 | In-memory artifact registry; no disk writes; configurable pre-seeded paths |
+| `FakeExportRenderer` | `IExportRenderer` | M15 | Records `ExportPlan`; writes tiny fixture MP4 |
+| `FakeLoudnessNormalizer` | `ILoudnessNormalizer` | M15 | Records LUFS target; returns input path unchanged |
+| `FakeGlossaryRepository` | `IGlossaryRepository` | M16 | In-memory glossary entries; project and global scope |
+| `FakeVoiceCloneTtsEngine` | `IVoiceCloneTtsEngine` | M17 | Extends `FakeTtsEngine`; throws `ConsentRequiredException` without consent |
+| `FakeConsentService` | `IConsentService` | M17 | In-memory per-session consent state; no persistence |
+| `FakeDiagnosticsCollector` | `IDiagnosticsCollector` | M18 | Returns fixed `DiagnosticsSnapshot` with known values |
+| `FakeAppHealthMonitor` | `IAppHealthMonitor` | M18 | In-memory stage health state; configurable summary |
+| `FakeBenchmarkScenario` | `IBenchmarkScenario` | M19 | Returns fixed `BenchmarkResult` with configurable RTF and memory values |
+| `FakeHardwareProfiler` | `IHardwareProfiler` | M19 | Returns configurable `HardwareProfile`; no DXGI calls |
+| `FakeOnnxSessionPool` | `IOnnxSessionPool` | M20 | In-memory session registry; tracks open count and timestamps |
+| `FakeModelDownloader` | `IModelDownloader` | M21 | Writes fixture bytes; emits progress; supports simulated failure |
+| `FakeHashVerifier` | `IHashVerifier` | M21 | Configurable pass/fail per file path; no real SHA-256 |
+| `FakeHuggingFaceHubClient` | `IHuggingFaceHubClient` | M21 | Returns configurable metadata and URLs; simulates network errors |
+| `FakeTtsTakeRepository` | `ITtsTakeRepository` | M22 | In-memory take records with configurable stale flags and take kind |
+| `FakeSpeakerRepository` | `ISpeakerRepository` | M22 | In-memory speaker and lane records |
+| `FakeModelManifestRepository` | `IModelManifestRepository` | M24 | In-memory manifests with configurable license and flag fields |

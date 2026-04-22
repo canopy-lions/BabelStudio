@@ -1,5 +1,6 @@
 using BabelStudio.Domain;
 using BabelStudio.Domain.Transcript;
+using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Projects;
 using BabelStudio.Domain.Translation;
 
@@ -33,6 +34,25 @@ public sealed record EditedTranslatedSegment(
     int SegmentIndex,
     string Text);
 
+public sealed record RelocateTranscriptSourceRequest(
+    string NewSourceMediaPath);
+
+public sealed record SplitTranscriptSegmentRequest(
+    Guid TranscriptRevisionId,
+    Guid SegmentId,
+    double SplitSeconds);
+
+public sealed record MergeTranscriptSegmentsRequest(
+    Guid TranscriptRevisionId,
+    Guid FirstSegmentId,
+    Guid SecondSegmentId);
+
+public sealed record TrimTranscriptSegmentRequest(
+    Guid TranscriptRevisionId,
+    Guid SegmentId,
+    double StartSeconds,
+    double EndSeconds);
+
 public sealed record TranscriptProjectState(
     OpenProjectResult ProjectState,
     TranscriptRevision? CurrentTranscriptRevision,
@@ -41,4 +61,5 @@ public sealed record TranscriptProjectState(
     IReadOnlyList<TranslatedSegment> TranslatedSegments,
     bool IsTranslationStale,
     string? TranscriptLanguage,
-    IReadOnlyList<StageRunRecord> StageRuns);
+    IReadOnlyList<StageRunRecord> StageRuns,
+    WaveformSummary? WaveformSummary);

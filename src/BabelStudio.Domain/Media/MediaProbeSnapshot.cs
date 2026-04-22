@@ -6,7 +6,8 @@ public sealed record MediaProbeSnapshot(
     double DurationSeconds,
     long? BitRate,
     IReadOnlyList<MediaAudioStream> AudioStreams,
-    IReadOnlyList<MediaVideoStream> VideoStreams);
+    IReadOnlyList<MediaVideoStream> VideoStreams,
+    IReadOnlyList<MediaSubtitleStream>? SubtitleStreams = null);
 
 public sealed record MediaAudioStream(
     int Index,
@@ -21,4 +22,13 @@ public sealed record MediaVideoStream(
     int Width,
     int Height,
     double FrameRate,
-    double DurationSeconds);
+    double DurationSeconds,
+    string? PixelFormat = null,
+    string? ColorSpace = null,
+    string? ColorTransfer = null,
+    string? ColorPrimaries = null);
+
+public sealed record MediaSubtitleStream(
+    int Index,
+    string CodecName,
+    string? Language);

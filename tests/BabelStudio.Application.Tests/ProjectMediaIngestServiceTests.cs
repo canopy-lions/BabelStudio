@@ -46,7 +46,7 @@ public sealed class ProjectMediaIngestServiceTests
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
         var project = new BabelProject(Guid.NewGuid(), "Missing Source", now, now);
-        var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, "missing.mp4", "hash", 100, now, "mp4", 1.0, true, true, now);
+        var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, @"C:\media\missing.mp4", "missing.mp4", "hash", 100, now, "mp4", 1.0, true, true, now);
         var projectRepository = new FakeProjectRepository(project);
         var mediaRepository = new FakeMediaAssetRepository(mediaAsset);
         var artifactStore = new FakeArtifactStore();
@@ -74,6 +74,47 @@ public sealed class ProjectMediaIngestServiceTests
         Assert.Single(result.Artifacts);
     }
 
+    [Fact]
+    public async Task RelocateSourceAsync_updates_source_reference_and_media_asset_path()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), "BabelStudio.Application.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+        string relocatedSourcePath = Path.Combine(tempDirectory, "relocated.mp4");
+        await File.WriteAllBytesAsync(relocatedSourcePath, [1, 2, 3, 4]);
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var project = new BabelProject(Guid.NewGuid(), "Relocate Source", now, now);
+        var mediaAsset = new MediaAsset(Guid.NewGuid(), project.Id, @"C:\media\missing.mp4", "missing.mp4", "computed-hash", 4, now, "mp4", 1.0, true, true, now);
+        var projectRepository = new FakeProjectRepository(project);
+        var mediaRepository = new FakeMediaAssetRepository(mediaAsset);
+        var artifactStore = new FakeArtifactStore();
+        artifactStore.Seed(ProjectArtifactPaths.SourceReferenceRelativePath, new SourceMediaReference(
+            @"C:\media\missing.mp4",
+            "missing.mp4",
+            new FileFingerprint("computed-hash", 4, now),
+            new MediaProbeSnapshot("mp4", "mp4", 1.0, null, [new MediaAudioStream(0, "aac", 2, 44100, 1.0)], []),
+            now));
+
+        var service = new ProjectMediaIngestService(
+            projectRepository,
+            mediaRepository,
+            artifactStore,
+            new FakeMediaProbe(),
+            new FakeAudioExtractionService(),
+            new FakeWaveformSummaryGenerator(),
+            new FakeFileFingerprintService());
+
+        OpenProjectResult result = await service.RelocateSourceAsync(
+            new RelocateSourceMediaRequest(relocatedSourcePath),
+            CancellationToken.None);
+
+        Assert.Equal(SourceMediaStatus.Available, result.SourceStatus);
+        Assert.NotNull(result.SourceReference);
+        Assert.Equal(relocatedSourcePath, result.SourceReference!.OriginalPath);
+        Assert.Equal(relocatedSourcePath, mediaRepository.MediaAsset!.SourceFilePath);
+        Assert.Equal("relocated.mp4", mediaRepository.MediaAsset.SourceFileName);
+    }
+
     private sealed class FakeProjectRepository : IProjectRepository
     {
         private BabelProject? project;
@@ -94,23 +135,41 @@ public sealed class ProjectMediaIngestServiceTests
 
     private sealed class FakeMediaAssetRepository : IMediaAssetRepository
     {
-        private MediaAsset? mediaAsset;
+        public MediaAsset? MediaAsset { get; private set; }
 
         public FakeMediaAssetRepository(MediaAsset? mediaAsset = null)
         {
-            this.mediaAsset = mediaAsset;
+            MediaAsset = mediaAsset;
         }
 
         public List<ProjectArtifact> Artifacts { get; } = [];
 
         public Task SaveAsync(MediaAsset asset, CancellationToken cancellationToken)
         {
-            mediaAsset = asset;
+            MediaAsset = asset;
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateSourcePathAsync(
+            Guid mediaAssetId,
+            string sourceFilePath,
+            string sourceFileName,
+            CancellationToken cancellationToken)
+        {
+            if (MediaAsset is not null && MediaAsset.Id == mediaAssetId)
+            {
+                MediaAsset = MediaAsset with
+                {
+                    SourceFilePath = sourceFilePath,
+                    SourceFileName = sourceFileName
+                };
+            }
+
             return Task.CompletedTask;
         }
 
         public Task<MediaAsset?> GetPrimaryAsync(Guid projectId, CancellationToken cancellationToken) =>
-            Task.FromResult(mediaAsset);
+            Task.FromResult(MediaAsset);
 
         public Task SaveArtifactAsync(ProjectArtifact artifact, CancellationToken cancellationToken)
         {

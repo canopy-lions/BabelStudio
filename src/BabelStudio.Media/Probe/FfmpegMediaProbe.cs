@@ -80,7 +80,19 @@ public sealed class FfmpegMediaProbe : IMediaProbe
                 stream.Width ?? 0,
                 stream.Height ?? 0,
                 ParseFrameRate(stream.AverageFrameRate),
-                ParseDouble(stream.Duration)))
+                ParseDouble(stream.Duration),
+                stream.PixelFormat,
+                stream.ColorSpace,
+                stream.ColorTransfer,
+                stream.ColorPrimaries))
+            .ToArray();
+
+        IReadOnlyList<MediaSubtitleStream> subtitleStreams = payload.Streams
+            .Where(static stream => string.Equals(stream.CodecType, "subtitle", StringComparison.OrdinalIgnoreCase))
+            .Select(static stream => new MediaSubtitleStream(
+                stream.Index,
+                stream.CodecName ?? "unknown",
+                stream.Language))
             .ToArray();
 
         return new MediaProbeSnapshot(
@@ -89,7 +101,8 @@ public sealed class FfmpegMediaProbe : IMediaProbe
             ParseDouble(payload.Format.Duration),
             ParseNullableLong(payload.Format.BitRate),
             audioStreams,
-            videoStreams);
+            videoStreams,
+            subtitleStreams);
     }
 
     private static int ParseInt(string? value) =>
@@ -145,5 +158,16 @@ public sealed class FfmpegMediaProbe : IMediaProbe
         [property: JsonPropertyName("duration")] string? Duration,
         [property: JsonPropertyName("avg_frame_rate")] string? AverageFrameRate,
         [property: JsonPropertyName("width")] int? Width,
-        [property: JsonPropertyName("height")] int? Height);
+        [property: JsonPropertyName("height")] int? Height,
+        [property: JsonPropertyName("pix_fmt")] string? PixelFormat,
+        [property: JsonPropertyName("color_space")] string? ColorSpace,
+        [property: JsonPropertyName("color_transfer")] string? ColorTransfer,
+        [property: JsonPropertyName("color_primaries")] string? ColorPrimaries,
+        [property: JsonPropertyName("tags")] FfprobeTags? Tags)
+    {
+        public string? Language => Tags?.Language;
+    }
+
+    private sealed record FfprobeTags(
+        [property: JsonPropertyName("language")] string? Language);
 }

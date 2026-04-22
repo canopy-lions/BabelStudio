@@ -3,6 +3,7 @@ namespace BabelStudio.Domain.Media;
 public sealed record MediaAsset(
     Guid Id,
     Guid ProjectId,
+    string SourceFilePath,
     string SourceFileName,
     string FingerprintSha256,
     long SourceSizeBytes,

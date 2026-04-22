@@ -11,6 +11,7 @@ public sealed class BabelStudioStoragePaths
         RootDirectory = Path.Combine(root, "BabelStudio");
         ModelCacheDirectory = Path.Combine(RootDirectory, "model-cache");
         ModelCacheIndexPath = Path.Combine(ModelCacheDirectory, "model-cache-records.json");
+        SettingsPath = Path.Combine(RootDirectory, "settings.json");
     }
 
     public string RootDirectory { get; }
@@ -18,4 +19,6 @@ public sealed class BabelStudioStoragePaths
     public string ModelCacheDirectory { get; }
 
     public string ModelCacheIndexPath { get; }
+
+    public string SettingsPath { get; }
 }

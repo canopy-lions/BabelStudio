@@ -7,6 +7,7 @@ public sealed class SqliteProjectDatabase
 {
     private const string StageRunIdColumnName = "stage_run_id";
     private const string ProvenanceColumnName = "provenance";
+    private const string SourceFilePathColumnName = "source_file_path";
     private const string RequestedProviderColumnName = "RequestedProvider";
     private const string SelectedProviderColumnName = "SelectedProvider";
     private const string RuntimeModelIdColumnName = "RuntimeModelId";
@@ -41,6 +42,7 @@ public sealed class SqliteProjectDatabase
             CREATE TABLE IF NOT EXISTS media_assets (
                 id TEXT NOT NULL PRIMARY KEY,
                 project_id TEXT NOT NULL,
+                source_file_path TEXT NULL,
                 source_file_name TEXT NOT NULL,
                 fingerprint_sha256 TEXT NOT NULL,
                 source_size_bytes INTEGER NOT NULL,
@@ -144,6 +146,7 @@ public sealed class SqliteProjectDatabase
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureMediaAssetColumnAsync(connection, SourceFilePathColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureArtifactColumnAsync(connection, StageRunIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureArtifactColumnAsync(connection, ProvenanceColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureStageRunColumnAsync(connection, RequestedProviderColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
@@ -198,6 +201,22 @@ public sealed class SqliteProjectDatabase
         CancellationToken cancellationToken)
     {
         return await TableColumnExistsAsync(connection, "artifacts", columnName, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureMediaAssetColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await TableColumnExistsAsync(connection, "media_assets", columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE media_assets ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task EnsureStageRunColumnAsync(
