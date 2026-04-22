@@ -28,6 +28,9 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
                    stage_run_id,
                    source_transcript_revision_id,
                    target_language,
+                   translation_provider,
+                   model_id,
+                   execution_provider,
                    revision_number,
                    created_at_utc
             FROM translation_revisions
@@ -62,7 +65,8 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
                    segment_index,
                    start_seconds,
                    end_seconds,
-                   text
+                   text,
+                   source_segment_hash
             FROM translated_segments
             WHERE translation_revision_id = $translationRevisionId
             ORDER BY segment_index;
@@ -79,7 +83,8 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
                 reader.GetInt32(2),
                 reader.GetDouble(3),
                 reader.GetDouble(4),
-                reader.GetString(5)));
+                reader.GetString(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6)));
         }
 
         return results;
@@ -131,6 +136,9 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
                     stage_run_id,
                     source_transcript_revision_id,
                     target_language,
+                    translation_provider,
+                    model_id,
+                    execution_provider,
                     revision_number,
                     created_at_utc)
                 VALUES (
@@ -139,6 +147,9 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
                     $stageRunId,
                     $sourceTranscriptRevisionId,
                     $targetLanguage,
+                    $translationProvider,
+                    $modelId,
+                    $executionProvider,
                     $revisionNumber,
                     $createdAtUtc);
                 """;
@@ -147,6 +158,9 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
             revisionCommand.Parameters.AddWithValue("$stageRunId", revision.StageRunId?.ToString("D") ?? (object)DBNull.Value);
             revisionCommand.Parameters.AddWithValue("$sourceTranscriptRevisionId", revision.SourceTranscriptRevisionId.ToString("D"));
             revisionCommand.Parameters.AddWithValue("$targetLanguage", revision.TargetLanguage);
+            revisionCommand.Parameters.AddWithValue("$translationProvider", revision.TranslationProvider ?? (object)DBNull.Value);
+            revisionCommand.Parameters.AddWithValue("$modelId", revision.ModelId ?? (object)DBNull.Value);
+            revisionCommand.Parameters.AddWithValue("$executionProvider", revision.ExecutionProvider ?? (object)DBNull.Value);
             revisionCommand.Parameters.AddWithValue("$revisionNumber", revision.RevisionNumber);
             revisionCommand.Parameters.AddWithValue("$createdAtUtc", revision.CreatedAtUtc.UtcDateTime);
             await revisionCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -162,14 +176,16 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
                 segment_index,
                 start_seconds,
                 end_seconds,
-                text)
+                text,
+                source_segment_hash)
             VALUES (
                 $id,
                 $translationRevisionId,
                 $segmentIndex,
                 $startSeconds,
                 $endSeconds,
-                $text);
+                $text,
+                $sourceSegmentHash);
             """;
         SqliteParameter segmentIdParameter = segmentCommand.Parameters.Add("$id", SqliteType.Text);
         SqliteParameter translationRevisionIdParameter = segmentCommand.Parameters.Add("$translationRevisionId", SqliteType.Text);
@@ -177,6 +193,7 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
         SqliteParameter startSecondsParameter = segmentCommand.Parameters.Add("$startSeconds", SqliteType.Real);
         SqliteParameter endSecondsParameter = segmentCommand.Parameters.Add("$endSeconds", SqliteType.Real);
         SqliteParameter textParameter = segmentCommand.Parameters.Add("$text", SqliteType.Text);
+        SqliteParameter sourceSegmentHashParameter = segmentCommand.Parameters.Add("$sourceSegmentHash", SqliteType.Text);
 
         foreach (TranslatedSegment segment in segments.OrderBy(segment => segment.SegmentIndex))
         {
@@ -186,6 +203,7 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
             startSecondsParameter.Value = segment.StartSeconds;
             endSecondsParameter.Value = segment.EndSeconds;
             textParameter.Value = segment.Text;
+            sourceSegmentHashParameter.Value = segment.SourceSegmentHash ?? (object)DBNull.Value;
             await segmentCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -199,8 +217,11 @@ public sealed class SqliteTranslationRepository : ITranslationRepository
             reader.IsDBNull(2) ? null : Guid.Parse(reader.GetString(2)),
             Guid.Parse(reader.GetString(3)),
             reader.GetString(4),
-            reader.GetInt32(5),
-            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(6), DateTimeKind.Utc)));
+            reader.IsDBNull(5) ? null : reader.GetString(5),
+            reader.IsDBNull(6) ? null : reader.GetString(6),
+            reader.IsDBNull(7) ? null : reader.GetString(7),
+            reader.GetInt32(8),
+            new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(9), DateTimeKind.Utc)));
 
     private static string NormalizeLanguageCode(string targetLanguage)
     {

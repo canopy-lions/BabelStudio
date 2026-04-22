@@ -14,6 +14,10 @@ public sealed class SqliteProjectDatabase
     private const string RuntimeModelAliasColumnName = "RuntimeModelAlias";
     private const string RuntimeModelVariantColumnName = "RuntimeModelVariant";
     private const string BootstrapDetailColumnName = "BootstrapDetail";
+    private const string TranslationProviderColumnName = "translation_provider";
+    private const string TranslationModelIdColumnName = "model_id";
+    private const string TranslationExecutionProviderColumnName = "execution_provider";
+    private const string SourceSegmentHashColumnName = "source_segment_hash";
     private readonly string databasePath;
 
     public SqliteProjectDatabase(string projectRootPath)
@@ -114,6 +118,9 @@ public sealed class SqliteProjectDatabase
                 stage_run_id TEXT NULL,
                 source_transcript_revision_id TEXT NOT NULL,
                 target_language TEXT NOT NULL,
+                translation_provider TEXT NULL,
+                model_id TEXT NULL,
+                execution_provider TEXT NULL,
                 revision_number INTEGER NOT NULL,
                 created_at_utc TEXT NOT NULL,
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
@@ -128,6 +135,7 @@ public sealed class SqliteProjectDatabase
                 start_seconds REAL NOT NULL,
                 end_seconds REAL NOT NULL,
                 text TEXT NOT NULL,
+                source_segment_hash TEXT NULL,
                 FOREIGN KEY (translation_revision_id) REFERENCES translation_revisions(id) ON DELETE CASCADE
             );
 
@@ -155,6 +163,10 @@ public sealed class SqliteProjectDatabase
         await EnsureStageRunColumnAsync(connection, RuntimeModelAliasColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureStageRunColumnAsync(connection, RuntimeModelVariantColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureStageRunColumnAsync(connection, BootstrapDetailColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTranslationRevisionColumnAsync(connection, TranslationProviderColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTranslationRevisionColumnAsync(connection, TranslationModelIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTranslationRevisionColumnAsync(connection, TranslationExecutionProviderColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTranslatedSegmentColumnAsync(connection, SourceSegmentHashColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -241,6 +253,38 @@ public sealed class SqliteProjectDatabase
         CancellationToken cancellationToken)
     {
         return await TableColumnExistsAsync(connection, "StageRuns", columnName, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureTranslationRevisionColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await TableColumnExistsAsync(connection, "translation_revisions", columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE translation_revisions ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureTranslatedSegmentColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await TableColumnExistsAsync(connection, "translated_segments", columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE translated_segments ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<bool> TableColumnExistsAsync(
