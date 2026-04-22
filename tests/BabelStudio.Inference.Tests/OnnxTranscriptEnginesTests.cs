@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using BabelStudio.Contracts.Pipeline;
 using BabelStudio.Domain;
 using BabelStudio.Inference.Onnx;
+using BabelStudio.Inference.Onnx.Madlad;
 using BabelStudio.Inference.Onnx.OpusMt;
 using BabelStudio.Inference.Onnx.SileroVad;
 using BabelStudio.Inference.Onnx.Whisper;
@@ -147,6 +148,76 @@ public sealed class OnnxTranscriptEnginesTests
         Assert.Equal("merged-decoder", engine.LastExecutionSummary.ModelVariant);
     }
 
+    [FixtureFact("BABELSTUDIO_OPUS_FIXTURE_ROOT", "encoder_model.onnx")]
+    [Trait("Category", "Integration")]
+    public async Task OpusMtTranslationEngine_UsesFixtureModelWhenProvided()
+    {
+        string fixtureRoot = RequireFixtureRoot("BABELSTUDIO_OPUS_FIXTURE_ROOT");
+        string encoderModelPath = RequireFixtureFile(fixtureRoot, "encoder_model.onnx");
+
+        var engine = new OpusMtTranslationEngine(
+            new StubRuntimePlanner(new StageRuntimePlan
+            {
+                Stage = RuntimeStage.Translation,
+                Status = StageRuntimePlanStatus.Ready,
+                ModelId = "fixture/opus-mt",
+                ModelAlias = "fixture-opus-mt",
+                Variant = "merged-decoder",
+                ExecutionProvider = ExecutionProviderKind.Cpu
+            }),
+            BenchmarkModelPathResolver.CreateDefault());
+
+        IReadOnlyList<TranslatedTextSegment> segments = await engine.TranslateAsync(
+            new TranslationRequest(
+                "en",
+                "es",
+                [ new TranslationInputSegment(0, 0.0, 1.0, "Hello world.") ],
+                CommercialSafeMode: false,
+                PreferredModelAlias: "fixture-opus-mt",
+                ResolvedModelEntryPath: encoderModelPath),
+            CancellationToken.None);
+
+        TranslatedTextSegment segment = Assert.Single(segments);
+        Assert.False(string.IsNullOrWhiteSpace(segment.Text));
+        Assert.NotNull(engine.LastExecutionSummary);
+        Assert.Equal("cpu", engine.LastExecutionSummary!.SelectedProvider);
+    }
+
+    [FixtureFact("BABELSTUDIO_MADLAD_FIXTURE_ROOT", "encoder_model_int8.onnx")]
+    [Trait("Category", "Integration")]
+    public async Task MadladTranslationEngine_UsesFixtureModelWhenProvided()
+    {
+        string fixtureRoot = RequireFixtureRoot("BABELSTUDIO_MADLAD_FIXTURE_ROOT");
+        string encoderModelPath = RequireFixtureFile(fixtureRoot, "encoder_model_int8.onnx");
+
+        var engine = new MadladTranslationEngine(
+            new StubRuntimePlanner(new StageRuntimePlan
+            {
+                Stage = RuntimeStage.Translation,
+                Status = StageRuntimePlanStatus.Ready,
+                ModelId = "fixture/madlad400",
+                ModelAlias = "fixture-madlad400",
+                Variant = "int8",
+                ExecutionProvider = ExecutionProviderKind.Cpu
+            }),
+            BenchmarkModelPathResolver.CreateDefault());
+
+        IReadOnlyList<TranslatedTextSegment> segments = await engine.TranslateAsync(
+            new TranslationRequest(
+                "en",
+                "fr",
+                [ new TranslationInputSegment(0, 0.0, 1.0, "Hello world.") ],
+                CommercialSafeMode: false,
+                PreferredModelAlias: "fixture-madlad400",
+                ResolvedModelEntryPath: encoderModelPath),
+            CancellationToken.None);
+
+        TranslatedTextSegment segment = Assert.Single(segments);
+        Assert.False(string.IsNullOrWhiteSpace(segment.Text));
+        Assert.NotNull(engine.LastExecutionSummary);
+        Assert.Equal("cpu", engine.LastExecutionSummary!.SelectedProvider);
+    }
+
     private static string CreateSilenceWaveFile(double durationSeconds)
     {
         const int sampleRate = 48000;
@@ -181,6 +252,48 @@ public sealed class OnnxTranscriptEnginesTests
         for (int index = 0; index < text.Length; index++)
         {
             buffer[offset + index] = (byte)text[index];
+        }
+    }
+
+    private static string RequireFixtureRoot(string environmentVariableName)
+    {
+        string? fixtureRoot = Environment.GetEnvironmentVariable(environmentVariableName);
+        if (string.IsNullOrWhiteSpace(fixtureRoot) || !Directory.Exists(fixtureRoot))
+        {
+            throw new InvalidOperationException($"Set {environmentVariableName} to a fixture model directory to run this integration test.");
+        }
+
+        return fixtureRoot;
+    }
+
+    private static string RequireFixtureFile(string fixtureRoot, string relativePath)
+    {
+        string fullPath = Path.Combine(fixtureRoot, relativePath);
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"Fixture file '{relativePath}' was not found under '{fixtureRoot}'.", fullPath);
+        }
+
+        return fullPath;
+    }
+
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+    private sealed class FixtureFactAttribute : FactAttribute
+    {
+        public FixtureFactAttribute(string environmentVariableName, string requiredRelativePath)
+        {
+            string? fixtureRoot = Environment.GetEnvironmentVariable(environmentVariableName);
+            if (string.IsNullOrWhiteSpace(fixtureRoot) || !Directory.Exists(fixtureRoot))
+            {
+                Skip = $"Set {environmentVariableName} to a fixture model directory to run this integration test.";
+                return;
+            }
+
+            string requiredPath = Path.Combine(fixtureRoot, requiredRelativePath);
+            if (!File.Exists(requiredPath))
+            {
+                Skip = $"Fixture file '{requiredRelativePath}' was not found under '{fixtureRoot}'.";
+            }
         }
     }
 

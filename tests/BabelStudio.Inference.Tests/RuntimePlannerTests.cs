@@ -291,23 +291,46 @@ public sealed class RuntimePlannerTests
     }
 
     [Fact]
-    public async Task PlanAsync_TranslationUnsupportedPair_ReturnsBlockedUnsupportedLanguagePair()
+    public async Task PlanAsync_TranslationWithPreferredAlias_NoLongerBlocksBroaderPairs()
     {
+        using var workspace = new RuntimePlannerTestWorkspace();
+        BundledModelManifestRegistry registry = workspace.WriteManifest(
+            new ManifestSpec(
+                ModelId: "google/madlad400-3b-mt",
+                Task: "translation",
+                License: "Apache-2.0",
+                CommercialAllowed: true,
+                RequiresAttribution: true,
+                RequiresUserConsent: false,
+                VoiceCloning: false,
+                Aliases: [ "madlad400-mt", "madlad400" ],
+                RootFolder: "madlad400",
+                BenchmarkEntry: "encoder_model.onnx",
+                Variants:
+                [
+                    new ManifestVariantSpec("int8", "encoder_model_int8.onnx"),
+                    new ManifestVariantSpec("fp16", "encoder_model_fp16.onnx")
+                ]));
+        string cacheRoot = workspace.CreateCacheRoot("google/madlad400-3b-mt");
+        workspace.WriteCacheFile(cacheRoot, "encoder_model.onnx");
+
         RuntimePlanner planner = CreatePlanner(
-            LoadBundledRegistry(),
-            [],
-            [ new(ExecutionProviderKind.DirectMl, true) ],
-            _ => new ExecutionProviderSmokeTestResult(true));
+            registry,
+            [ new("google/madlad400-3b-mt", cacheRoot, "main", "sha", DateTimeOffset.UtcNow) ],
+            [ new(ExecutionProviderKind.DirectMl, false, "DirectML disabled for this test.") ],
+            _ => throw new InvalidOperationException("Smoke tests should not run for CPU-only plans."));
 
         StageRuntimePlan plan = await planner.PlanAsync(new StageRuntimePlanningRequest(
             RuntimeStage.Translation,
             CommercialSafeMode: true,
+            PreferredModelAlias: "madlad400-mt",
             SourceLanguage: "en",
             TargetLanguage: "fr"));
 
-        Assert.Equal(StageRuntimePlanStatus.Blocked, plan.Status);
-        Assert.NotNull(plan.Fallback);
-        Assert.Equal(RuntimePlanFallbackCode.UnsupportedLanguagePair, plan.Fallback!.Code);
+        Assert.Equal(StageRuntimePlanStatus.Ready, plan.Status);
+        Assert.Equal("google/madlad400-3b-mt", plan.ModelId);
+        Assert.Equal("madlad400-mt", plan.ModelAlias);
+        Assert.Equal(ExecutionProviderKind.Cpu, plan.ExecutionProvider);
         Assert.Contains(plan.Warnings, warning => warning.Code == RuntimePlanWarningCode.CommercialSafeModeActive);
     }
 

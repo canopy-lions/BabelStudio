@@ -44,11 +44,14 @@ public sealed class SqliteTranslationRepositoryTests
                 transcriptRevision.Id,
                 "es",
                 revisionNumber: 1,
-                now.AddSeconds(4));
+                now.AddSeconds(4),
+                translationProvider: "opus-mt",
+                modelId: "Helsinki-NLP/opus-mt-en-es",
+                executionProvider: "cpu");
             TranslatedSegment[] translatedSegments =
             [
-                TranslatedSegment.Create(translationRevision.Id, 0, 0.0, 1.5, "Hola"),
-                TranslatedSegment.Create(translationRevision.Id, 1, 1.5, 3.0, "Mundo")
+                TranslatedSegment.Create(translationRevision.Id, 0, 0.0, 1.5, "Hola", "hash-0"),
+                TranslatedSegment.Create(translationRevision.Id, 1, 1.5, 3.0, "Mundo", "hash-1")
             ];
 
             await translationRepository.SaveRevisionAsync(translationRevision, translatedSegments, CancellationToken.None);
@@ -60,8 +63,12 @@ public sealed class SqliteTranslationRepositoryTests
 
             Assert.NotNull(current);
             Assert.Equal(transcriptRevision.Id, current!.SourceTranscriptRevisionId);
+            Assert.Equal("opus-mt", current.TranslationProvider);
+            Assert.Equal("Helsinki-NLP/opus-mt-en-es", current.ModelId);
+            Assert.Equal("cpu", current.ExecutionProvider);
             Assert.Equal(2, reloadedSegments.Count);
             Assert.Equal("Hola", reloadedSegments[0].Text);
+            Assert.Equal("hash-0", reloadedSegments[0].SourceSegmentHash);
             Assert.Equal(2, nextSpanishRevision);
             Assert.Equal(1, nextGermanRevision);
         }
