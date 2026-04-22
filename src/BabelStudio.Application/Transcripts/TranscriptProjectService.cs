@@ -26,6 +26,7 @@ public sealed class TranscriptProjectService
     private readonly IFileFingerprintService fileFingerprintService;
     private readonly ISpeechRegionDetector speechRegionDetector;
     private readonly IAudioTranscriptionEngine transcriptionEngine;
+    private readonly ITranslationLanguageRouter translationLanguageRouter;
     private readonly ITranslationEngine translationEngine;
 
     public TranscriptProjectService(
@@ -38,6 +39,7 @@ public sealed class TranscriptProjectService
         IFileFingerprintService fileFingerprintService,
         ISpeechRegionDetector speechRegionDetector,
         IAudioTranscriptionEngine transcriptionEngine,
+        ITranslationLanguageRouter translationLanguageRouter,
         ITranslationEngine translationEngine)
     {
         this.projectMediaIngestService = projectMediaIngestService;
@@ -49,6 +51,7 @@ public sealed class TranscriptProjectService
         this.fileFingerprintService = fileFingerprintService;
         this.speechRegionDetector = speechRegionDetector;
         this.transcriptionEngine = transcriptionEngine;
+        this.translationLanguageRouter = translationLanguageRouter;
         this.translationEngine = translationEngine;
     }
 
@@ -66,10 +69,23 @@ public sealed class TranscriptProjectService
             createResult.AudioArtifact,
             cancellationToken).ConfigureAwait(false);
 
-        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(requestedTranslationTargetLanguage: null, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<TranscriptProjectState> OpenAsync(CancellationToken cancellationToken)
+    public Task<TranscriptProjectState> OpenAsync(CancellationToken cancellationToken) =>
+        OpenAsyncCore(requestedTranslationTargetLanguage: null, cancellationToken);
+
+    public Task<TranscriptProjectState> SelectTranslationTargetAsync(
+        SetTranslationTargetRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return OpenAsyncCore(request.TargetLanguage, cancellationToken);
+    }
+
+    private async Task<TranscriptProjectState> OpenAsyncCore(
+        string? requestedTranslationTargetLanguage,
+        CancellationToken cancellationToken)
     {
         OpenProjectResult openResult = await projectMediaIngestService.OpenAsync(cancellationToken).ConfigureAwait(false);
         TranscriptRevision? currentRevision = await transcriptRepository.GetCurrentRevisionAsync(
@@ -80,12 +96,23 @@ public sealed class TranscriptProjectService
             ? []
             : await transcriptRepository.GetSegmentsAsync(currentRevision.Id, cancellationToken).ConfigureAwait(false);
 
-        string? translationTargetLanguage = GetTranslationTargetLanguage(openResult.TranscriptLanguage);
-        TranslationRevision? currentTranslationRevision = translationTargetLanguage is null
+        string? normalizedTranscriptLanguage = NormalizeTranscriptLanguageCode(openResult.TranscriptLanguage);
+        IReadOnlyList<TranslationTargetLanguageOption> supportedTargetLanguages = normalizedTranscriptLanguage is null
+            ? []
+            : await translationLanguageRouter.GetSupportedTargetLanguagesAsync(
+                normalizedTranscriptLanguage,
+                commercialSafeMode: false,
+                cancellationToken).ConfigureAwait(false);
+        string? selectedTranslationTargetLanguage = ResolveSelectedTranslationTargetLanguage(
+            normalizedTranscriptLanguage,
+            requestedTranslationTargetLanguage,
+            supportedTargetLanguages);
+
+        TranslationRevision? currentTranslationRevision = selectedTranslationTargetLanguage is null
             ? null
             : await translationRepository.GetCurrentRevisionAsync(
                 openResult.Project.Id,
-                translationTargetLanguage,
+                selectedTranslationTargetLanguage,
                 cancellationToken).ConfigureAwait(false);
 
         IReadOnlyList<TranslatedSegment> translatedSegments = currentTranslationRevision is null
@@ -96,9 +123,12 @@ public sealed class TranscriptProjectService
             openResult.Project.Id,
             cancellationToken).ConfigureAwait(false);
 
-        bool isTranslationStale = currentRevision is not null &&
-                                  currentTranslationRevision is not null &&
-                                  currentTranslationRevision.SourceTranscriptRevisionId != currentRevision.Id;
+        IReadOnlySet<int> staleTranslatedSegmentIndices = BuildStaleTranslatedSegmentIndices(
+            currentRevision,
+            segments,
+            currentTranslationRevision,
+            translatedSegments);
+        bool isTranslationStale = staleTranslatedSegmentIndices.Count > 0;
 
         return new TranscriptProjectState(
             openResult,
@@ -109,6 +139,9 @@ public sealed class TranscriptProjectService
             isTranslationStale,
             openResult.TranscriptLanguage,
             stageRuns,
+            supportedTargetLanguages,
+            selectedTranslationTargetLanguage,
+            staleTranslatedSegmentIndices,
             await ReadWaveformSummaryAsync(cancellationToken).ConfigureAwait(false));
     }
 
@@ -120,7 +153,7 @@ public sealed class TranscriptProjectService
             new RelocateSourceMediaRequest(request.NewSourceMediaPath),
             cancellationToken).ConfigureAwait(false);
 
-        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(requestedTranslationTargetLanguage: null, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<TranscriptProjectState> SaveEditsAsync(
@@ -374,7 +407,7 @@ public sealed class TranscriptProjectService
             manifest.WithTranscriptLanguage(transcriptLanguage),
             cancellationToken).ConfigureAwait(false);
 
-        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(requestedTranslationTargetLanguage: null, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<TranscriptProjectState> GenerateTranslationAsync(
@@ -385,11 +418,23 @@ public sealed class TranscriptProjectService
         TranscriptRevision currentTranscriptRevision = GetRequiredTranscriptRevision(currentState);
 
         string sourceLanguage = NormalizeRequiredTranscriptLanguageCode(request.SourceLanguage);
-        string targetLanguage = NormalizeSupportedTargetLanguage(request.TargetLanguage, sourceLanguage);
+        string targetLanguage = NormalizeTranslationTargetLanguageCode(request.TargetLanguage);
 
         if (!string.Equals(currentState.TranscriptLanguage, sourceLanguage, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Set the transcript language before starting translation.");
+        }
+
+        TranslationRouteSelection route = await translationLanguageRouter.ResolveRouteAsync(
+            sourceLanguage,
+            targetLanguage,
+            request.CommercialSafeMode,
+            cancellationToken).ConfigureAwait(false);
+        if (!route.IsAvailable)
+        {
+            throw new InvalidOperationException(
+                route.UnavailableReason ??
+                $"Translation route {sourceLanguage} -> {targetLanguage} is not available.");
         }
 
         StageRunRecord translationStageRun = StageRunRecord.Start(
@@ -413,8 +458,7 @@ public sealed class TranscriptProjectService
                             segment.EndSeconds,
                             segment.Text))
                         .ToArray(),
-                    CommercialSafeMode: request.CommercialSafeMode,
-                    PreferredModelAlias: ResolvePreferredTranslationModelAlias(sourceLanguage, targetLanguage)),
+                    CommercialSafeMode: request.CommercialSafeMode),
                 cancellationToken).ConfigureAwait(false);
 
             translationStageRun = ApplyRuntimeExecutionSummary(translationStageRun, translationEngine)
@@ -434,13 +478,20 @@ public sealed class TranscriptProjectService
             targetLanguage,
             cancellationToken).ConfigureAwait(false);
         DateTimeOffset now = DateTimeOffset.UtcNow;
+        TranslationExecutionMetadata? executionMetadata = GetTranslationExecutionMetadata(translationEngine);
         TranslationRevision translationRevision = TranslationRevision.Create(
             currentState.ProjectState.Project.Id,
             translationStageRun.Id,
             currentTranscriptRevision.Id,
             targetLanguage,
             nextRevisionNumber,
-            now);
+            now,
+            translationProvider: executionMetadata?.ProviderName ?? route.ProviderName,
+            modelId: executionMetadata?.ModelId ?? route.ModelId,
+            executionProvider: executionMetadata?.SelectedExecutionProvider);
+        Dictionary<int, TranscriptSegment> sourceSegmentsByIndex = currentState.TranscriptSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .ToDictionary(segment => segment.SegmentIndex);
 
         TranslatedSegment[] translatedSegments = translatedTextSegments
             .OrderBy(segment => segment.Index)
@@ -449,7 +500,10 @@ public sealed class TranscriptProjectService
                 segment.Index,
                 segment.StartSeconds,
                 segment.EndSeconds,
-                segment.Text))
+                segment.Text,
+                sourceSegmentsByIndex.TryGetValue(segment.Index, out TranscriptSegment? sourceSegment)
+                    ? ComputeSourceSegmentHash(sourceSegment)
+                    : null))
             .ToArray();
 
         await translationRepository.SaveRevisionAsync(
@@ -465,7 +519,7 @@ public sealed class TranscriptProjectService
             provenance: "generated-translation",
             cancellationToken).ConfigureAwait(false);
 
-        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(targetLanguage, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<TranscriptProjectState> SaveTranslationEditsAsync(
@@ -481,9 +535,8 @@ public sealed class TranscriptProjectService
             throw new InvalidOperationException("Translation edits were based on an out-of-date revision.");
         }
 
-        string targetLanguage = NormalizeSupportedTargetLanguage(
-            request.TargetLanguage,
-            currentState.TranscriptLanguage ?? throw new InvalidOperationException("Set the transcript language before saving translation edits."));
+        string targetLanguage = NormalizeTranslationTargetLanguageCode(
+            request.TargetLanguage);
         if (!string.Equals(currentTranslationRevision.TargetLanguage, targetLanguage, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Translation edits were based on a different target language.");
@@ -504,7 +557,12 @@ public sealed class TranscriptProjectService
             currentTranslationRevision.SourceTranscriptRevisionId,
             targetLanguage,
             nextRevisionNumber,
-            now);
+            now,
+            currentTranslationRevision.TranslationProvider,
+            currentTranslationRevision.ModelId,
+            currentTranslationRevision.ExecutionProvider);
+        Dictionary<int, string?> sourceHashesByIndex = currentState.TranslatedSegments
+            .ToDictionary(segment => segment.SegmentIndex, segment => segment.SourceSegmentHash);
 
         TranslatedSegment[] editedSegments = currentState.TranslatedSegments
             .OrderBy(segment => segment.SegmentIndex)
@@ -515,7 +573,10 @@ public sealed class TranscriptProjectService
                 segment.EndSeconds,
                 replacements.TryGetValue(segment.SegmentIndex, out string? replacement)
                     ? replacement
-                    : segment.Text))
+                    : segment.Text,
+                sourceHashesByIndex.TryGetValue(segment.SegmentIndex, out string? sourceSegmentHash)
+                    ? sourceSegmentHash
+                    : null))
             .ToArray();
 
         await translationRepository.SaveRevisionAsync(editedRevision, editedSegments, cancellationToken).ConfigureAwait(false);
@@ -528,7 +589,7 @@ public sealed class TranscriptProjectService
             provenance: "manual-edit",
             cancellationToken).ConfigureAwait(false);
 
-        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(targetLanguage, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<TranscriptProjectState> SaveTranscriptRevisionAsync(
@@ -568,7 +629,7 @@ public sealed class TranscriptProjectService
             provenance,
             cancellationToken).ConfigureAwait(false);
 
-        return await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task GenerateTranscriptAsync(
@@ -845,6 +906,11 @@ public sealed class TranscriptProjectService
             summary.BootstrapDetail);
     }
 
+    private static TranslationExecutionMetadata? GetTranslationExecutionMetadata(object stageEngine) =>
+        stageEngine is ITranslationExecutionMetadataReporter reporter
+            ? reporter.LastExecutionMetadata
+            : null;
+
     private static string NormalizeRequiredTranscriptLanguageCode(string languageCode)
     {
         string normalized = NormalizeTranscriptLanguageCode(languageCode)
@@ -852,18 +918,14 @@ public sealed class TranscriptProjectService
         return normalized;
     }
 
-    private static string NormalizeSupportedTargetLanguage(string targetLanguage, string sourceLanguage)
+    private static string NormalizeTranslationTargetLanguageCode(string targetLanguage)
     {
-        string normalizedSource = NormalizeRequiredTranscriptLanguageCode(sourceLanguage);
-        string normalizedTarget = NormalizeRequiredTranscriptLanguageCode(targetLanguage);
-        string? expectedTarget = GetTranslationTargetLanguage(normalizedSource);
-        if (!string.Equals(normalizedTarget, expectedTarget, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(targetLanguage))
         {
-            throw new InvalidOperationException(
-                $"Milestone 7 only supports direct English <-> Spanish translation. Requested pair was {normalizedSource} -> {normalizedTarget}.");
+            throw new InvalidOperationException("Translation target language is required.");
         }
 
-        return normalizedTarget;
+        return targetLanguage.Trim().ToLowerInvariant();
     }
 
     private static string? NormalizeTranscriptLanguageCode(string? languageCode)
@@ -878,30 +940,112 @@ public sealed class TranscriptProjectService
         {
             EnglishLanguageCode => normalized,
             SpanishLanguageCode => normalized,
-            _ => throw new InvalidOperationException("Milestone 7 only supports English or Spanish transcript language selection.")
+            _ => throw new InvalidOperationException("Milestone 9 currently supports English or Spanish transcript language selection.")
         };
     }
 
-    private static string? GetTranslationTargetLanguage(string? sourceLanguage)
+    private static string? ResolveSelectedTranslationTargetLanguage(
+        string? sourceLanguage,
+        string? requestedTranslationTargetLanguage,
+        IReadOnlyList<TranslationTargetLanguageOption> supportedTargetLanguages)
     {
-        string? normalizedSource = NormalizeTranscriptLanguageCode(sourceLanguage);
-        return normalizedSource switch
+        string? normalizedRequestedTargetLanguage = NormalizeTranslationTargetLanguageCodeOrNull(requestedTranslationTargetLanguage);
+        if (normalizedRequestedTargetLanguage is not null &&
+            supportedTargetLanguages.Any(option => string.Equals(option.LanguageCode, normalizedRequestedTargetLanguage, StringComparison.Ordinal)))
         {
-            EnglishLanguageCode => SpanishLanguageCode,
-            SpanishLanguageCode => EnglishLanguageCode,
-            _ => null
+            return normalizedRequestedTargetLanguage;
+        }
+
+        TranslationTargetLanguageOption? defaultTarget = supportedTargetLanguages.FirstOrDefault(option =>
+            option.IsAvailable &&
+            IsPreferredDefaultTarget(sourceLanguage, option.LanguageCode));
+        if (defaultTarget is not null)
+        {
+            return defaultTarget.LanguageCode;
+        }
+
+        TranslationTargetLanguageOption? firstAvailable = supportedTargetLanguages.FirstOrDefault(option => option.IsAvailable);
+        if (firstAvailable is not null)
+        {
+            return firstAvailable.LanguageCode;
+        }
+
+        return supportedTargetLanguages.FirstOrDefault()?.LanguageCode;
+    }
+
+    private static bool IsPreferredDefaultTarget(string? sourceLanguage, string targetLanguage)
+    {
+        return (NormalizeTranscriptLanguageCode(sourceLanguage), NormalizeTranslationTargetLanguageCode(targetLanguage)) switch
+        {
+            (EnglishLanguageCode, SpanishLanguageCode) => true,
+            (SpanishLanguageCode, EnglishLanguageCode) => true,
+            _ => false
         };
     }
 
-    private static string ResolvePreferredTranslationModelAlias(string sourceLanguage, string targetLanguage)
+    private static string? NormalizeTranslationTargetLanguageCodeOrNull(string? targetLanguage) =>
+        string.IsNullOrWhiteSpace(targetLanguage)
+            ? null
+            : targetLanguage.Trim().ToLowerInvariant();
+
+    private static IReadOnlySet<int> BuildStaleTranslatedSegmentIndices(
+        TranscriptRevision? currentTranscriptRevision,
+        IReadOnlyList<TranscriptSegment> transcriptSegments,
+        TranslationRevision? currentTranslationRevision,
+        IReadOnlyList<TranslatedSegment> translatedSegments)
     {
-        return (NormalizeRequiredTranscriptLanguageCode(sourceLanguage), NormalizeRequiredTranscriptLanguageCode(targetLanguage)) switch
+        if (currentTranscriptRevision is null || currentTranslationRevision is null)
         {
-            (EnglishLanguageCode, SpanishLanguageCode) => "opus-en-es",
-            (SpanishLanguageCode, EnglishLanguageCode) => "opus-es-en",
-            _ => throw new InvalidOperationException(
-                $"Milestone 7 only supports direct English <-> Spanish translation. Requested pair was {sourceLanguage} -> {targetLanguage}.")
-        };
+            return new HashSet<int>();
+        }
+
+        bool revisionChanged = currentTranslationRevision.SourceTranscriptRevisionId != currentTranscriptRevision.Id;
+        Dictionary<int, TranslatedSegment> translatedSegmentsByIndex = translatedSegments
+            .GroupBy(segment => segment.SegmentIndex)
+            .ToDictionary(group => group.Key, group => group.Last());
+        var staleIndices = new HashSet<int>();
+
+        foreach (TranscriptSegment transcriptSegment in transcriptSegments.OrderBy(segment => segment.SegmentIndex))
+        {
+            if (!translatedSegmentsByIndex.TryGetValue(transcriptSegment.SegmentIndex, out TranslatedSegment? translatedSegment))
+            {
+                if (revisionChanged)
+                {
+                    staleIndices.Add(transcriptSegment.SegmentIndex);
+                }
+
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(translatedSegment.SourceSegmentHash))
+            {
+                if (revisionChanged)
+                {
+                    staleIndices.Add(transcriptSegment.SegmentIndex);
+                }
+
+                continue;
+            }
+
+            if (!string.Equals(
+                    translatedSegment.SourceSegmentHash,
+                    ComputeSourceSegmentHash(transcriptSegment),
+                    StringComparison.Ordinal))
+            {
+                staleIndices.Add(transcriptSegment.SegmentIndex);
+            }
+        }
+
+        return staleIndices;
+    }
+
+    private static string ComputeSourceSegmentHash(TranscriptSegment segment)
+    {
+        string payload = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{segment.SegmentIndex}|{segment.StartSeconds:F6}|{segment.EndSeconds:F6}|{segment.Text.Trim()}");
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private sealed record SpeechRegionsArtifactDocument(
@@ -942,6 +1086,9 @@ public sealed class TranscriptProjectService
         Guid? StageRunId,
         Guid SourceTranscriptRevisionId,
         string TargetLanguage,
+        string? TranslationProvider,
+        string? ModelId,
+        string? ExecutionProvider,
         int RevisionNumber,
         string Provenance,
         DateTimeOffset CreatedAtUtc,
@@ -956,6 +1103,9 @@ public sealed class TranscriptProjectService
                 revision.StageRunId,
                 revision.SourceTranscriptRevisionId,
                 revision.TargetLanguage,
+                revision.TranslationProvider,
+                revision.ModelId,
+                revision.ExecutionProvider,
                 revision.RevisionNumber,
                 provenance,
                 revision.CreatedAtUtc,
@@ -965,7 +1115,8 @@ public sealed class TranscriptProjectService
                         segment.SegmentIndex,
                         segment.StartSeconds,
                         segment.EndSeconds,
-                        segment.Text))
+                        segment.Text,
+                        segment.SourceSegmentHash))
                     .ToArray());
     }
 
@@ -979,5 +1130,6 @@ public sealed class TranscriptProjectService
         int SegmentIndex,
         double StartSeconds,
         double EndSeconds,
-        string Text);
+        string Text,
+        string? SourceSegmentHash);
 }
