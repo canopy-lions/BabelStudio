@@ -11,7 +11,9 @@ using BabelStudio.Inference.Runtime.ModelManifest;
 using BabelStudio.Inference.Runtime.Planning;
 using BabelStudio.Infrastructure.FileSystem;
 using BabelStudio.Infrastructure.Persistence.Sqlite;
+using BabelStudio.Inference.Onnx.Madlad;
 using BabelStudio.Inference.Onnx.OpusMt;
+using BabelStudio.Inference.Onnx.Translation;
 using BabelStudio.Media.Extraction;
 using BabelStudio.Media.Probe;
 using BabelStudio.Media.Waveforms;
@@ -30,14 +32,19 @@ public sealed class TranscriptWorkspaceFactory
         var modelInventory = new CompositeModelCacheInventory(
             new LocalModelCacheInventory(recordStore),
             new BundledManifestModelCacheInventory(manifestRegistry));
+        var commercialSafeEvaluator = new CommercialSafeEvaluator();
         var runtimePlanner = new RuntimePlanner(
             manifestRegistry,
-            new CommercialSafeEvaluator(),
+            commercialSafeEvaluator,
             new MachineHardwareProfileProvider(),
             new OnnxExecutionProviderDiscovery(),
             new OnnxExecutionProviderSmokeTester(),
             modelInventory);
         var modelPathResolver = new BenchmarkModelPathResolver(manifestRegistry);
+        var translationLanguageRouter = new TranslationLanguageRouter(
+            manifestRegistry,
+            modelInventory,
+            commercialSafeEvaluator);
 
         return new TranscriptProjectService(
             new ProjectMediaIngestService(
@@ -56,7 +63,11 @@ public sealed class TranscriptWorkspaceFactory
             new Sha256FileFingerprintService(),
             new SileroVadSpeechRegionDetector(runtimePlanner, modelPathResolver),
             new WhisperOnnxAudioTranscriptionEngine(runtimePlanner, modelPathResolver),
-            new OpusMtTranslationEngine(runtimePlanner, modelPathResolver));
+            translationLanguageRouter,
+            new RoutedTranslationEngine(
+                translationLanguageRouter,
+                new OpusMtTranslationEngine(runtimePlanner, modelPathResolver),
+                new MadladTranslationEngine(runtimePlanner, modelPathResolver)));
     }
 
     private static BundledModelManifestRegistry LoadManifestRegistry()
