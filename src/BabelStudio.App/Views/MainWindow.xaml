@@ -12,7 +12,6 @@
     <Grid Padding="20" RowSpacing="16" ColumnSpacing="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
@@ -20,6 +19,7 @@
             <ColumnDefinition Width="420" />
         </Grid.ColumnDefinitions>
 
+        <!-- Row 0: Toolbar -->
         <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12">
             <Button Content="Open Media" Click="OpenMediaButton_Click" />
             <Button Content="Open Project" Click="OpenProjectButton_Click" />
@@ -34,60 +34,169 @@
             <Button Content="Save Settings" Click="SaveSettingsButton_Click" />
         </StackPanel>
 
-        <Grid Grid.Row="1">
+        <!--
+            Row 1, Col 0: Left panel.
+            Uses a nested two-row Grid so the video/controls/waveform area is Auto-height
+            and the segments list below it gets all remaining space (*), giving the ListView
+            a finite, bounded height so its built-in scroll container activates.
+        -->
+        <Grid Grid.Row="1" RowSpacing="12">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="12">
-                <Grid>
-                    <MediaPlayerElement x:Name="SourcePlayerElement"
-                                        AreTransportControlsEnabled="False"
-                                        Height="320" />
-                    <Border VerticalAlignment="Bottom"
-                            HorizontalAlignment="Center"
-                            Margin="0,0,0,20"
-                            Padding="16,8"
-                            Background="#90000000"
-                            CornerRadius="8">
-                        <TextBlock FontSize="20"
-                                   Foreground="White"
-                                   Text="{x:Bind ViewModel.CurrentSubtitleText, Mode=OneWay}"
-                                   TextAlignment="Center"
-                                   TextWrapping="WrapWholeWords" />
-                    </Border>
+            <!-- Video player, playback controls, warning, waveform -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="12">
+                    <Grid>
+                        <MediaPlayerElement x:Name="SourcePlayerElement"
+                                            AreTransportControlsEnabled="False"
+                                            Height="320" />
+                        <Border VerticalAlignment="Bottom"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,20"
+                                Padding="16,8"
+                                Background="#90000000"
+                                CornerRadius="8">
+                            <TextBlock FontSize="20"
+                                       Foreground="White"
+                                       Text="{x:Bind ViewModel.CurrentSubtitleText, Mode=OneWay}"
+                                       TextAlignment="Center"
+                                       TextWrapping="WrapWholeWords" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="0,12,0,0">
+                    <Button Content="Play" Click="PlayButton_Click" IsEnabled="{x:Bind ViewModel.CanPlayMedia, Mode=OneWay}" />
+                    <Button Content="Pause" Click="PauseButton_Click" IsEnabled="{x:Bind ViewModel.CanPlayMedia, Mode=OneWay}" />
+                    <Button Content="Jump to Active" Click="JumpToActiveSegmentButton_Click" />
+                    <TextBlock VerticalAlignment="Center" Text="{x:Bind ViewModel.PlaybackPositionText, Mode=OneWay}" />
+                    <TextBlock VerticalAlignment="Center" Text="Speed" />
+                    <ComboBox x:Name="PlaybackSpeedComboBox"
+                              Width="100"
+                              ItemsSource="{x:Bind ViewModel.PlaybackSpeedOptions, Mode=OneWay}"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValuePath="Rate"
+                              SelectedIndex="1"
+                              SelectionChanged="PlaybackSpeedComboBox_SelectionChanged" />
+                    <TextBlock VerticalAlignment="Center" Margin="12,0,0,0" Text="{x:Bind ViewModel.PlaybackBackendLabel, Mode=OneWay}" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Margin="0,12,0,0" Spacing="6">
+                    <TextBlock Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                               Text="{x:Bind ViewModel.PlaybackWarning, Mode=OneWay}"
+                               TextWrapping="WrapWholeWords" />
+                    <canvas:CanvasControl x:Name="WaveformCanvas"
+                                          Height="96"
+                                          Draw="WaveformCanvas_Draw"
+                                          PointerPressed="WaveformCanvas_PointerPressed" />
+                </StackPanel>
+            </Grid>
+
+            <!--
+                Segments area — row 1 (*) of the left-column Grid.
+                This row gets all remaining vertical space after the video area above,
+                so the ListView receives a finite height and can scroll.
+            -->
+            <Grid Grid.Row="1" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="260" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock VerticalAlignment="Center" Text="Project Name" />
+                    <TextBox Grid.Column="1"
+                             MinWidth="280"
+                             Text="{x:Bind ViewModel.ProjectNameDraft, Mode=TwoWay}" />
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Transcript Language" />
+                    <ComboBox Grid.Column="3"
+                              PlaceholderText="Choose language"
+                              ItemsSource="{x:Bind ViewModel.TranscriptLanguageOptions, Mode=OneWay}"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValuePath="Code"
+                              SelectedValue="{x:Bind ViewModel.SelectedTranscriptLanguageCode, Mode=TwoWay}"
+                              SelectionChanged="TranscriptLanguageComboBox_SelectionChanged" />
                 </Grid>
-            </Border>
 
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="0,12,0,0">
-                <Button Content="Play" Click="PlayButton_Click" IsEnabled="{x:Bind ViewModel.CanPlayMedia, Mode=OneWay}" />
-                <Button Content="Pause" Click="PauseButton_Click" IsEnabled="{x:Bind ViewModel.CanPlayMedia, Mode=OneWay}" />
-                <Button Content="Jump to Active" Click="JumpToActiveSegmentButton_Click" />
-                <TextBlock VerticalAlignment="Center" Text="{x:Bind ViewModel.PlaybackPositionText, Mode=OneWay}" />
-                <TextBlock VerticalAlignment="Center" Text="Speed" />
-                <ComboBox x:Name="PlaybackSpeedComboBox"
-                          Width="100"
-                          ItemsSource="{x:Bind ViewModel.PlaybackSpeedOptions, Mode=OneWay}"
-                          DisplayMemberPath="DisplayName"
-                          SelectedValuePath="Rate"
-                          SelectedIndex="1"
-                          SelectionChanged="PlaybackSpeedComboBox_SelectionChanged" />
-                <TextBlock VerticalAlignment="Center" Margin="12,0,0,0" Text="{x:Bind ViewModel.PlaybackBackendLabel, Mode=OneWay}" />
-            </StackPanel>
+                <ListView Grid.Row="1"
+                          x:Name="SegmentsListView"
+                          IsItemClickEnabled="True"
+                          ItemClick="SegmentsListView_ItemClick"
+                          ItemsSource="{x:Bind ViewModel.Segments, Mode=OneWay}"
+                          SelectionMode="Multiple">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:TranscriptSegmentItem">
+                            <Border Margin="0,0,0,8"
+                                    Padding="10"
+                                    Background="{x:Bind BackgroundBrush, Mode=OneWay}"
+                                    CornerRadius="8">
+                                <StackPanel Spacing="8">
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock VerticalAlignment="Center" Text="{x:Bind DisplayTimeRange}" />
+                                        <Button Content="Jump" Click="JumpToSegmentButton_Click" Tag="{x:Bind}" />
+                                        <Button Content="Split at Cursor" Click="SplitSegmentButton_Click" Tag="{x:Bind}" />
+                                        <Button Content="Apply Timing" Click="TrimSegmentButton_Click" Tag="{x:Bind}" />
+                                        <Button Content="Delete" Click="DeleteSegmentButton_Click" Tag="{x:Bind}" />
+                                    </StackPanel>
 
-            <StackPanel Grid.Row="2" Margin="0,12,0,0" Spacing="6">
-                <TextBlock Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                           Text="{x:Bind ViewModel.PlaybackWarning, Mode=OneWay}"
-                           TextWrapping="WrapWholeWords" />
-                <canvas:CanvasControl x:Name="WaveformCanvas"
-                                      Height="96"
-                                      Draw="WaveformCanvas_Draw"
-                                      PointerPressed="WaveformCanvas_PointerPressed" />
-            </StackPanel>
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Spacing="4">
+                                            <TextBlock FontWeight="SemiBold" Text="Transcript" />
+                                            <TextBox AcceptsReturn="True"
+                                                     MinHeight="64"
+                                                     Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     TextWrapping="Wrap" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock FontWeight="SemiBold" Text="{x:Bind TranslationLabel, Mode=OneWay}" />
+                                            <TextBox AcceptsReturn="True"
+                                                     MinHeight="64"
+                                                     Text="{x:Bind TranslationText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <TextBlock VerticalAlignment="Center" Text="Start" />
+                                        <NumberBox Width="120" SmallChange="0.1" Value="{x:Bind StartSeconds, Mode=TwoWay}" />
+                                        <TextBlock VerticalAlignment="Center" Text="End" />
+                                        <NumberBox Width="120" SmallChange="0.1" Value="{x:Bind EndSeconds, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </Grid>
         </Grid>
 
+        <!--
+            Row 1, Col 1: Settings / info panel.
+            Sits in the same * row as the left panel, so it gets a bounded height from
+            the window and its internal ScrollViewer can scroll without inflating the row.
+        -->
         <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="12">
                 <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
@@ -174,83 +283,5 @@
                 </Border>
             </StackPanel>
         </ScrollViewer>
-
-        <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="12">
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="260" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock VerticalAlignment="Center" Text="Project Name" />
-                <TextBox Grid.Column="1"
-                         MinWidth="280"
-                         Text="{x:Bind ViewModel.ProjectNameDraft, Mode=TwoWay}" />
-                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Transcript Language" />
-                <ComboBox Grid.Column="3"
-                          PlaceholderText="Choose language"
-                          ItemsSource="{x:Bind ViewModel.TranscriptLanguageOptions, Mode=OneWay}"
-                          DisplayMemberPath="DisplayName"
-                          SelectedValuePath="Code"
-                          SelectedValue="{x:Bind ViewModel.SelectedTranscriptLanguageCode, Mode=TwoWay}"
-                          SelectionChanged="TranscriptLanguageComboBox_SelectionChanged" />
-            </Grid>
-
-            <ListView x:Name="SegmentsListView"
-                      IsItemClickEnabled="True"
-                      ItemClick="SegmentsListView_ItemClick"
-                      ItemsSource="{x:Bind ViewModel.Segments, Mode=OneWay}"
-                      SelectionMode="Multiple">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="viewModels:TranscriptSegmentItem">
-                        <Border Margin="0,0,0,8"
-                                Padding="10"
-                                Background="{x:Bind BackgroundBrush, Mode=OneWay}"
-                                CornerRadius="8">
-                            <StackPanel Spacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock VerticalAlignment="Center" Text="{x:Bind DisplayTimeRange}" />
-                                    <Button Content="Jump" Click="JumpToSegmentButton_Click" Tag="{x:Bind}" />
-                                    <Button Content="Split at Cursor" Click="SplitSegmentButton_Click" Tag="{x:Bind}" />
-                                    <Button Content="Trim" Click="TrimSegmentButton_Click" Tag="{x:Bind}" />
-                                </StackPanel>
-
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Spacing="4">
-                                        <TextBlock FontWeight="SemiBold" Text="Transcript" />
-                                        <TextBox AcceptsReturn="True"
-                                                 MinHeight="64"
-                                                 Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 TextWrapping="Wrap" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock FontWeight="SemiBold" Text="{x:Bind TranslationLabel, Mode=OneWay}" />
-                                        <TextBox AcceptsReturn="True"
-                                                 MinHeight="64"
-                                                 Text="{x:Bind TranslationText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <TextBlock VerticalAlignment="Center" Text="Start" />
-                                    <NumberBox Width="120" SmallChange="0.1" Value="{x:Bind StartSeconds, Mode=TwoWay}" />
-                                    <TextBlock VerticalAlignment="Center" Text="End" />
-                                    <NumberBox Width="120" SmallChange="0.1" Value="{x:Bind EndSeconds, Mode=TwoWay}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </StackPanel>
     </Grid>
 </Window>
