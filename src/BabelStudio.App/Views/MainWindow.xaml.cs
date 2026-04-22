@@ -344,7 +344,32 @@ public sealed partial class MainWindow : Window
         {
             TranscriptProjectState state = await currentService.TrimSegmentAsync(request, cancellationToken).ConfigureAwait(true);
             await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
-        }, "Applying segment timing edits...").ConfigureAwait(true);
+        }, "Applying timing edits to segment...").ConfigureAwait(true);
+    }
+
+    private async void DeleteSegmentButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: TranscriptSegmentItem item })
+        {
+            return;
+        }
+
+        DeleteTranscriptSegmentRequest? request = ViewModel.CreateDeleteRequest(item);
+        if (request is null)
+        {
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.DeleteSegmentAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Deleting segment...").ConfigureAwait(true);
     }
 
     private async void MergeSegmentsButton_Click(object sender, RoutedEventArgs e)

@@ -53,6 +53,10 @@ public sealed record TrimTranscriptSegmentRequest(
     double StartSeconds,
     double EndSeconds);
 
+public sealed record DeleteTranscriptSegmentRequest(
+    Guid TranscriptRevisionId,
+    Guid SegmentId);
+
 public sealed record TranscriptProjectState(
     OpenProjectResult ProjectState,
     TranscriptRevision? CurrentTranscriptRevision,

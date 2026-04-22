@@ -535,6 +535,13 @@ public sealed class MainWindowViewModel : ObservableObject
             : new TrimTranscriptSegmentRequest(currentTranscriptRevisionId.Value, segment.SegmentId, segment.StartSeconds, segment.EndSeconds);
     }
 
+    public DeleteTranscriptSegmentRequest? CreateDeleteRequest(TranscriptSegmentItem segment)
+    {
+        return currentTranscriptRevisionId is null
+            ? null
+            : new DeleteTranscriptSegmentRequest(currentTranscriptRevisionId.Value, segment.SegmentId);
+    }
+
     public MergeTranscriptSegmentsRequest? CreateMergeRequest(IReadOnlyList<TranscriptSegmentItem> selectedSegments)
     {
         if (currentTranscriptRevisionId is null || selectedSegments.Count != 2)

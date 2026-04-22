@@ -309,6 +309,48 @@ public sealed class TranscriptProjectService
         return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-trim", cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<TranscriptProjectState> DeleteSegmentAsync(
+        DeleteTranscriptSegmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        TranscriptRevision currentRevision = GetRequiredTranscriptRevision(currentState);
+        EnsureRevisionMatches(currentRevision, request.TranscriptRevisionId, "Segment delete was based on an out-of-date transcript revision.");
+
+        TranscriptSegment[] existingSegments = currentState.TranscriptSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .ToArray();
+        int targetIndex = Array.FindIndex(existingSegments, segment => segment.Id == request.SegmentId);
+        if (targetIndex < 0)
+        {
+            throw new InvalidOperationException("The selected segment was not found in the current transcript revision.");
+        }
+
+        if (existingSegments.Length == 1)
+        {
+            throw new InvalidOperationException("Cannot delete the only remaining segment.");
+        }
+
+        var revisedSegments = new List<TranscriptSegment>(existingSegments.Length - 1);
+        int revisedIndex = 0;
+        foreach (TranscriptSegment segment in existingSegments)
+        {
+            if (segment.Id == request.SegmentId)
+            {
+                continue;
+            }
+
+            revisedSegments.Add(TranscriptSegment.Create(
+                currentRevision.Id,
+                revisedIndex++,
+                segment.StartSeconds,
+                segment.EndSeconds,
+                segment.Text));
+        }
+
+        return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-delete", cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<TranscriptProjectState> SetTranscriptLanguageAsync(
         SetTranscriptLanguageRequest request,
         CancellationToken cancellationToken)
