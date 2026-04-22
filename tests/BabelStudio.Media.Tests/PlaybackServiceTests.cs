@@ -1,3 +1,4 @@
+using BabelStudio.TestDoubles;
 using BabelStudio.Domain.Media;
 using BabelStudio.Media.Playback;
 
@@ -58,7 +59,9 @@ public sealed class PlaybackServiceTests
     public async Task Open_seek_and_rate_change_flow_through_selected_backend()
     {
         var backend = new FakePlaybackBackend();
-        var service = new PlaybackService(new PlaybackCapabilityProbe(), new FakePlaybackBackendFactory(backend));
+        var service = new PlaybackService(
+            new PlaybackCapabilityProbe(),
+            new FakePlaybackBackendFactory().Add(PlaybackBackendKind.MediaFoundation, backend));
         var source = new MediaSourceDescriptor(
             @"D:\media\sample.mp4",
             new MediaProbeSnapshot(

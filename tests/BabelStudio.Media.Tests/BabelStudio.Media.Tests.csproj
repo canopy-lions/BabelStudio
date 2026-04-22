@@ -23,4 +23,8 @@
     <ProjectReference Include="..\..\src\BabelStudio.Media.Playback\BabelStudio.Media.Playback.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\BabelStudio.TestDoubles\FakePlaybackBackend.cs" Link="TestDoubles\FakePlaybackBackend.cs" />
+  </ItemGroup>
+
 </Project>

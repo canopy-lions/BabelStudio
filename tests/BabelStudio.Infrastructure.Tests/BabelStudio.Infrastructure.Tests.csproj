@@ -30,4 +30,8 @@
     <ProjectReference Include="..\..\src\BabelStudio.Infrastructure\BabelStudio.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\BabelStudio.TestDoubles\FakeStudioSettingsService.cs" Link="TestDoubles\FakeStudioSettingsService.cs" />
+  </ItemGroup>
+
 </Project>
