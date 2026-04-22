@@ -38,7 +38,7 @@ public sealed class OpusMtTranslationEngine : ITranslationEngine, IStageRuntimeE
             cancellationToken).ConfigureAwait(false);
         EnsurePlanReady(plan, RuntimeStage.Translation);
 
-        string encoderModelPath = ResolveEncoderModelPath(plan);
+        string encoderModelPath = ResolveEncoderModelPath(plan, request.ResolvedModelEntryPath);
         string decoderModelPath = ResolveDecoderModelPath(plan, encoderModelPath);
         string modelRootPath = ResolveModelRootPath(encoderModelPath);
         OpusTokenizerDecoder tokenizer = OpusTokenizerDecoder.Load(modelRootPath);
@@ -242,14 +242,29 @@ public sealed class OpusMtTranslationEngine : ITranslationEngine, IStageRuntimeE
             $"Runtime planner did not produce a ready {stage} plan.");
     }
 
-    private string ResolveEncoderModelPath(StageRuntimePlan plan)
+    private string ResolveEncoderModelPath(StageRuntimePlan plan, string? resolvedModelEntryPath)
     {
+        if (!string.IsNullOrWhiteSpace(resolvedModelEntryPath))
+        {
+            return Path.GetFullPath(resolvedModelEntryPath);
+        }
+
         BenchmarkModelCandidate candidate = modelPathResolver.ResolveSingle(plan.ModelAlias!);
         return candidate.ModelPath;
     }
 
     private string ResolveDecoderModelPath(StageRuntimePlan plan, string encoderModelPath)
     {
+        string modelRootPath = ResolveModelRootPath(encoderModelPath);
+        foreach (string fileName in new[] { "decoder_model_merged.onnx", "decoder_model.onnx", "decoder_model_int8.onnx" })
+        {
+            string candidatePath = Path.Combine(modelRootPath, fileName);
+            if (File.Exists(candidatePath))
+            {
+                return Path.GetFullPath(candidatePath);
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(plan.Variant))
         {
             BenchmarkModelCandidate candidate = modelPathResolver.ResolveSingle(plan.ModelAlias!, plan.Variant);
@@ -260,13 +275,13 @@ public sealed class OpusMtTranslationEngine : ITranslationEngine, IStageRuntimeE
             }
         }
 
-        string decoderModelPath = Path.Combine(Path.GetDirectoryName(encoderModelPath)!, "decoder_model.onnx");
+        string decoderModelPath = Path.Combine(modelRootPath, "decoder_model.onnx");
         if (File.Exists(decoderModelPath))
         {
             return Path.GetFullPath(decoderModelPath);
         }
 
-        string mergedDecoderModelPath = Path.Combine(Path.GetDirectoryName(encoderModelPath)!, "decoder_model_merged.onnx");
+        string mergedDecoderModelPath = Path.Combine(modelRootPath, "decoder_model_merged.onnx");
         if (File.Exists(mergedDecoderModelPath))
         {
             return Path.GetFullPath(mergedDecoderModelPath);
