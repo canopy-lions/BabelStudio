@@ -42,7 +42,7 @@ internal static class Milestone5StageRuntimeRequirementsCatalog
             [RuntimeStage.Translation] = new(
                 RuntimeStage.Translation,
                 ModelTask.Translation,
-                [ "opus-en-es", "helsinki-opus-en-es", "opus-es-en", "helsinki-opus-es-en" ],
+                [ "opus-en-es", "helsinki-opus-en-es", "opus-en-fr", "opus-en-de", "opus-en-it", "opus-en-pt", "opus-es-en", "helsinki-opus-es-en", "madlad400-mt", "madlad400" ],
                 [ ExecutionProviderKind.DirectMl, ExecutionProviderKind.Cpu ],
                 [ "merged-decoder", "fp16" ],
                 [ "merged-decoder", "fp16" ])

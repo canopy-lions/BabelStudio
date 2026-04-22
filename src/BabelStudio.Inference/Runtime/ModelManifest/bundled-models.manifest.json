@@ -165,6 +165,187 @@
       "variants": [
         { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
       ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-en-fr",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-en-fr",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-en-fr", "helsinki-opus-en-fr" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-en-fr",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-en-de",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-en-de",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-en-de", "helsinki-opus-en-de" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-en-de",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-en-it",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-en-it",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-en-it", "helsinki-opus-en-it" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-en-it",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-en-pt",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-en-pt",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-en-pt", "helsinki-opus-en-pt" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-en-pt",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-es-fr",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-es-fr",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-es-fr", "helsinki-opus-es-fr" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-es-fr",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-es-de",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-es-de",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-es-de", "helsinki-opus-es-de" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-es-de",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-es-it",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-es-it",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-es-it", "helsinki-opus-es-it" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-es-it",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "Helsinki-NLP/opus-mt-es-pt",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/Helsinki-NLP/opus-mt-es-pt",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "opus-es-pt", "helsinki-opus-es-pt" ],
+      "root_path": "../../../../models/opus/Helsinki-NLP-opus-mt-es-pt",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "merged-decoder", "entry_path": "decoder_model_merged.onnx" }
+      ]
+    },
+    {
+      "model_id": "google/madlad400-3b-mt",
+      "task": "translation",
+      "license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": true,
+      "source_url": "https://huggingface.co/google/madlad400-3b-mt",
+      "revision": "cache-installed",
+      "sha256": "",
+      "aliases": [ "madlad400-mt", "madlad400" ],
+      "root_path": "../../../../models/madlad/google-madlad400-3b-mt",
+      "benchmark_entry": "encoder_model.onnx",
+      "variants": [
+        { "alias": "int8", "entry_path": "encoder_model_int8.onnx" },
+        { "alias": "fp16", "entry_path": "encoder_model_fp16.onnx" }
+      ]
     }
   ]
 }

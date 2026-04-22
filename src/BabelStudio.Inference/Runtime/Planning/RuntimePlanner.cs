@@ -44,19 +44,6 @@ public sealed class RuntimePlanner : IRuntimePlanner
             throw new InvalidOperationException($"Runtime stage '{request.Stage}' is not configured for runtime planning.");
         }
 
-        if (request.Stage is RuntimeStage.Translation &&
-            !IsSupportedTranslationPair(request.SourceLanguage, request.TargetLanguage))
-        {
-            string sourceLanguage = NormalizeLanguageCode(request.SourceLanguage) ?? "unknown";
-            string targetLanguage = NormalizeLanguageCode(request.TargetLanguage) ?? "unknown";
-            return CreateBlockedPlan(
-                request.Stage,
-                request.CommercialSafeMode,
-                new RuntimePlanFallback(
-                    RuntimePlanFallbackCode.UnsupportedLanguagePair,
-                    $"Milestone 7 only supports direct en <-> es translation. Requested pair was {sourceLanguage} -> {targetLanguage}."));
-        }
-
         HardwareProfile hardwareProfile = await hardwareProfileProvider.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
         IReadOnlyList<ExecutionProviderAvailability> providerAvailabilities = await executionProviderDiscovery.DiscoverAsync(
             hardwareProfile,
@@ -491,14 +478,6 @@ public sealed class RuntimePlanner : IRuntimePlanner
 
     private static string ResolvePrimaryAlias(BundledModelManifestEntry entry) =>
         entry.Aliases.FirstOrDefault() ?? entry.ModelId;
-
-    private static bool IsSupportedTranslationPair(string? sourceLanguage, string? targetLanguage) =>
-        (NormalizeLanguageCode(sourceLanguage), NormalizeLanguageCode(targetLanguage)) switch
-        {
-            ("en", "es") => true,
-            ("es", "en") => true,
-            _ => false
-        };
 
     private static string? NormalizeLanguageCode(string? languageCode) =>
         string.IsNullOrWhiteSpace(languageCode)
