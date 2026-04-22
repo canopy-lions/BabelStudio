@@ -8,6 +8,7 @@ using BabelStudio.Domain.Media;
 using BabelStudio.Domain.Projects;
 using BabelStudio.Domain.Transcript;
 using BabelStudio.Domain.Translation;
+using BabelStudio.TestDoubles;
 
 namespace BabelStudio.Application.Tests;
 
@@ -154,9 +155,12 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         Assert.Equal("en", languageSet.TranscriptLanguage);
         Assert.NotNull(translated.CurrentTranslationRevision);
         Assert.Equal(1, translated.CurrentTranslationRevision!.RevisionNumber);
+        Assert.Equal("opus-mt", translated.CurrentTranslationRevision.TranslationProvider);
+        Assert.Equal("fake-opus-en-es", translated.CurrentTranslationRevision.ModelId);
         Assert.False(translated.IsTranslationStale);
         Assert.Equal(2, translated.TranslatedSegments.Count);
         Assert.Equal("Segmento generado 1.", translated.TranslatedSegments[0].Text);
+        Assert.All(translated.TranslatedSegments, segment => Assert.False(string.IsNullOrWhiteSpace(segment.SourceSegmentHash)));
         Assert.Contains(translated.ProjectState.Artifacts, artifact => artifact.Kind == ArtifactKind.TranslationRevision);
         Assert.Contains(translated.StageRuns, stageRun => stageRun.StageName == "translation" && stageRun.Status == StageRunStatus.Completed);
 
@@ -169,6 +173,7 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         Assert.True(transcriptEdited.IsTranslationStale);
         Assert.NotNull(transcriptEdited.CurrentTranslationRevision);
         Assert.Equal(1, transcriptEdited.CurrentTranslationRevision!.RevisionNumber);
+        Assert.Contains(0, transcriptEdited.StaleTranslatedSegmentIndices);
     }
 
     [Fact]
@@ -233,6 +238,32 @@ public sealed class TranscriptProjectServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SelectTranslationTargetAsync_switches_to_supported_pivot_target_and_reports_route_status()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+        TranscriptProjectState transcriptLanguageSet = await scope.Service.SetTranscriptLanguageAsync(
+            new SetTranscriptLanguageRequest("en"),
+            CancellationToken.None);
+
+        Assert.Contains(transcriptLanguageSet.SupportedTargetLanguages, option => option.LanguageCode == "fr" && option.RoutingKind == TranslationRoutingKind.Pivot);
+
+        TranscriptProjectState frenchTarget = await scope.Service.SelectTranslationTargetAsync(
+            new SetTranslationTargetRequest("fr"),
+            CancellationToken.None);
+
+        Assert.Equal("fr", frenchTarget.SelectedTranslationTargetLanguage);
+        Assert.Null(frenchTarget.CurrentTranslationRevision);
+        Assert.Contains(frenchTarget.SupportedTargetLanguages, option => option.LanguageCode == "fr" && option.IsAvailable);
+    }
+
+    [Fact]
     public async Task OpenAsync_when_manifest_has_no_transcript_language_returns_unknown_language_state()
     {
         string tempDirectory = CreateTempDirectory();
@@ -277,6 +308,8 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         var transcriptRepository = new FakeTranscriptRepository();
         var translationRepository = new FakeTranslationRepository();
         var stageRunStore = new FakeProjectStageRunStore();
+        var translationLanguageRouter = new FakeTranslationLanguageRouter();
+        var translationEngine = new FakeTranslationEngine();
         var service = new TranscriptProjectService(
             new ProjectMediaIngestService(
                 new FakeProjectRepository(),
@@ -294,9 +327,10 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             new FakeFileFingerprintService(),
             new FakeSpeechRegionDetector(),
             new FakeAudioTranscriptionEngine(),
-            new FakeTranslationEngine());
+            translationLanguageRouter,
+            translationEngine);
 
-        return new FakeServiceScope(service, artifactStore, transcriptRepository, translationRepository);
+        return new FakeServiceScope(service, artifactStore, transcriptRepository, translationRepository, translationLanguageRouter);
     }
 
     private string CreateTempDirectory()
@@ -311,7 +345,8 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         TranscriptProjectService Service,
         FakeArtifactStore ArtifactStore,
         FakeTranscriptRepository TranscriptRepository,
-        FakeTranslationRepository TranslationRepository);
+        FakeTranslationRepository TranslationRepository,
+        FakeTranslationLanguageRouter TranslationLanguageRouter);
 
     private sealed class FakeProjectRepository : IProjectRepository
     {
@@ -578,26 +613,5 @@ public sealed class TranscriptProjectServiceTests : IDisposable
                 new RecognizedTranscriptSegment(0, regions[0].StartSeconds, regions[0].EndSeconds, "Generated segment 1."),
                 new RecognizedTranscriptSegment(1, regions[1].StartSeconds, regions[1].EndSeconds, "Generated segment 2.")
             ]);
-    }
-
-    private sealed class FakeTranslationEngine : ITranslationEngine
-    {
-        public Task<IReadOnlyList<TranslatedTextSegment>> TranslateAsync(
-            TranslationRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<TranslatedTextSegment>>(
-            request.Segments
-                .OrderBy(segment => segment.Index)
-                .Select(segment => new TranslatedTextSegment(
-                    segment.Index,
-                    segment.StartSeconds,
-                    segment.EndSeconds,
-                    request.TargetLanguage switch
-                    {
-                        "es" => $"Segmento generado {segment.Index + 1}.",
-                        "en" => $"Generated translation {segment.Index + 1}.",
-                        _ => $"Translated segment {segment.Index + 1}."
-                    }))
-                .ToArray());
     }
 }

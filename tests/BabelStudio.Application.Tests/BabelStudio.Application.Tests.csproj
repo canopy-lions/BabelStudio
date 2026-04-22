@@ -23,4 +23,9 @@
     <ProjectReference Include="..\..\src\BabelStudio.Domain\BabelStudio.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\BabelStudio.TestDoubles\FakeTranslationEngine.cs" Link="TestDoubles\FakeTranslationEngine.cs" />
+    <Compile Include="..\BabelStudio.TestDoubles\FakeTranslationLanguageRouter.cs" Link="TestDoubles\FakeTranslationLanguageRouter.cs" />
+  </ItemGroup>
+
 </Project>
