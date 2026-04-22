@@ -1,4 +1,5 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -41,6 +42,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BabelStudio.Media.Tests", "tests\BabelStudio.Media.Tests\BabelStudio.Media.Tests.csproj", "{27EA1132-8F80-4B1C-A49E-606A71507786}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BabelStudio.Contracts", "src\BabelStudio.Contracts\BabelStudio.Contracts.csproj", "{09870550-091B-4B9B-BC9B-B2123BB7E7ED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BabelStudio.App.Tests", "tests\BabelStudio.App.Tests\BabelStudio.App.Tests.csproj", "{03618EB1-2731-447E-A882-96B13F0D55F2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -268,6 +271,18 @@ Global
 		{09870550-091B-4B9B-BC9B-B2123BB7E7ED}.Release|x64.Build.0 = Release|Any CPU
 		{09870550-091B-4B9B-BC9B-B2123BB7E7ED}.Release|x86.ActiveCfg = Release|Any CPU
 		{09870550-091B-4B9B-BC9B-B2123BB7E7ED}.Release|x86.Build.0 = Release|Any CPU
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Debug|Any CPU.Build.0 = Debug|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Debug|x64.ActiveCfg = Debug|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Debug|x64.Build.0 = Debug|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Debug|x86.ActiveCfg = Debug|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Debug|x86.Build.0 = Debug|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Release|Any CPU.ActiveCfg = Release|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Release|Any CPU.Build.0 = Release|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Release|x64.ActiveCfg = Release|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Release|x64.Build.0 = Release|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Release|x86.ActiveCfg = Release|x64
+		{03618EB1-2731-447E-A882-96B13F0D55F2}.Release|x86.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -291,5 +306,6 @@ Global
 		{A1293F1E-6743-4641-8ACC-E266351A436C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{27EA1132-8F80-4B1C-A49E-606A71507786} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{09870550-091B-4B9B-BC9B-B2123BB7E7ED} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{03618EB1-2731-447E-A882-96B13F0D55F2} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
