@@ -210,7 +210,10 @@ public sealed partial class MainWindow : Window
                 ?? throw new InvalidOperationException("Choose whether the transcript is English or Spanish before starting translation.");
 
             TranscriptProjectState state = await currentService.GenerateTranslationAsync(
-                new GenerateTranslationRequest(ViewModel.SelectedTranscriptLanguageCode ?? string.Empty, targetLanguageCode),
+                new GenerateTranslationRequest(
+                    ViewModel.SelectedTranscriptLanguageCode ?? string.Empty,
+                    targetLanguageCode,
+                    ViewModel.CommercialSafeMode),
                 cancellationToken).ConfigureAwait(true);
             await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
         }, $"Generating {GetLanguageDisplayName(ViewModel.GetRequestedTranslationTargetLanguageCode())} translation...").ConfigureAwait(true);

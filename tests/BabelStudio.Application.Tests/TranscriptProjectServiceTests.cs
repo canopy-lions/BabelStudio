@@ -148,7 +148,7 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             new SetTranscriptLanguageRequest("en"),
             CancellationToken.None);
         TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
-            new GenerateTranslationRequest("en", "es"),
+            new GenerateTranslationRequest("en", "es", CommercialSafeMode: false),
             CancellationToken.None);
 
         Assert.Equal("en", languageSet.TranscriptLanguage);
@@ -187,7 +187,7 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             new SetTranscriptLanguageRequest("es"),
             CancellationToken.None);
         TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
-            new GenerateTranslationRequest("es", "en"),
+            new GenerateTranslationRequest("es", "en", CommercialSafeMode: false),
             CancellationToken.None);
 
         Assert.NotNull(translated.CurrentTranslationRevision);
@@ -210,7 +210,7 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             CancellationToken.None);
         await scope.Service.SetTranscriptLanguageAsync(new SetTranscriptLanguageRequest("en"), CancellationToken.None);
         TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
-            new GenerateTranslationRequest("en", "es"),
+            new GenerateTranslationRequest("en", "es", CommercialSafeMode: false),
             CancellationToken.None);
 
         TranscriptProjectState saved = await scope.Service.SaveTranslationEditsAsync(

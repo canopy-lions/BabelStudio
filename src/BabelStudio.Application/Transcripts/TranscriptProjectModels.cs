@@ -19,7 +19,8 @@ public sealed record SetTranscriptLanguageRequest(
 
 public sealed record GenerateTranslationRequest(
     string SourceLanguage,
-    string TargetLanguage);
+    string TargetLanguage,
+    bool CommercialSafeMode);
 
 public sealed record SaveTranslationEditsRequest(
     Guid TranslationRevisionId,

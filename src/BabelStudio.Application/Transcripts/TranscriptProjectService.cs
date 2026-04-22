@@ -410,7 +410,7 @@ public sealed class TranscriptProjectService
                             segment.EndSeconds,
                             segment.Text))
                         .ToArray(),
-                    CommercialSafeMode: true,
+                    CommercialSafeMode: request.CommercialSafeMode,
                     PreferredModelAlias: ResolvePreferredTranslationModelAlias(sourceLanguage, targetLanguage)),
                 cancellationToken).ConfigureAwait(false);
 
