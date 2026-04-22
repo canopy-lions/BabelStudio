@@ -5,7 +5,8 @@ public sealed record TranslationRequest(
     string TargetLanguage,
     IReadOnlyList<TranslationInputSegment> Segments,
     bool CommercialSafeMode = true,
-    string? PreferredModelAlias = null);
+    string? PreferredModelAlias = null,
+    string? ResolvedModelEntryPath = null);
 
 public sealed record TranslationInputSegment(
     int Index,

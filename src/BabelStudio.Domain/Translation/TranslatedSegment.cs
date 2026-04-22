@@ -6,14 +6,16 @@ public sealed record TranslatedSegment(
     int SegmentIndex,
     double StartSeconds,
     double EndSeconds,
-    string Text)
+    string Text,
+    string? SourceSegmentHash)
 {
     public static TranslatedSegment Create(
         Guid translationRevisionId,
         int segmentIndex,
         double startSeconds,
         double endSeconds,
-        string text)
+        string text,
+        string? sourceSegmentHash = null)
     {
         if (translationRevisionId == Guid.Empty)
         {
@@ -46,6 +48,10 @@ public sealed record TranslatedSegment(
             segmentIndex,
             startSeconds,
             endSeconds,
-            text.Trim());
+            text.Trim(),
+            NormalizeOptional(sourceSegmentHash));
     }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

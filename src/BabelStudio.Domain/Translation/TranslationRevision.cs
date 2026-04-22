@@ -6,6 +6,9 @@ public sealed record TranslationRevision(
     Guid? StageRunId,
     Guid SourceTranscriptRevisionId,
     string TargetLanguage,
+    string? TranslationProvider,
+    string? ModelId,
+    string? ExecutionProvider,
     int RevisionNumber,
     DateTimeOffset CreatedAtUtc)
 {
@@ -15,7 +18,10 @@ public sealed record TranslationRevision(
         Guid sourceTranscriptRevisionId,
         string targetLanguage,
         int revisionNumber,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        string? translationProvider = null,
+        string? modelId = null,
+        string? executionProvider = null)
     {
         if (projectId == Guid.Empty)
         {
@@ -43,6 +49,9 @@ public sealed record TranslationRevision(
             stageRunId,
             sourceTranscriptRevisionId,
             NormalizeLanguageCode(targetLanguage, nameof(targetLanguage)),
+            NormalizeOptional(translationProvider),
+            NormalizeOptional(modelId),
+            NormalizeOptional(executionProvider),
             revisionNumber,
             createdAtUtc);
     }
@@ -56,4 +65,7 @@ public sealed record TranslationRevision(
 
         return languageCode.Trim().ToLowerInvariant();
     }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

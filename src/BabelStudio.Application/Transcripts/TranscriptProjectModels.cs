@@ -2,6 +2,7 @@ using BabelStudio.Domain;
 using BabelStudio.Domain.Transcript;
 using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Projects;
+using BabelStudio.Contracts.Pipeline;
 using BabelStudio.Domain.Translation;
 
 namespace BabelStudio.Application.Transcripts;
@@ -26,6 +27,9 @@ public sealed record SaveTranslationEditsRequest(
     Guid TranslationRevisionId,
     string TargetLanguage,
     IReadOnlyList<EditedTranslatedSegment> Segments);
+
+public sealed record SetTranslationTargetRequest(
+    string? TargetLanguage);
 
 public sealed record EditedTranscriptSegment(
     Guid SegmentId,
@@ -67,4 +71,7 @@ public sealed record TranscriptProjectState(
     bool IsTranslationStale,
     string? TranscriptLanguage,
     IReadOnlyList<StageRunRecord> StageRuns,
+    IReadOnlyList<TranslationTargetLanguageOption> SupportedTargetLanguages,
+    string? SelectedTranslationTargetLanguage,
+    IReadOnlySet<int> StaleTranslatedSegmentIndices,
     WaveformSummary? WaveformSummary);

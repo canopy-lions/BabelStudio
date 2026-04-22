@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Projects;
 using BabelStudio.Contracts.Pipeline;
