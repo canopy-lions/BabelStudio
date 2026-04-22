@@ -259,6 +259,95 @@ public sealed class PlaybackService
         backend is null
             ? Task.FromResult(PlaybackSnapshot.Empty)
             : backend.GetSnapshotAsync(ct);
+
+    private void ReplaceBackend(IPlaybackBackend? nextBackend)
+    {
+        if (!ReferenceEquals(backend, nextBackend) &&
+            backend is IDisposable disposableBackend)
+        {
+            disposableBackend.Dispose();
+        }
+
+        backend = nextBackend;
+    }
+
+    private static string BuildBackendUnavailableWarning(PlaybackCapabilityAssessment assessment) =>
+        assessment.PreferredBackend switch
+        {
+            PlaybackBackendKind.FfmpegFallback =>
+                "FFmpeg fallback is required for this source, but that backend is not implemented in this build.",
+            PlaybackBackendKind.LibMpvFallback =>
+                "libmpv fallback is required for this source, but that backend is not implemented in this build.",
+            PlaybackBackendKind.MediaFoundation =>
+                "Media Foundation playback is not available in this build.",
+            _ =>
+                "The selected playback backend is not available in this build."
+        };
+}
+
+public sealed record WaveformSegmentBoundary(
+    double StartSeconds,
+    double EndSeconds);
+
+public sealed record WaveformBarLayout(
+    float X,
+    float TopY,
+    float BottomY,
+    float StrokeWidth);
+
+public sealed record WaveformCanvasLayout(
+    IReadOnlyList<WaveformBarLayout> Bars,
+    IReadOnlyList<float> SegmentStartMarkerXs,
+    IReadOnlyList<float> SegmentEndMarkerXs,
+    float CursorX);
+
+public static class WaveformLayout
+{
+    public static WaveformCanvasLayout Build(
+        WaveformSummary waveform,
+        IReadOnlyList<WaveformSegmentBoundary> segments,
+        double playbackPositionSeconds,
+        float width,
+        float height)
+    {
+        ArgumentNullException.ThrowIfNull(waveform);
+        ArgumentNullException.ThrowIfNull(segments);
+
+        if (waveform.Peaks.Count == 0 || width <= 0f || height <= 0f)
+        {
+            return new WaveformCanvasLayout(
+                Array.Empty<WaveformBarLayout>(),
+                Array.Empty<float>(),
+                Array.Empty<float>(),
+                0f);
+        }
+
+        float centerY = height / 2f;
+        float step = width / Math.Max(waveform.Peaks.Count, 1);
+        var bars = new List<WaveformBarLayout>(waveform.Peaks.Count);
+
+        for (int index = 0; index < waveform.Peaks.Count; index++)
+        {
+            float amplitude = Math.Clamp(waveform.Peaks[index], 0f, 1f);
+            float barHeight = Math.Max(1f, amplitude * height);
+            float x = index * step;
+            bars.Add(new WaveformBarLayout(
+                x,
+                centerY - (barHeight / 2f),
+                centerY + (barHeight / 2f),
+                Math.Max(1f, step * 0.6f)));
+        }
+
+        float[] startMarkers = segments
+            .Select(segment => WaveformMapping.TimeToPixel(segment.StartSeconds, waveform.DurationSeconds, width))
+            .ToArray();
+        float[] endMarkers = segments
+            .Select(segment => WaveformMapping.TimeToPixel(segment.EndSeconds, waveform.DurationSeconds, width))
+            .ToArray();
+        float cursorX = WaveformMapping.TimeToPixel(playbackPositionSeconds, waveform.DurationSeconds, width);
+
+        return new WaveformCanvasLayout(bars, startMarkers, endMarkers, cursorX);
+    }
 }
 
 public static class WaveformMapping

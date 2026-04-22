@@ -673,27 +673,31 @@ public sealed partial class MainWindow : Window
 
         float width = (float)sender.ActualWidth;
         float height = (float)sender.ActualHeight;
-        float centerY = height / 2f;
-        float step = width / Math.Max(waveform.Peaks.Count, 1);
+        WaveformCanvasLayout layout = WaveformLayout.Build(
+            waveform,
+            ViewModel.Segments
+                .Select(segment => new WaveformSegmentBoundary(segment.StartSeconds, segment.EndSeconds))
+                .ToArray(),
+            ViewModel.PlaybackPositionSeconds,
+            width,
+            height);
 
-        for (int index = 0; index < waveform.Peaks.Count; index++)
+        foreach (WaveformBarLayout bar in layout.Bars)
         {
-            float amplitude = Math.Clamp(waveform.Peaks[index], 0f, 1f);
-            float barHeight = Math.Max(1f, amplitude * height);
-            float x = index * step;
-            args.DrawingSession.DrawLine(x, centerY - (barHeight / 2f), x, centerY + (barHeight / 2f), Colors.DeepSkyBlue, Math.Max(1f, step * 0.6f));
+            args.DrawingSession.DrawLine(bar.X, bar.TopY, bar.X, bar.BottomY, Colors.DeepSkyBlue, bar.StrokeWidth);
         }
 
-        foreach (TranscriptSegmentItem segment in ViewModel.Segments)
+        foreach (float startX in layout.SegmentStartMarkerXs)
         {
-            float startX = WaveformMapping.TimeToPixel(segment.StartSeconds, waveform.DurationSeconds, width);
-            float endX = WaveformMapping.TimeToPixel(segment.EndSeconds, waveform.DurationSeconds, width);
             args.DrawingSession.DrawLine(startX, 0f, startX, height, Colors.OrangeRed, 1f);
+        }
+
+        foreach (float endX in layout.SegmentEndMarkerXs)
+        {
             args.DrawingSession.DrawLine(endX, 0f, endX, height, Colors.OrangeRed, 1f);
         }
 
-        float cursorX = WaveformMapping.TimeToPixel(ViewModel.PlaybackPositionSeconds, waveform.DurationSeconds, width);
-        args.DrawingSession.DrawLine(cursorX, 0f, cursorX, height, Colors.Gold, 2f);
+        args.DrawingSession.DrawLine(layout.CursorX, 0f, layout.CursorX, height, Colors.Gold, 2f);
     }
 
     private async void WaveformCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
