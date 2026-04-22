@@ -87,6 +87,11 @@
                               SelectedValuePath="Rate"
                               SelectedIndex="1"
                               SelectionChanged="PlaybackSpeedComboBox_SelectionChanged" />
+                    <CheckBox Margin="12,0,0,0"
+                              VerticalAlignment="Center"
+                              Content="Target subtitles"
+                              IsChecked="{x:Bind ViewModel.ShowTranslatedSubtitles, Mode=TwoWay}"
+                              IsEnabled="{x:Bind ViewModel.CanShowTranslatedSubtitles, Mode=OneWay}" />
                     <TextBlock VerticalAlignment="Center" Margin="12,0,0,0" Text="{x:Bind ViewModel.PlaybackBackendLabel, Mode=OneWay}" />
                 </StackPanel>
 
@@ -112,12 +117,18 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid ColumnSpacing="12">
+                <Grid RowSpacing="8" ColumnSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="260" />
+                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="280" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock VerticalAlignment="Center" Text="Project Name" />
@@ -132,6 +143,20 @@
                               SelectedValuePath="Code"
                               SelectedValue="{x:Bind ViewModel.SelectedTranscriptLanguageCode, Mode=TwoWay}"
                               SelectionChanged="TranscriptLanguageComboBox_SelectionChanged" />
+                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="Translation Target" />
+                    <ComboBox Grid.Column="5"
+                              x:Name="TranslationTargetComboBox"
+                              PlaceholderText="Choose target"
+                              ItemsSource="{x:Bind ViewModel.SupportedTranslationTargets, Mode=OneWay}"
+                              DisplayMemberPath="DisplayLabel"
+                              SelectedValuePath="LanguageCode"
+                              SelectedValue="{x:Bind ViewModel.SelectedTranslationTargetLanguageCode, Mode=TwoWay}"
+                              SelectionChanged="TranslationTargetComboBox_SelectionChanged" />
+                    <TextBlock Grid.Row="1"
+                               Grid.ColumnSpan="6"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="{x:Bind ViewModel.TranslationTargetStatus, Mode=OneWay}"
+                               TextWrapping="WrapWholeWords" />
                 </Grid>
 
                 <ListView Grid.Row="1"
@@ -171,6 +196,9 @@
 
                                         <StackPanel Grid.Column="1" Spacing="4">
                                             <TextBlock FontWeight="SemiBold" Text="{x:Bind TranslationLabel, Mode=OneWay}" />
+                                            <TextBlock Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                       Text="{x:Bind TranslationStatusLabel, Mode=OneWay}"
+                                                       TextWrapping="WrapWholeWords" />
                                             <TextBox AcceptsReturn="True"
                                                      MinHeight="64"
                                                      Text="{x:Bind TranslationText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -233,7 +261,7 @@
                                   SelectedValue="{x:Bind ViewModel.DefaultSourceLanguageCode, Mode=TwoWay}" />
                         <TextBlock Text="Default target language" />
                         <ComboBox Width="180"
-                                  ItemsSource="{x:Bind ViewModel.TranscriptLanguageOptions, Mode=OneWay}"
+                                  ItemsSource="{x:Bind ViewModel.TranslationLanguageOptions, Mode=OneWay}"
                                   DisplayMemberPath="DisplayName"
                                   SelectedValuePath="Code"
                                   SelectedValue="{x:Bind ViewModel.DefaultTargetLanguageCode, Mode=TwoWay}" />

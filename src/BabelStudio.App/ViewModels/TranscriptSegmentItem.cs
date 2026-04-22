@@ -10,12 +10,17 @@ public sealed class TranscriptSegmentItem : ObservableObject
     private static readonly Brush InactiveBackgroundBrush = new SolidColorBrush(Colors.Transparent);
     private double endSeconds;
     private bool isActive;
+    private bool isTranslationStale;
     private double startSeconds;
     private string text;
     private string translationLabel;
     private string translationText;
 
-    public TranscriptSegmentItem(TranscriptSegment segment, string translationLabel, string translationText)
+    public TranscriptSegmentItem(
+        TranscriptSegment segment,
+        string translationLabel,
+        string translationText,
+        bool isTranslationStale)
     {
         SegmentId = segment.Id;
         SegmentIndex = segment.SegmentIndex;
@@ -24,6 +29,7 @@ public sealed class TranscriptSegmentItem : ObservableObject
         text = segment.Text;
         this.translationLabel = translationLabel;
         this.translationText = translationText;
+        this.isTranslationStale = isTranslationStale;
     }
 
     public Guid SegmentId { get; }
@@ -74,6 +80,20 @@ public sealed class TranscriptSegmentItem : ObservableObject
         set => SetProperty(ref translationText, value);
     }
 
+    public bool IsTranslationStale
+    {
+        get => isTranslationStale;
+        set
+        {
+            if (SetProperty(ref isTranslationStale, value))
+            {
+                OnPropertyChanged(nameof(TranslationStatusLabel));
+            }
+        }
+    }
+
+    public string TranslationStatusLabel => IsTranslationStale ? "Stale translation" : string.Empty;
+
     public bool IsActive
     {
         get => isActive;
@@ -87,4 +107,9 @@ public sealed class TranscriptSegmentItem : ObservableObject
     }
 
     public Brush BackgroundBrush => IsActive ? ActiveBackgroundBrush : InactiveBackgroundBrush;
+
+    public string GetSubtitleText(bool preferTranslation) =>
+        preferTranslation && !string.IsNullOrWhiteSpace(TranslationText)
+            ? TranslationText
+            : Text;
 }

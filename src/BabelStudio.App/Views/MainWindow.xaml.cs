@@ -207,7 +207,7 @@ public sealed partial class MainWindow : Window
             }
 
             string targetLanguageCode = ViewModel.GetRequestedTranslationTargetLanguageCode()
-                ?? throw new InvalidOperationException("Choose whether the transcript is English or Spanish before starting translation.");
+                ?? throw new InvalidOperationException("Choose an available translation target before starting translation.");
 
             TranscriptProjectState state = await currentService.GenerateTranslationAsync(
                 new GenerateTranslationRequest(
@@ -416,6 +416,25 @@ public sealed partial class MainWindow : Window
         }, "Saving transcript language...").ConfigureAwait(true);
     }
 
+    private async void TranslationTargetComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (isApplyingProjectState ||
+            currentService is null ||
+            string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.SelectTranslationTargetAsync(
+                new SetTranslationTargetRequest(ViewModel.SelectedTranslationTargetLanguageCode),
+                cancellationToken).ConfigureAwait(true);
+            ApplyProjectState(state, currentProjectRootPath);
+            WaveformCanvas.Invalidate();
+        }, "Loading selected translation target...").ConfigureAwait(true);
+    }
+
     private void CopyErrorButton_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(ViewModel.LastErrorReport))
@@ -482,7 +501,9 @@ public sealed partial class MainWindow : Window
         if (state.ProjectState.SourceReference is null ||
             state.ProjectState.SourceStatus is not SourceMediaStatus.Available)
         {
+            shellServices.PlaybackService.Reset();
             ViewModel.ApplyPlaybackAssessment(null, hasBackend: false);
+            WaveformCanvas.Invalidate();
             return;
         }
 
@@ -582,6 +603,11 @@ public sealed partial class MainWindow : Window
         {
             "en" => "English",
             "es" => "Spanish",
+            "fr" => "French",
+            "de" => "German",
+            "it" => "Italian",
+            "pt" => "Portuguese",
+            "ja" => "Japanese",
             _ => "translation"
         };
 

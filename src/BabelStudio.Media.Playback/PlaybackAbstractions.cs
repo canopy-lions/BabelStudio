@@ -270,6 +270,12 @@ public sealed class PlaybackService
             ? Task.FromResult(PlaybackSnapshot.Empty)
             : backend.GetSnapshotAsync(ct);
 
+    public void Reset()
+    {
+        CurrentAssessment = null;
+        ReplaceBackend(null);
+    }
+
     private void ReplaceBackend(IPlaybackBackend? nextBackend)
     {
         if (!ReferenceEquals(backend, nextBackend) &&

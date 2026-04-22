@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Transcripts;
+using BabelStudio.Contracts.Pipeline;
 using BabelStudio.Domain;
+using BabelStudio.Domain.Translation;
 using BabelStudio.Media.Playback;
 
 namespace BabelStudio.App.ViewModels;
@@ -31,9 +33,12 @@ public sealed class MainWindowViewModel : ObservableObject
     private string projectNameDraft = "New Project";
     private string projectRootPath = "No project loaded.";
     private string selectedModelTier = "balanced";
+    private string? selectedTranslationTargetLanguageCode;
     private string? selectedTranscriptLanguageCode;
+    private bool showTranslatedSubtitles;
     private string sourceStatus = "No project loaded.";
     private string statusMessage = "Open media to create a project, or open an existing .babelstudio folder.";
+    private string translationTargetStatus = "Choose a translation target after loading a project.";
     private string translationRefreshStatus = "Not translated";
     private string translationRevisionLabel = "No translation loaded.";
     private string translationStageStatus = "Not run";
@@ -49,6 +54,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(CanSaveTranscript));
             OnPropertyChanged(nameof(CanSaveTranslation));
+            OnPropertyChanged(nameof(CanShowTranslatedSubtitles));
         };
     }
 
@@ -56,10 +62,23 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<RecentProjectItem> RecentProjects { get; } = [];
 
+    public ObservableCollection<TranslationTargetLanguageOption> SupportedTranslationTargets { get; } = [];
+
     public IReadOnlyList<TranscriptLanguageChoice> TranscriptLanguageOptions { get; } =
     [
         new("en", "English"),
         new("es", "Spanish")
+    ];
+
+    public IReadOnlyList<TranscriptLanguageChoice> TranslationLanguageOptions { get; } =
+    [
+        new("en", "English"),
+        new("es", "Spanish"),
+        new("fr", "French"),
+        new("de", "German"),
+        new("it", "Italian"),
+        new("pt", "Portuguese"),
+        new("ja", "Japanese")
     ];
 
     public IReadOnlyList<ModelTierChoice> ModelTierOptions { get; } =
@@ -170,6 +189,24 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(TranscriptLanguageSummary));
                 OnPropertyChanged(nameof(TranslateButtonText));
                 OnPropertyChanged(nameof(TranslationEditorLabel));
+                OnPropertyChanged(nameof(SelectedTranslationTargetLanguageCode));
+            }
+        }
+    }
+
+    public string? SelectedTranslationTargetLanguageCode
+    {
+        get => selectedTranslationTargetLanguageCode;
+        set
+        {
+            string? normalized = NormalizeLanguageCode(value);
+            if (SetProperty(ref selectedTranslationTargetLanguageCode, normalized))
+            {
+                UpdateTranslationTargetStatus();
+                UpdateActiveSegment(PlaybackPositionSeconds);
+                OnPropertyChanged(nameof(CanTranslate));
+                OnPropertyChanged(nameof(TranslateButtonText));
+                OnPropertyChanged(nameof(TranslationEditorLabel));
             }
         }
     }
@@ -196,6 +233,18 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         get => commercialSafeMode;
         set => SetProperty(ref commercialSafeMode, value);
+    }
+
+    public string TranslationTargetStatus
+    {
+        get => translationTargetStatus;
+        private set
+        {
+            if (SetProperty(ref translationTargetStatus, value))
+            {
+                OnPropertyChanged(nameof(TranscriptLanguageSummary));
+            }
+        }
     }
 
     public string WindowLayoutSummary
@@ -240,6 +289,19 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref currentSubtitleText, value);
     }
 
+    public bool ShowTranslatedSubtitles
+    {
+        get => showTranslatedSubtitles;
+        set
+        {
+            bool normalized = value && CanShowTranslatedSubtitles;
+            if (SetProperty(ref showTranslatedSubtitles, normalized))
+            {
+                UpdateActiveSegment(PlaybackPositionSeconds);
+            }
+        }
+    }
+
     public bool HasPlaybackBackend
     {
         get => hasPlaybackBackend;
@@ -257,7 +319,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool CanTranslate =>
         !IsBusy &&
         currentTranscriptRevisionId is not null &&
-        RequestedTranslationTargetLanguageCode is not null;
+        RequestedTranslationTargetLanguageCode is not null &&
+        SelectedTranslationTargetOption?.IsAvailable == true;
 
     public bool CanSaveTranslation =>
         !IsBusy &&
@@ -267,6 +330,10 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool CanCopyError => !string.IsNullOrWhiteSpace(lastErrorReport);
 
     public bool CanPlayMedia => HasPlaybackBackend && playbackLoaded;
+
+    public bool CanShowTranslatedSubtitles =>
+        currentTranslationRevisionId is not null &&
+        Segments.Any(segment => !string.IsNullOrWhiteSpace(segment.TranslationText));
 
     public string? LastErrorReport => lastErrorReport;
 
@@ -282,8 +349,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public string TranscriptLanguageSummary =>
         SelectedTranscriptLanguageCode switch
         {
-            "en" => "English transcript. Spanish translation is enabled.",
-            "es" => "Spanish transcript. English translation is enabled.",
+            "en" => $"English transcript. {TranslationTargetStatus}",
+            "es" => $"Spanish transcript. {TranslationTargetStatus}",
             _ => "Choose whether the transcript is English or Spanish."
         };
 
@@ -340,11 +407,12 @@ public sealed class MainWindowViewModel : ObservableObject
         currentTranscriptRevisionId = state.CurrentTranscriptRevision?.Id;
         currentTranslationRevisionId = state.CurrentTranslationRevision?.Id;
         persistedTranscriptLanguageCode = NormalizeLanguageCode(state.TranscriptLanguage) ?? string.Empty;
-        currentTranslationTargetLanguageCode = NormalizeLanguageCode(state.CurrentTranslationRevision?.TargetLanguage) ??
-                                               GetTranslationTargetLanguageCode(persistedTranscriptLanguageCode);
+        currentTranslationTargetLanguageCode = NormalizeLanguageCode(state.CurrentTranslationRevision?.TargetLanguage);
         SelectedTranscriptLanguageCode = string.IsNullOrWhiteSpace(persistedTranscriptLanguageCode)
             ? DefaultSourceLanguageCode
             : persistedTranscriptLanguageCode;
+        ApplySupportedTranslationTargets(state.SupportedTargetLanguages);
+        SelectedTranslationTargetLanguageCode = ResolveSelectedTranslationTargetLanguageCode(state);
 
         ProjectRootPath = loadedProjectRootPath;
         MediaPath = state.ProjectState.SourceReference?.OriginalPath ?? state.ProjectState.MediaAsset?.SourceFilePath ?? "Source media reference missing.";
@@ -366,15 +434,16 @@ public sealed class MainWindowViewModel : ObservableObject
             : $"Revision {state.CurrentTranscriptRevision.RevisionNumber} with {state.TranscriptSegments.Count} segment(s).";
         TranslationRevisionLabel = state.CurrentTranslationRevision is null
             ? BuildMissingTranslationLabel()
-            : $"{GetLanguageDisplayName(state.CurrentTranslationRevision.TargetLanguage)} revision {state.CurrentTranslationRevision.RevisionNumber} with {state.TranslatedSegments.Count} segment(s).";
+            : BuildTranslationRevisionLabel(state);
         TranslationRefreshStatus = state.CurrentTranslationRevision is null
             ? "Not translated"
             : state.IsTranslationStale
-                ? "Needs Refresh"
+                ? $"Needs Refresh ({state.StaleTranslatedSegmentIndices.Count} stale segment(s))"
                 : "Current";
 
         Dictionary<int, string> translatedTextByIndex = state.TranslatedSegments
             .ToDictionary(segment => segment.SegmentIndex, segment => segment.Text);
+        IReadOnlySet<int> staleTranslatedSegmentIndices = state.StaleTranslatedSegmentIndices;
 
         Segments.Clear();
         foreach (TranscriptSegmentItem item in state.TranscriptSegments
@@ -384,9 +453,15 @@ public sealed class MainWindowViewModel : ObservableObject
                          TranslationEditorLabel,
                          translatedTextByIndex.TryGetValue(segment.SegmentIndex, out string? translatedText)
                              ? translatedText
-                             : string.Empty)))
+                             : string.Empty,
+                         staleTranslatedSegmentIndices.Contains(segment.SegmentIndex))))
         {
             Segments.Add(item);
+        }
+
+        if (!CanShowTranslatedSubtitles)
+        {
+            ShowTranslatedSubtitles = false;
         }
 
         ProjectNameDraft = state.ProjectState.Project.Name;
@@ -410,6 +485,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(TranslationEditorLabel));
         OnPropertyChanged(nameof(HasTranscriptLanguageChangePending));
         OnPropertyChanged(nameof(TranscriptLanguageSummary));
+        OnPropertyChanged(nameof(CanShowTranslatedSubtitles));
     }
 
     public void ApplyPlaybackAssessment(PlaybackCapabilityAssessment? assessment, bool hasBackend)
@@ -420,10 +496,8 @@ public sealed class MainWindowViewModel : ObservableObject
         if (assessment is null)
         {
             playbackAssessmentWarning = string.Empty;
-            playbackRuntimeWarning = string.Empty;
-            playbackLoaded = false;
             PlaybackBackendLabel = "No media loaded.";
-            UpdatePlaybackWarning();
+            ApplyPlaybackSnapshot(PlaybackSnapshot.Empty);
             return;
         }
 
@@ -447,6 +521,18 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         playbackLoaded = snapshot.IsLoaded;
         playbackRuntimeWarning = snapshot.WarningMessage ?? string.Empty;
+
+        if (!snapshot.IsLoaded)
+        {
+            PlaybackPositionSeconds = 0d;
+            PlaybackDurationSeconds = 0d;
+            PlaybackPositionText = "00:00 / 00:00";
+            ClearActivePlaybackState();
+            UpdatePlaybackWarning();
+            OnPropertyChanged(nameof(CanPlayMedia));
+            return;
+        }
+
         PlaybackPositionSeconds = snapshot.Position.TotalSeconds;
         PlaybackDurationSeconds = snapshot.Duration > TimeSpan.Zero ? snapshot.Duration.TotalSeconds : 0d;
         PlaybackPositionText = $"{FormatClock(snapshot.Position)} / {FormatClock(snapshot.Duration)}";
@@ -469,7 +555,7 @@ public sealed class MainWindowViewModel : ObservableObject
             }
         }
 
-        CurrentSubtitleText = activeSegment?.Text ?? string.Empty;
+        CurrentSubtitleText = activeSegment?.GetSubtitleText(ShowTranslatedSubtitles) ?? string.Empty;
     }
 
     public void BeginOperation(string busyMessage)
@@ -602,12 +688,22 @@ public sealed class MainWindowViewModel : ObservableObject
                 : "Project loaded. Edit transcript timing, transcript text, or translation text and save to create a new revision.";
         }
 
-        string? targetLanguageCode = GetTranslationTargetLanguageCode(state.TranscriptLanguage);
-        string targetDisplayName = GetLanguageDisplayName(targetLanguageCode);
+        TranslationTargetLanguageOption? selectedTarget = ResolveSelectedTranslationTarget(state);
+        if (selectedTarget is null)
+        {
+            return NormalizeLanguageCode(state.TranscriptLanguage) switch
+            {
+                "en" or "es" => "Project loaded. Install a translation model to enable translation review.",
+                _ => "Project loaded. Choose whether the transcript is English or Spanish to continue."
+            };
+        }
+
+        string targetDisplayName = GetLanguageDisplayName(selectedTarget.LanguageCode);
         return NormalizeLanguageCode(state.TranscriptLanguage) switch
         {
-            "en" => $"Project loaded. Translate to {targetDisplayName} to create the first draft translation.",
-            "es" => $"Project loaded. Translate to {targetDisplayName} to create the first draft translation.",
+            "en" or "es" when selectedTarget.IsAvailable =>
+                $"Project loaded. Translate to {targetDisplayName} to create the first draft translation.",
+            "en" or "es" => $"Project loaded. {selectedTarget.Detail}",
             _ => "Project loaded. Choose whether the transcript is English or Spanish to continue."
         };
     }
@@ -660,6 +756,16 @@ public sealed class MainWindowViewModel : ObservableObject
                 .Distinct(StringComparer.Ordinal));
     }
 
+    private void ClearActivePlaybackState()
+    {
+        foreach (TranscriptSegmentItem segment in Segments)
+        {
+            segment.IsActive = false;
+        }
+
+        CurrentSubtitleText = string.Empty;
+    }
+
     private string BuildExceptionErrorReport(Exception exception, string context)
     {
         return string.Join(Environment.NewLine,
@@ -701,6 +807,78 @@ public sealed class MainWindowViewModel : ObservableObject
             ? null
             : languageCode.Trim().ToLowerInvariant();
 
+    private void ApplySupportedTranslationTargets(IReadOnlyList<TranslationTargetLanguageOption> options)
+    {
+        SupportedTranslationTargets.Clear();
+        foreach (TranslationTargetLanguageOption option in options)
+        {
+            SupportedTranslationTargets.Add(option);
+        }
+
+        UpdateTranslationTargetStatus();
+    }
+
+    private string? ResolveSelectedTranslationTargetLanguageCode(TranscriptProjectState state)
+    {
+        string? selectedTargetLanguageCode = NormalizeLanguageCode(state.SelectedTranslationTargetLanguage);
+        if (selectedTargetLanguageCode is not null &&
+            SupportedTranslationTargets.Any(option => string.Equals(option.LanguageCode, selectedTargetLanguageCode, StringComparison.Ordinal)))
+        {
+            return selectedTargetLanguageCode;
+        }
+
+        string? defaultTargetLanguageCode = NormalizeLanguageCode(DefaultTargetLanguageCode);
+        if (defaultTargetLanguageCode is not null &&
+            SupportedTranslationTargets.Any(option => string.Equals(option.LanguageCode, defaultTargetLanguageCode, StringComparison.Ordinal)))
+        {
+            return defaultTargetLanguageCode;
+        }
+
+        return SupportedTranslationTargets.FirstOrDefault(option => option.IsAvailable)?.LanguageCode
+               ?? SupportedTranslationTargets.FirstOrDefault()?.LanguageCode;
+    }
+
+    private void UpdateTranslationTargetStatus()
+    {
+        TranslationTargetLanguageOption? selectedTarget = SelectedTranslationTargetOption;
+        if (selectedTarget is null)
+        {
+            TranslationTargetStatus = SupportedTranslationTargets.Count == 0
+                ? "No translation routes are currently available."
+                : "Choose a translation target.";
+            return;
+        }
+
+        TranslationTargetStatus = selectedTarget.IsAvailable
+            ? selectedTarget.Detail
+            : $"Unavailable - {selectedTarget.Detail}";
+    }
+
+    private static TranslationTargetLanguageOption? ResolveSelectedTranslationTarget(TranscriptProjectState state)
+    {
+        string? selectedTargetLanguageCode = NormalizeLanguageCode(state.SelectedTranslationTargetLanguage);
+        if (selectedTargetLanguageCode is null)
+        {
+            return state.SupportedTargetLanguages.FirstOrDefault(option => option.IsAvailable)
+                   ?? state.SupportedTargetLanguages.FirstOrDefault();
+        }
+
+        return state.SupportedTargetLanguages.FirstOrDefault(option =>
+                   string.Equals(option.LanguageCode, selectedTargetLanguageCode, StringComparison.Ordinal))
+               ?? state.SupportedTargetLanguages.FirstOrDefault(option => option.IsAvailable)
+               ?? state.SupportedTargetLanguages.FirstOrDefault();
+    }
+
+    private static string BuildTranslationRevisionLabel(TranscriptProjectState state)
+    {
+        TranslationRevision revision = state.CurrentTranslationRevision
+            ?? throw new InvalidOperationException("Translation revision is required.");
+        string providerSuffix = string.IsNullOrWhiteSpace(revision.TranslationProvider)
+            ? string.Empty
+            : $" via {revision.TranslationProvider}";
+        return $"{GetLanguageDisplayName(revision.TargetLanguage)} revision {revision.RevisionNumber} with {state.TranslatedSegments.Count} segment(s){providerSuffix}.";
+    }
+
     private string BuildMissingTranslationLabel()
     {
         string? targetLanguageCode = LoadedOrRequestedTranslationTargetLanguageCode;
@@ -717,21 +895,24 @@ public sealed class MainWindowViewModel : ObservableObject
         currentTranslationTargetLanguageCode ?? RequestedTranslationTargetLanguageCode;
 
     private string? RequestedTranslationTargetLanguageCode =>
-        GetTranslationTargetLanguageCode(SelectedTranscriptLanguageCode ?? persistedTranscriptLanguageCode);
+        NormalizeLanguageCode(selectedTranslationTargetLanguageCode)
+        ?? SupportedTranslationTargets.FirstOrDefault(option => option.IsAvailable)?.LanguageCode
+        ?? SupportedTranslationTargets.FirstOrDefault()?.LanguageCode;
 
-    private static string? GetTranslationTargetLanguageCode(string? transcriptLanguageCode) =>
-        NormalizeLanguageCode(transcriptLanguageCode) switch
-        {
-            "en" => "es",
-            "es" => "en",
-            _ => null
-        };
+    private TranslationTargetLanguageOption? SelectedTranslationTargetOption =>
+        SupportedTranslationTargets.FirstOrDefault(option =>
+            string.Equals(option.LanguageCode, RequestedTranslationTargetLanguageCode, StringComparison.Ordinal));
 
     private static string GetLanguageDisplayName(string? languageCode) =>
         NormalizeLanguageCode(languageCode) switch
         {
             "en" => "English",
             "es" => "Spanish",
+            "fr" => "French",
+            "de" => "German",
+            "it" => "Italian",
+            "pt" => "Portuguese",
+            "ja" => "Japanese",
             _ => "Translation"
         };
 
