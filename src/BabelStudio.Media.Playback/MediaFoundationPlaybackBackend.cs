@@ -13,6 +13,8 @@ public sealed class MediaFoundationPlaybackBackend :
 {
     private MediaPlayer? mediaPlayer;
     private MediaPlayerElement? mediaPlayerElement;
+    private bool isLoaded;
+    private string? runtimeWarningMessage;
 
     public bool TryAttachHost(object host)
     {
@@ -30,16 +32,62 @@ public sealed class MediaFoundationPlaybackBackend :
         return true;
     }
 
-    public Task OpenAsync(MediaSourceDescriptor source, CancellationToken ct)
+    public async Task OpenAsync(MediaSourceDescriptor source, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.SourcePath);
 
         MediaPlayer player = EnsurePlayer();
+        isLoaded = false;
+        runtimeWarningMessage = null;
+
+        // We must await MediaOpened before returning so that a subsequent PlayAsync call
+        // finds the player in a ready state. If Play() is called while the MediaPlayer is
+        // still in the Opening state, Windows Media Foundation silently drops the call.
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnMediaOpened(MediaPlayer sender, object args)
+        {
+            player.MediaOpened -= OnMediaOpened;
+            player.MediaFailed -= OnMediaFailed;
+            tcs.TrySetResult(true);
+        }
+
+        void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
+        {
+            player.MediaOpened -= OnMediaOpened;
+            player.MediaFailed -= OnMediaFailed;
+            // Resolve rather than fault: the MediaFailed event is surfaced separately as a
+            // warning through GetSnapshotAsync / PlaybackWarning. We don't want OpenAsync to
+            // throw because the caller (PlaybackService) has already stored this backend and
+            // the UI will display the format warning regardless.
+            tcs.TrySetResult(false);
+        }
+
+        player.MediaOpened += OnMediaOpened;
+        player.MediaFailed += OnMediaFailed;
+
+        using CancellationTokenRegistration reg = ct.Register(() =>
+        {
+            player.MediaOpened -= OnMediaOpened;
+            player.MediaFailed -= OnMediaFailed;
+            tcs.TrySetCanceled(ct);
+        });
+
+        // Build a well-formed URI from a Windows file path. new Uri(path, UriKind.Absolute)
+        // handles both "C:\..." absolute paths and existing "file:///" URIs correctly.
+        player.Source = null;
         player.Source = MediaSource.CreateFromUri(new Uri(source.SourcePath, UriKind.Absolute));
-        player.PlaybackSession.Position = TimeSpan.Zero;
         player.PlaybackSession.PlaybackRate = 1d;
-        player.Pause();
-        return Task.CompletedTask;
+
+        await tcs.Task.ConfigureAwait(false);
+
+        // Guarantee we start paused at position zero even if AutoPlay somehow fired.
+        if (player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing)
+        {
+            player.Pause();
+        }
+
+        player.PlaybackSession.Position = TimeSpan.Zero;
     }
 
     public Task PlayAsync(CancellationToken ct)
@@ -83,18 +131,27 @@ public sealed class MediaFoundationPlaybackBackend :
 
         MediaPlaybackSession session = mediaPlayer.PlaybackSession;
         return Task.FromResult(new PlaybackSnapshot(
-            IsLoaded: mediaPlayer.Source is not null,
+            IsLoaded: isLoaded,
             IsPlaying: session.PlaybackState == MediaPlaybackState.Playing,
             Position: session.Position,
             Duration: session.NaturalDuration,
-            PlaybackRate: session.PlaybackRate));
+            PlaybackRate: session.PlaybackRate,
+            WarningMessage: runtimeWarningMessage));
     }
 
     public void Dispose()
     {
+        if (mediaPlayer is not null)
+        {
+            mediaPlayer.MediaOpened -= MediaPlayer_MediaOpened;
+            mediaPlayer.MediaFailed -= MediaPlayer_MediaFailed;
+        }
+
         mediaPlayerElement?.SetMediaPlayer(null);
         mediaPlayer?.Dispose();
         mediaPlayer = null;
+        isLoaded = false;
+        runtimeWarningMessage = null;
     }
 
     private MediaPlayer EnsurePlayer()
@@ -109,6 +166,8 @@ public sealed class MediaFoundationPlaybackBackend :
             AutoPlay = false,
             IsLoopingEnabled = false
         };
+        mediaPlayer.MediaOpened += MediaPlayer_MediaOpened;
+        mediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
 
         if (mediaPlayerElement is not null)
         {
@@ -117,5 +176,20 @@ public sealed class MediaFoundationPlaybackBackend :
 
         return mediaPlayer;
     }
+
+    private void MediaPlayer_MediaOpened(MediaPlayer sender, object args)
+    {
+        isLoaded = true;
+        runtimeWarningMessage = null;
+    }
+
+    private void MediaPlayer_MediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
+    {
+        isLoaded = false;
+        runtimeWarningMessage = BuildFailureWarning(args);
+    }
+
+    private static string BuildFailureWarning(MediaPlayerFailedEventArgs args) =>
+        $"Media Foundation failed to open or play this source ({args.Error}).";
 }
 #endif

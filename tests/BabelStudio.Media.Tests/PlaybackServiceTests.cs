@@ -85,6 +85,55 @@ public sealed class PlaybackServiceTests
     }
 
     [Fact]
+    public async Task Open_leaves_playback_unavailable_when_required_fallback_backend_is_missing()
+    {
+        var service = new PlaybackService(new PlaybackCapabilityProbe(), new FakePlaybackBackendFactory());
+        var source = new MediaSourceDescriptor(
+            @"D:\media\sample.mkv",
+            new MediaProbeSnapshot(
+                "matroska,webm",
+                "Matroska / WebM",
+                12.0,
+                4096,
+                [new MediaAudioStream(0, "opus", 2, 48000, 12.0)],
+                [new MediaVideoStream(1, "prores", 1920, 1080, 24.0, 12.0)]));
+
+        PlaybackOpenResult openResult = await service.OpenAsync(source, CancellationToken.None);
+
+        Assert.False(openResult.IsBackendAvailable);
+        Assert.False(openResult.Snapshot.IsLoaded);
+        Assert.Equal(PlaybackBackendKind.FfmpegFallback, openResult.Assessment.PreferredBackend);
+        Assert.Contains("not implemented", openResult.Snapshot.WarningMessage);
+    }
+
+    [Fact]
+    public async Task Open_surfaces_runtime_media_failure_warning_for_supported_source()
+    {
+        var backend = new FakePlaybackBackend
+        {
+            WarningOnOpen = "Media Foundation failed to open or play this source (Network)."
+        };
+        var service = new PlaybackService(
+            new PlaybackCapabilityProbe(),
+            new FakePlaybackBackendFactory().Add(PlaybackBackendKind.MediaFoundation, backend));
+        var source = new MediaSourceDescriptor(
+            @"D:\media\sample.mp4",
+            new MediaProbeSnapshot(
+                "mp4",
+                "MP4",
+                5.0,
+                2048,
+                [new MediaAudioStream(0, "aac", 2, 44100, 5.0)],
+                [new MediaVideoStream(1, "h264", 1280, 720, 24.0, 5.0)]));
+
+        PlaybackOpenResult openResult = await service.OpenAsync(source, CancellationToken.None);
+
+        Assert.True(openResult.IsBackendAvailable);
+        Assert.False(openResult.Snapshot.IsLoaded);
+        Assert.Contains("failed to open or play", openResult.Snapshot.WarningMessage);
+    }
+
+    [Fact]
     public void WaveformMapping_converts_time_and_pixels_consistently()
     {
         float x = WaveformMapping.TimeToPixel(5.0, 10.0, 200f);
@@ -92,55 +141,5 @@ public sealed class PlaybackServiceTests
 
         Assert.Equal(100f, x, 3);
         Assert.Equal(5.0, seconds, 3);
-    }
-
-    private sealed class FakePlaybackBackendFactory : IPlaybackBackendFactory
-    {
-        private readonly IPlaybackBackend backend;
-
-        public FakePlaybackBackendFactory(IPlaybackBackend backend)
-        {
-            this.backend = backend;
-        }
-
-        public IPlaybackBackend? Create(PlaybackBackendKind backendKind) =>
-            backendKind == PlaybackBackendKind.MediaFoundation ? backend : null;
-    }
-
-    private sealed class FakePlaybackBackend : IPlaybackBackend, IPlaybackRateBackend
-    {
-        private PlaybackSnapshot snapshot = PlaybackSnapshot.Empty with
-        {
-            IsLoaded = true,
-            Duration = TimeSpan.FromSeconds(5)
-        };
-
-        public Task OpenAsync(MediaSourceDescriptor source, CancellationToken ct) => Task.CompletedTask;
-
-        public Task PlayAsync(CancellationToken ct)
-        {
-            snapshot = snapshot with { IsPlaying = true };
-            return Task.CompletedTask;
-        }
-
-        public Task PauseAsync(CancellationToken ct)
-        {
-            snapshot = snapshot with { IsPlaying = false };
-            return Task.CompletedTask;
-        }
-
-        public Task SeekAsync(TimeSpan position, CancellationToken ct)
-        {
-            snapshot = snapshot with { Position = position };
-            return Task.CompletedTask;
-        }
-
-        public Task SetPlaybackRateAsync(double playbackRate, CancellationToken ct)
-        {
-            snapshot = snapshot with { PlaybackRate = playbackRate };
-            return Task.CompletedTask;
-        }
-
-        public Task<PlaybackSnapshot> GetSnapshotAsync(CancellationToken ct) => Task.FromResult(snapshot);
     }
 }

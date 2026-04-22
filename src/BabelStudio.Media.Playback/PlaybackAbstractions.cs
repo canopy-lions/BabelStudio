@@ -1,3 +1,5 @@
+using BabelStudio.Application.Contracts;
+using BabelStudio.Domain;
 using BabelStudio.Domain.Media;
 
 namespace BabelStudio.Media.Playback;
@@ -18,14 +20,16 @@ public sealed record PlaybackSnapshot(
     bool IsPlaying,
     TimeSpan Position,
     TimeSpan Duration,
-    double PlaybackRate)
+    double PlaybackRate,
+    string? WarningMessage)
 {
     public static PlaybackSnapshot Empty { get; } = new(
         IsLoaded: false,
         IsPlaying: false,
         Position: TimeSpan.Zero,
         Duration: TimeSpan.Zero,
-        PlaybackRate: 1d);
+        PlaybackRate: 1d,
+        WarningMessage: null);
 }
 
 public sealed record PlaybackCapabilityAssessment(
@@ -228,10 +232,16 @@ public sealed class PlaybackService
     public async Task<PlaybackOpenResult> OpenAsync(MediaSourceDescriptor source, CancellationToken ct)
     {
         CurrentAssessment = capabilityProbe.Assess(source);
-        backend = backendFactory.Create(CurrentAssessment.PreferredBackend);
+        ReplaceBackend(backendFactory.Create(CurrentAssessment.PreferredBackend));
         if (backend is null)
         {
-            return new PlaybackOpenResult(CurrentAssessment, IsBackendAvailable: false, PlaybackSnapshot.Empty);
+            return new PlaybackOpenResult(
+                CurrentAssessment,
+                IsBackendAvailable: false,
+                PlaybackSnapshot.Empty with
+                {
+                    WarningMessage = BuildBackendUnavailableWarning(CurrentAssessment)
+                });
         }
 
         await backend.OpenAsync(source, ct).ConfigureAwait(false);
