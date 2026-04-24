@@ -9,7 +9,9 @@ Windows-native, local-first AI dubbing workstation. .NET 10 / C# / WinUI 3 (plan
 ```
 App → Application → Domain ← Contracts
 Infrastructure → Application → Domain
+Infrastructure → Contracts
 Media → Application → Domain
+Media → Contracts
 Inference → Domain, Contracts
 Inference.Onnx → Inference, Domain, Contracts
 Benchmarks → Inference, Inference.Onnx, Infrastructure, Domain
