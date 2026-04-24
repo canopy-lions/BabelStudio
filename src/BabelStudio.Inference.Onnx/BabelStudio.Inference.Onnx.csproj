@@ -7,8 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
+    <ProjectReference Include="..\BabelStudio.Contracts\BabelStudio.Contracts.csproj" />
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
+    <ProjectReference Include="..\BabelStudio.Inference\BabelStudio.Inference.csproj" />
   </ItemGroup>
 
   <ItemGroup>
