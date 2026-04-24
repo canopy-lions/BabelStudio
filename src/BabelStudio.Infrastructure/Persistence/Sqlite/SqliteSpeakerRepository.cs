@@ -330,12 +330,12 @@ public sealed class SqliteSpeakerRepository : ISpeakerRepository
                 """
                 UPDATE transcript_segments
                 SET speaker_id = $targetSpeakerId
-                WHERE project_id = (
-                    SELECT project_id FROM transcript_revisions
-                    WHERE id = transcript_segments.transcript_revision_id
-                )
-                  AND project_id = $projectId
-                  AND speaker_id = $sourceSpeakerId;
+                WHERE speaker_id = $sourceSpeakerId
+                  AND transcript_revision_id IN (
+                      SELECT id
+                      FROM transcript_revisions
+                      WHERE project_id = $projectId);
+                """;
                 """;
             updateSegments.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
             updateSegments.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));

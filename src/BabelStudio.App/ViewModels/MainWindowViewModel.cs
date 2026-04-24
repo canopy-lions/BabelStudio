@@ -746,7 +746,7 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         return !double.IsFinite(splitSeconds)
             ? null
-            : new SplitSpeakerTurnRequest(turn.TurnId, splitSeconds);
+    public ExtractReferenceClipRequest CreateExtractReferenceClipRequest(SpeakerItem speaker) =>
     }
 
     public ExtractReferenceClipRequest? CreateExtractReferenceClipRequest(SpeakerItem speaker) =>
