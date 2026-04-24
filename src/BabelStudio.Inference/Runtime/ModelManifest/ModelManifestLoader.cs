@@ -307,7 +307,7 @@ public static class ModelManifestLoader
         TryParse(
             () => ModelManifestText.ParseLicense(value),
             () => new ModelManifestValidationException(
-                $"Manifest '{sourceName}' field '{path}.license' value '{value}' is invalid. Expected MIT, Apache-2.0, CC-BY-4.0, custom, unknown, non-commercial, or noncommercial."));
+                $"Manifest '{sourceName}' field '{path}.license' value '{value}' is invalid. Expected MIT, Apache-2.0, CC-BY-4.0, CC-BY-NC-4.0, custom, unknown, non-commercial, or noncommercial."));
 
     private static T TryParse<T>(Func<T> parser, Func<Exception> errorFactory)
     {
