@@ -179,6 +179,46 @@ public sealed class ModelManifestLoaderTests
     }
 
     [Fact]
+    public void LoadCatalog_RejectsCcByNc40LicenseWithCommercialAllowed()
+    {
+        string manifestPath = WriteTempManifest(
+            """
+            {
+              "models": [
+                {
+                  "model_id": "example/noncommercial-model",
+                  "task": "diarization",
+                  "license": "CC-BY-NC-4.0",
+                  "commercial_allowed": true,
+                  "redistribution_allowed": true,
+                  "requires_attribution": true,
+                  "requires_user_consent": false,
+                  "voice_cloning": false,
+                  "commercial_safe_mode": false,
+                  "source_url": "",
+                  "revision": "",
+                  "sha256": "",
+                  "variants": []
+                }
+              ]
+            }
+            """);
+
+        try
+        {
+            ModelManifestValidationException exception = Assert.Throws<ModelManifestValidationException>(
+                () => ModelManifestLoader.LoadCatalog(manifestPath));
+
+            Assert.Contains("commercial_allowed", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("non-commercial", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(manifestPath);
+        }
+    }
+
+    [Fact]
     public void LoadCatalog_RejectsDuplicateAliases()
     {
         string manifestPath = WriteTempManifest(

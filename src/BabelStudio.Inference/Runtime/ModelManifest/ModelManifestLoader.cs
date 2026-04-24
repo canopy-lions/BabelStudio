@@ -89,6 +89,12 @@ public static class ModelManifestLoader
                 $"Manifest '{sourceName}' entry '{path}' cannot mark an unknown-license or non-commercial model as commercial-safe.");
         }
 
+        if ((license is ModelLicenseKind.NonCommercial or ModelLicenseKind.CcByNc40) && commercialAllowed)
+        {
+            throw new ModelManifestValidationException(
+                $"Manifest '{sourceName}' entry '{path}' cannot set 'commercial_allowed' to true when the license is non-commercial.");
+        }
+
         if (!string.IsNullOrWhiteSpace(benchmarkEntry) && string.IsNullOrWhiteSpace(rootPath))
         {
             throw new ModelManifestValidationException(
