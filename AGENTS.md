@@ -18,6 +18,7 @@ Benchmarks → Domain, Inference, Inference.Onnx, Infrastructure
 Composition → Application, Inference, Inference.Onnx, Infrastructure, Media, Media.Playback
 Tools → Application, Domain, Infrastructure, Media
 Contracts → (no project dependencies)
+Domain → (no project dependencies)
 ```
 
 Projects with implementation code (`.cs` sources): `BabelStudio.App`, `BabelStudio.Application`, `BabelStudio.Benchmarks`, `BabelStudio.Composition`, `BabelStudio.Contracts`, `BabelStudio.Domain`, `BabelStudio.Inference`, `BabelStudio.Inference.Onnx`, `BabelStudio.Infrastructure`, `BabelStudio.Media`, `BabelStudio.Media.Playback`, `BabelStudio.Tools`. All planned projects now have `.cs` files.
