@@ -8,15 +8,16 @@ Windows-native, local-first AI dubbing workstation. .NET 10 / C# / WinUI 3 (plan
 
 ```
 App → Application, Composition, Domain, Media.Playback
-Application → Domain ← Contracts
-Infrastructure → Application → Domain
-Infrastructure → Contracts
-Media → Application → Domain
-Media → Contracts
-Inference → Domain, Contracts
-Inference.Onnx → Inference, Domain, Contracts
-Benchmarks → Inference, Inference.Onnx, Infrastructure, Domain
+Application → Contracts, Domain
+Infrastructure → Application, Contracts, Domain
+Media → Application, Contracts, Domain
+Media.Playback → Application, Domain
+Inference → Contracts, Domain
+Inference.Onnx → Inference, Contracts, Domain
+Benchmarks → Domain, Inference, Inference.Onnx, Infrastructure
 Composition → Application, Inference, Inference.Onnx, Infrastructure, Media, Media.Playback
+Tools → Application, Domain, Infrastructure, Media
+Contracts → (no project dependencies)
 ```
 
 Projects with implementation code (`.cs` sources): `BabelStudio.App`, `BabelStudio.Application`, `BabelStudio.Benchmarks`, `BabelStudio.Composition`, `BabelStudio.Contracts`, `BabelStudio.Domain`, `BabelStudio.Inference`, `BabelStudio.Inference.Onnx`, `BabelStudio.Infrastructure`, `BabelStudio.Media`, `BabelStudio.Media.Playback`, `BabelStudio.Tools`. All planned projects now have `.cs` files.
