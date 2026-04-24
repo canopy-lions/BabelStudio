@@ -830,21 +830,6 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public Task MergeSpeakersAsync(Guid projectId, Guid sourceSpeakerId, Guid targetSpeakerId, CancellationToken cancellationToken)
-        {
-            for (int index = 0; index < Turns.Count; index++)
-            {
-                SpeakerTurn turn = Turns[index];
-                if (turn.ProjectId == projectId && turn.SpeakerId == sourceSpeakerId)
-                {
-                    Turns[index] = turn with { SpeakerId = targetSpeakerId };
-                }
-            }
-
-            Speakers.RemoveAll(speaker => speaker.ProjectId == projectId && speaker.Id == sourceSpeakerId);
-            return Task.CompletedTask;
-        }
-
         public Task SplitTurnAsync(Guid projectId, Guid speakerTurnId, double splitSeconds, CancellationToken cancellationToken)
         {
             int index = Turns.FindIndex(turn => turn.ProjectId == projectId && turn.Id == speakerTurnId);
