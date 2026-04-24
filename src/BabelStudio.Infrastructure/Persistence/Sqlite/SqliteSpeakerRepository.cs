@@ -297,6 +297,69 @@ public sealed class SqliteSpeakerRepository : ISpeakerRepository
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task MergeSpeakersAsync(
+        Guid projectId,
+        Guid sourceSpeakerId,
+        Guid targetSpeakerId,
+        CancellationToken cancellationToken)
+    {
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteTransaction transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using (SqliteCommand updateTurns = connection.CreateCommand())
+        {
+            updateTurns.Transaction = transaction;
+            updateTurns.CommandText =
+                """
+                UPDATE speaker_turns
+                SET speaker_id = $targetSpeakerId
+                WHERE project_id = $projectId
+                  AND speaker_id = $sourceSpeakerId;
+                """;
+            updateTurns.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            updateTurns.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+            updateTurns.Parameters.AddWithValue("$targetSpeakerId", targetSpeakerId.ToString("D"));
+            await updateTurns.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (SqliteCommand updateSegments = connection.CreateCommand())
+        {
+            updateSegments.Transaction = transaction;
+            updateSegments.CommandText =
+                """
+                UPDATE transcript_segments
+                SET speaker_id = $targetSpeakerId
+                WHERE project_id = (
+                    SELECT project_id FROM transcript_revisions
+                    WHERE id = transcript_segments.transcript_revision_id
+                )
+                  AND project_id = $projectId
+                  AND speaker_id = $sourceSpeakerId;
+                """;
+            updateSegments.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            updateSegments.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+            updateSegments.Parameters.AddWithValue("$targetSpeakerId", targetSpeakerId.ToString("D"));
+            await updateSegments.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (SqliteCommand deleteSpeaker = connection.CreateCommand())
+        {
+            deleteSpeaker.Transaction = transaction;
+            deleteSpeaker.CommandText =
+                """
+                DELETE FROM speakers
+                WHERE project_id = $projectId
+                  AND id = $sourceSpeakerId;
+                """;
+            deleteSpeaker.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            deleteSpeaker.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+            await deleteSpeaker.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task SplitTurnAsync(
         Guid projectId,
         Guid speakerTurnId,

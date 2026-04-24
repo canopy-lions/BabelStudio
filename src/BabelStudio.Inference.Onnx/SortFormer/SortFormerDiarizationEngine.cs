@@ -304,7 +304,7 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
     {
         if (speechRegions.Count == 0)
         {
-            return samples;
+            return new float[samples.Length];
         }
 
         var masked = new float[samples.Length];

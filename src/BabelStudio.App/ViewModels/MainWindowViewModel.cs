@@ -749,7 +749,7 @@ public sealed class MainWindowViewModel : ObservableObject
             : new SplitSpeakerTurnRequest(turn.TurnId, splitSeconds);
     }
 
-    public ExtractReferenceClipRequest CreateExtractReferenceClipRequest(SpeakerItem speaker) =>
+    public ExtractReferenceClipRequest? CreateExtractReferenceClipRequest(SpeakerItem speaker) =>
         new(speaker.SpeakerId);
 
     public string? GetRequestedTranslationTargetLanguageCode() => RequestedTranslationTargetLanguageCode;

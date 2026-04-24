@@ -11,7 +11,7 @@ public interface ISpeakerDiarizationEngine
 }
 
 public sealed record DiarizedSpeakerTurn(
-    string SpeakerKey,
+    string? SpeakerKey,
     double StartSeconds,
     double EndSeconds,
     double? Confidence = null,
