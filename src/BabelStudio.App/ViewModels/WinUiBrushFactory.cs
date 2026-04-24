@@ -12,11 +12,7 @@ internal static class WinUiBrushFactory
         {
             return new SolidColorBrush(color);
         }
-        catch (COMException)
-        {
-            return null;
-        }
-        catch (TypeInitializationException)
+        catch (Exception ex) when (ex is COMException or TypeInitializationException)
         {
             return null;
         }

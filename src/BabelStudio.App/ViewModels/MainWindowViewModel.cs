@@ -343,6 +343,8 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref currentWaveformSummary, value);
     }
 
+    public Guid? CurrentTranscriptRevisionId => currentTranscriptRevisionId;
+
     public bool CanSaveTranscript => !IsBusy && currentTranscriptRevisionId is not null && Segments.Count > 0;
 
     public bool CanTranslate =>
@@ -922,13 +924,15 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         return speakers
             .OrderBy(speaker => speaker.CreatedAtUtc)
-            .Select((speaker, index) => new
+            .Select((speaker, index) =>
             {
-                speaker.Id,
-                Visual = new SpeakerVisual(
-                    speaker.DisplayName,
-                    SpeakerPalette[index % SpeakerPalette.Length],
-                    WinUiBrushFactory.TryCreateSolidColorBrush(SpeakerPalette[index % SpeakerPalette.Length]))
+                Color color = SpeakerPalette[index % SpeakerPalette.Length];
+                Brush? brush = WinUiBrushFactory.TryCreateSolidColorBrush(color);
+                return new
+                {
+                    speaker.Id,
+                    Visual = new SpeakerVisual(speaker.DisplayName, color, brush)
+                };
             })
             .ToDictionary(entry => entry.Id, entry => entry.Visual);
     }

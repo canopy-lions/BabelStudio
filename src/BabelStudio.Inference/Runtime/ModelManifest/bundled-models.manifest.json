@@ -29,7 +29,7 @@
     {
       "model_id": "nvidia/diar_sortformer_4spk-v1",
       "task": "diarization",
-      "license": "non-commercial",
+      "license": "CC-BY-NC-4.0",
       "commercial_allowed": false,
       "redistribution_allowed": true,
       "requires_attribution": true,

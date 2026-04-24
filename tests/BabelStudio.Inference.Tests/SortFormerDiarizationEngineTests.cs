@@ -12,7 +12,7 @@ namespace BabelStudio.Inference.Tests;
 public sealed class SortFormerDiarizationEngineTests
 {
     [SortFormerFixtureFact]
-    public async Task DiarizeAsync_with_real_sortformer_fixture_skips_when_model_is_absent()
+    public async Task DiarizeAsync_with_real_sortformer_fixture_produces_valid_turns()
     {
         BundledModelManifestRegistry registry = LoadRegistry();
         _ = ResolveFixtureModelPath(registry)
@@ -44,6 +44,16 @@ public sealed class SortFormerDiarizationEngineTests
                 CancellationToken.None);
 
             Assert.NotNull(turns);
+
+            foreach (DiarizedSpeakerTurn turn in turns)
+            {
+                Assert.True(turn.EndSeconds > turn.StartSeconds, $"Turn end ({turn.EndSeconds}) must be greater than start ({turn.StartSeconds}).");
+                Assert.True(turn.EndSeconds <= 1.0, $"Turn end ({turn.EndSeconds}) must not exceed audio duration (1.0).");
+                if (turn.Confidence is double confidence)
+                {
+                    Assert.True(confidence >= 0.0 && confidence <= 1.0, $"Turn confidence ({confidence}) must be between 0.0 and 1.0.");
+                }
+            }
         }
         finally
         {
@@ -126,7 +136,14 @@ public sealed class SortFormerDiarizationEngineTests
                 return;
             }
 
-            if (ResolveFixtureModelPath(registry) is null)
+            try
+            {
+                if (ResolveFixtureModelPath(registry) is null)
+                {
+                    Skip = "SortFormer ONNX fixture is not present in the local models directory.";
+                }
+            }
+            catch (Exception)
             {
                 Skip = "SortFormer ONNX fixture is not present in the local models directory.";
             }

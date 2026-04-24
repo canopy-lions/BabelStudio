@@ -717,7 +717,6 @@ public sealed class TranscriptProjectService
                 writeHandle.TemporaryPath,
                 cancellationToken).ConfigureAwait(false);
             await artifactStore.CommitAsync(writeHandle, cancellationToken).ConfigureAwait(false);
-            committed = true;
 
             FileFingerprint fingerprint = await fileFingerprintService.ComputeAsync(
                 artifactStore.GetPath(relativePath),
@@ -738,6 +737,17 @@ public sealed class TranscriptProjectService
                 StageRunId: null,
                 Provenance: $"speaker-reference:{request.SpeakerId:D}");
             await mediaAssetRepository.SaveArtifactAsync(artifact, cancellationToken).ConfigureAwait(false);
+
+            committed = true;
+        }
+        catch
+        {
+            if (File.Exists(artifactStore.GetPath(relativePath)))
+            {
+                File.Delete(artifactStore.GetPath(relativePath));
+            }
+
+            throw;
         }
         finally
         {
@@ -1130,22 +1140,22 @@ public sealed class TranscriptProjectService
                 return await CreateDefaultSpeakerAssignmentAsync(projectId, recognizedSegments, cancellationToken).ConfigureAwait(false);
             }
 
-            ProjectSpeaker[] speakers = diarizedTurns
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            var speakerData = diarizedTurns
                 .OrderBy(turn => turn.StartSeconds)
                 .GroupBy(turn => turn.NormalizedSpeakerKey, StringComparer.OrdinalIgnoreCase)
-                .Select((group, index) => new
+                .Select((group, index) =>
                 {
-                    SpeakerKey = group.Key,
-                    Speaker = ProjectSpeaker.Create(projectId, $"Speaker {index + 1}", DateTimeOffset.UtcNow.AddMilliseconds(index))
+                    ProjectSpeaker speaker = ProjectSpeaker.Create(projectId, $"Speaker {index + 1}", now.AddMilliseconds(index));
+                    return new { SpeakerKey = group.Key, Speaker = speaker, SpeakerId = speaker.Id };
                 })
-                .ToArray()
-                .Select(entry => entry.Speaker)
                 .ToArray();
-            Dictionary<string, Guid> speakerIdsByKey = diarizedTurns
-                .OrderBy(turn => turn.StartSeconds)
-                .GroupBy(turn => turn.NormalizedSpeakerKey, StringComparer.OrdinalIgnoreCase)
-                .Select((group, index) => new { group.Key, SpeakerId = speakers[index].Id })
-                .ToDictionary(entry => entry.Key, entry => entry.SpeakerId, StringComparer.OrdinalIgnoreCase);
+
+            ProjectSpeaker[] speakers = speakerData.Select(entry => entry.Speaker).ToArray();
+            Dictionary<string, Guid> speakerIdsByKey = speakerData.ToDictionary(
+                entry => entry.SpeakerKey,
+                entry => entry.SpeakerId,
+                StringComparer.OrdinalIgnoreCase);
 
             SpeakerTurn[] turns = diarizedTurns
                 .OrderBy(turn => turn.StartSeconds)
@@ -1172,6 +1182,11 @@ public sealed class TranscriptProjectService
         }
         catch (Exception ex)
         {
+            if (ex is OperationCanceledException or TaskCanceledException)
+            {
+                throw;
+            }
+
             StageRunRecord failed = ApplyRuntimeExecutionSummary(diarizationStageRun, diarizationEngine)
                 .Fail(DateTimeOffset.UtcNow, ex.Message);
             await stageRunStore.UpdateAsync(failed, cancellationToken).ConfigureAwait(false);

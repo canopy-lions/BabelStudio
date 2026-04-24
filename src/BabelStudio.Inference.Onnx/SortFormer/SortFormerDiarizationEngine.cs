@@ -12,6 +12,8 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
     private const int TargetSampleRate = 16000;
     private const float SpeakerActiveThreshold = 0.5f;
     private const float OverlapThreshold = 0.5f;
+    // Maximum supported speakers for sortformer-diarizer-4spk-v1 model
+    private const int MaxSupportedSpeakers = 4;
     private readonly IRuntimePlanner runtimePlanner;
     private readonly BenchmarkModelPathResolver modelPathResolver;
 
@@ -48,9 +50,9 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
         float[] maskedSamples = ApplySpeechMask(samples, speechRegions);
 
         using var inputSet = CreateInputSet(sessionLease.Session, maskedSamples);
-        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs = sessionLease.Session.Run(inputSet.Values);
+        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs = await sessionLease.Session.RunAsync(inputSet.Values, cancellationToken).ConfigureAwait(false);
         Tensor<float> probabilityTensor = ResolveProbabilityTensor(outputs);
-        IReadOnlyList<DiarizedSpeakerTurn> turns = DecodeTurns(probabilityTensor, durationSeconds);
+        IReadOnlyList<DiarizedSpeakerTurn> turns = DecodeTurns(probabilityTensor, durationSeconds, plan.ModelAlias);
 
         LastExecutionSummary = new StageRuntimeExecutionSummary(
             sessionLease.RequestedProvider,
@@ -65,8 +67,34 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
     private static InputSet CreateInputSet(InferenceSession session, float[] samples)
     {
         IReadOnlyDictionary<string, NodeMetadata> inputs = session.InputMetadata;
-        KeyValuePair<string, NodeMetadata> waveformInput = inputs.FirstOrDefault(static candidate =>
-            candidate.Value.ElementType == typeof(float));
+
+        KeyValuePair<string, NodeMetadata> waveformInput = default;
+        if (inputs.TryGetValue("waveform", out NodeMetadata? waveformMeta))
+        {
+            waveformInput = new KeyValuePair<string, NodeMetadata>("waveform", waveformMeta);
+        }
+        else if (inputs.TryGetValue("audio_signal", out NodeMetadata? audioSignalMeta))
+        {
+            waveformInput = new KeyValuePair<string, NodeMetadata>("audio_signal", audioSignalMeta);
+        }
+        else
+        {
+            KeyValuePair<string, NodeMetadata>[] floatInputs = inputs
+                .Where(static candidate => candidate.Value.ElementType == typeof(float))
+                .ToArray();
+            if (floatInputs.Length == 0)
+            {
+                throw new InvalidOperationException("SortFormer ONNX export does not expose any float waveform input.");
+            }
+
+            if (floatInputs.Length > 1)
+            {
+                throw new InvalidOperationException($"SortFormer ONNX export has {floatInputs.Length} float inputs; expected exactly one waveform input.");
+            }
+
+            waveformInput = floatInputs[0];
+        }
+
         if (string.IsNullOrWhiteSpace(waveformInput.Key))
         {
             throw new InvalidOperationException("SortFormer ONNX export does not expose a float waveform input.");
@@ -81,9 +109,22 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
                 new DenseTensor<float>(samples, ResolveWaveformShape(waveformDimensions, samples.Length)))
         ];
 
-        KeyValuePair<string, NodeMetadata> lengthInput = inputs.FirstOrDefault(static candidate =>
-            candidate.Value.ElementType == typeof(long) &&
-            candidate.Key.Contains("length", StringComparison.OrdinalIgnoreCase));
+        KeyValuePair<string, NodeMetadata> lengthInput = default;
+        if (inputs.TryGetValue("length", out NodeMetadata? lengthMeta))
+        {
+            lengthInput = new KeyValuePair<string, NodeMetadata>("length", lengthMeta);
+        }
+        else if (inputs.TryGetValue("audio_signal_length", out NodeMetadata? audioLengthMeta))
+        {
+            lengthInput = new KeyValuePair<string, NodeMetadata>("audio_signal_length", audioLengthMeta);
+        }
+        else
+        {
+            lengthInput = inputs.FirstOrDefault(static candidate =>
+                candidate.Value.ElementType == typeof(long) &&
+                candidate.Key.Contains("length", StringComparison.OrdinalIgnoreCase));
+        }
+
         if (!string.IsNullOrWhiteSpace(lengthInput.Key))
         {
             values = values
@@ -132,7 +173,7 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
         throw new InvalidOperationException("SortFormer ONNX export did not produce a frame probability tensor.");
     }
 
-    private static IReadOnlyList<DiarizedSpeakerTurn> DecodeTurns(Tensor<float> probabilities, double durationSeconds)
+    private static IReadOnlyList<DiarizedSpeakerTurn> DecodeTurns(Tensor<float> probabilities, double durationSeconds, string? modelAlias)
     {
         if (durationSeconds <= 0d)
         {
@@ -140,9 +181,16 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
         }
 
         (int frameCount, int speakerCount, Func<int, int, float> accessor) = CreateTensorAccessor(probabilities);
-        if (frameCount <= 0 || speakerCount <= 0 || speakerCount > 4)
+        if (frameCount <= 0 || speakerCount <= 0)
         {
             return [];
+        }
+
+        if (speakerCount > MaxSupportedSpeakers)
+        {
+            throw new InvalidOperationException(
+                $"SortFormer model '{modelAlias ?? "unknown"}' produced {speakerCount} speakers, " +
+                $"exceeding the maximum supported count of {MaxSupportedSpeakers} (frameCount={frameCount}).");
         }
 
         double secondsPerFrame = durationSeconds / frameCount;

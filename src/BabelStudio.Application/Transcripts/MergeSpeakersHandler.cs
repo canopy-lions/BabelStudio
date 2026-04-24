@@ -1,10 +1,8 @@
 namespace BabelStudio.Application.Transcripts;
 
 internal sealed class MergeSpeakersHandler(
-    ISpeakerRepository speakerRepository,
     ITranscriptRepository transcriptRepository)
 {
-    private readonly ISpeakerRepository speakerRepository = speakerRepository ?? throw new ArgumentNullException(nameof(speakerRepository));
     private readonly ITranscriptRepository transcriptRepository = transcriptRepository ?? throw new ArgumentNullException(nameof(transcriptRepository));
 
     public async Task HandleAsync(
@@ -33,13 +31,7 @@ internal sealed class MergeSpeakersHandler(
             throw new InvalidOperationException("Source and target speaker must be different.");
         }
 
-        await transcriptRepository.ReassignSpeakerAsync(
-            projectId,
-            sourceSpeakerId,
-            targetSpeakerId,
-            cancellationToken).ConfigureAwait(false);
-
-        await speakerRepository.MergeSpeakersAsync(
+        await transcriptRepository.ReassignAndMergeSpeakersAsync(
             projectId,
             sourceSpeakerId,
             targetSpeakerId,

@@ -391,10 +391,22 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (ViewModel.CurrentTranscriptRevisionId is null)
+        {
+            ViewModel.StatusMessage = "Load a project before assigning speakers.";
+            return;
+        }
+
+        if (item.SelectedSpeakerId is null)
+        {
+            ViewModel.StatusMessage = "Choose a speaker before applying the assignment.";
+            return;
+        }
+
         AssignSpeakerToSegmentRequest? request = ViewModel.CreateAssignSpeakerRequest(item);
         if (request is null)
         {
-            ViewModel.StatusMessage = "Choose a speaker before applying the assignment.";
+            ViewModel.StatusMessage = "Unable to create speaker assignment request.";
             return;
         }
 

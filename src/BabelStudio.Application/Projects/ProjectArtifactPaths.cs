@@ -66,6 +66,7 @@ public static class ProjectArtifactPaths
 
     public static string GetReferenceClipRelativePath(Guid speakerId, DateTimeOffset createdAtUtc)
     {
-        return $"{GetReferenceClipDirectoryRelativePath(speakerId)}/reference-clip-{createdAtUtc:yyyyMMddHHmmss}.wav";
+        DateTimeOffset utcTimestamp = createdAtUtc.ToUniversalTime();
+        return $"{GetReferenceClipDirectoryRelativePath(speakerId)}/reference-clip-{utcTimestamp:yyyyMMddHHmmssfff}.wav";
     }
 }

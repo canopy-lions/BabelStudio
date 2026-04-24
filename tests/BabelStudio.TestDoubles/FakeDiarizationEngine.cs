@@ -13,10 +13,23 @@ public sealed class FakeDiarizationEngine : ISpeakerDiarizationEngine, IStageRun
         ]
         """;
 
-    private static readonly IReadOnlyList<DiarizedSpeakerTurn> FixtureTurns = JsonSerializer.Deserialize<List<DiarizedSpeakerTurn>>(
-        FixtureJson,
-        new JsonSerializerOptions(JsonSerializerDefaults.Web))
-        ?? throw new InvalidOperationException("Fake diarization fixture JSON could not be deserialized.");
+    private static IReadOnlyList<DiarizedSpeakerTurn>? fixtureTurns;
+
+    private static IReadOnlyList<DiarizedSpeakerTurn> FixtureTurns
+    {
+        get
+        {
+            if (fixtureTurns is null)
+            {
+                fixtureTurns = JsonSerializer.Deserialize<List<DiarizedSpeakerTurn>>(
+                    FixtureJson,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                    ?? throw new InvalidOperationException("Fake diarization fixture JSON could not be deserialized.");
+            }
+
+            return fixtureTurns;
+        }
+    }
 
     public StageRuntimeExecutionSummary? LastExecutionSummary { get; private set; }
 

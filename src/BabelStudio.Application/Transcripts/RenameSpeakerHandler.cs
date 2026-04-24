@@ -20,6 +20,8 @@ internal sealed class RenameSpeakerHandler(ISpeakerRepository speakerRepository)
             throw new ArgumentException("Speaker id is required.", nameof(speakerId));
         }
 
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName, nameof(displayName));
+
         return speakerRepository.RenameSpeakerAsync(projectId, speakerId, displayName, cancellationToken);
     }
 }

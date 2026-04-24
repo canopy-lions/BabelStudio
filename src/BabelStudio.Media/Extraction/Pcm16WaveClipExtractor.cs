@@ -30,23 +30,52 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
             throw new ArgumentOutOfRangeException(nameof(endSeconds), "Clip end must be finite and greater than the start.");
         }
 
-        byte[] sourceBytes = await File.ReadAllBytesAsync(sourceWavePath, cancellationToken).ConfigureAwait(false);
-        WaveClipSource source = ParseWave(sourceBytes);
-        int bytesPerFrame = source.BlockAlign;
-        long startFrame = Math.Max(0L, (long)Math.Floor(startSeconds * source.SampleRate));
-        long endFrame = Math.Min(source.FrameCount, (long)Math.Ceiling(endSeconds * source.SampleRate));
-        if (endFrame <= startFrame)
+        WaveClipSource source;
+        byte[] clipData;
+        await using (FileStream sourceStream = new FileStream(sourceWavePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true))
         {
-            throw new InvalidOperationException("Clip range does not contain any audio frames.");
+            byte[] headerBuffer = new byte[4096];
+            int headerBytesRead = await sourceStream.ReadAsync(headerBuffer, 0, headerBuffer.Length, cancellationToken).ConfigureAwait(false);
+            if (headerBytesRead < 44)
+            {
+                throw new InvalidOperationException("Source wave file is too small to contain a valid header.");
+            }
+
+            source = ParseWave(headerBuffer.AsSpan(0, headerBytesRead));
+
+            int bytesPerFrame = source.BlockAlign;
+            long startFrame = Math.Max(0L, (long)Math.Floor(startSeconds * source.SampleRate));
+            long endFrame = Math.Min(source.FrameCount, (long)Math.Ceiling(endSeconds * source.SampleRate));
+            if (endFrame <= startFrame)
+            {
+                throw new InvalidOperationException("Clip range does not contain any audio frames.");
+            }
+
+            int clipDataLength = checked((int)((endFrame - startFrame) * bytesPerFrame));
+            long dataOffset = checked(source.DataOffset + (startFrame * bytesPerFrame));
+            clipData = new byte[clipDataLength];
+
+            sourceStream.Seek(dataOffset, SeekOrigin.Begin);
+            int totalRead = 0;
+            while (totalRead < clipDataLength)
+            {
+                int bytesRead = await sourceStream.ReadAsync(clipData, totalRead, clipDataLength - totalRead, cancellationToken).ConfigureAwait(false);
+                if (bytesRead == 0)
+                {
+                    throw new InvalidOperationException("Unexpected end of wave file while reading clip data.");
+                }
+
+                totalRead += bytesRead;
+            }
         }
 
-        int clipDataLength = checked((int)((endFrame - startFrame) * bytesPerFrame));
-        int dataOffset = checked(source.DataOffset + (int)(startFrame * bytesPerFrame));
-        byte[] clipData = new byte[clipDataLength];
-        Buffer.BlockCopy(sourceBytes, dataOffset, clipData, 0, clipDataLength);
+        string? directory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-        await using FileStream destination = File.Create(destinationPath);
+        await using FileStream destination = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true);
         await WriteWaveAsync(destination, source.SampleRate, source.ChannelCount, source.BitsPerSample, clipData, cancellationToken).ConfigureAwait(false);
 
         return new AudioClipExtractionResult(
@@ -56,7 +85,7 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
             source.ChannelCount);
     }
 
-    private static WaveClipSource ParseWave(byte[] bytes)
+    private static WaveClipSource ParseWave(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < 44 ||
             !bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) ||
@@ -79,8 +108,14 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
             string chunkId = System.Text.Encoding.ASCII.GetString(header[..4]);
             int chunkSize = BinaryPrimitives.ReadInt32LittleEndian(header[4..]);
             int chunkDataOffset = offset + 8;
-            if (chunkDataOffset + chunkSize > bytes.Length)
+
+            if (chunkSize < 0 || (long)chunkDataOffset + chunkSize > bytes.Length)
             {
+                if (chunkSize < 0)
+                {
+                    throw new InvalidOperationException("Wave metadata could not be parsed.");
+                }
+
                 break;
             }
 

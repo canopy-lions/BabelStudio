@@ -20,4 +20,10 @@ public interface ITranscriptRepository
         Guid sourceSpeakerId,
         Guid targetSpeakerId,
         CancellationToken cancellationToken);
+
+    Task ReassignAndMergeSpeakersAsync(
+        Guid projectId,
+        Guid sourceSpeakerId,
+        Guid targetSpeakerId,
+        CancellationToken cancellationToken);
 }
