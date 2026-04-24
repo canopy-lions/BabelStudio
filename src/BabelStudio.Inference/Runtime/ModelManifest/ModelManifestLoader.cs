@@ -83,7 +83,7 @@ public static class ModelManifestLoader
                 $"Manifest '{sourceName}' entry '{path}' cannot mark a model commercial-safe when commercial use is not allowed.");
         }
 
-        if ((license is ModelLicenseKind.Unknown or ModelLicenseKind.NonCommercial) && commercialSafeMode)
+        if ((license is ModelLicenseKind.Unknown or ModelLicenseKind.NonCommercial or ModelLicenseKind.CcByNc40) && commercialSafeMode)
         {
             throw new ModelManifestValidationException(
                 $"Manifest '{sourceName}' entry '{path}' cannot mark an unknown-license or non-commercial model as commercial-safe.");
