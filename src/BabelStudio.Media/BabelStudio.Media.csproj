@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BabelStudio.Application\BabelStudio.Application.csproj" />
+    <ProjectReference Include="..\BabelStudio.Contracts\BabelStudio.Contracts.csproj" />
     <ProjectReference Include="..\BabelStudio.Domain\BabelStudio.Domain.csproj" />
   </ItemGroup>
 

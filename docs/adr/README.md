@@ -12,6 +12,8 @@ One decision per file with context, decision, alternatives, consequences.
 
 - `ADR-0001-winui3-windows-ml.md`
 - `ADR-0002-sqlite-project-persistence.md`
+- `ADR-0003-whisper-license-investigation.md`
+- `ADR-0004-transcript-service-decomposition.md`
 
 ## What should not go here
 

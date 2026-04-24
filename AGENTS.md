@@ -7,15 +7,22 @@ Windows-native, local-first AI dubbing workstation. .NET 10 / C# / WinUI 3 (plan
 **Strict dependency direction — Domain depends on nothing:**
 
 ```
-App → Application → Domain ← Contracts
-Infrastructure → Application → Domain
-Media → Application → Domain
-Inference → Domain, Contracts
-Inference.Onnx → Inference, Domain, Contracts
-Benchmarks → Inference, Inference.Onnx, Infrastructure, Domain
+App → Application, Composition, Domain, Media.Playback
+Application → Contracts, Domain
+Infrastructure → Application, Contracts, Domain
+Media → Application, Contracts, Domain
+Media.Playback → Application, Domain
+Inference → Contracts, Domain
+Inference.Onnx → Inference, Contracts, Domain
+Benchmarks → Domain, Inference, Inference.Onnx, Infrastructure
+Composition → Application, Inference, Inference.Onnx, Infrastructure, Media, Media.Playback
+Tools → Application, Domain, Infrastructure, Media
+Contracts → (no project dependencies)
 ```
 
-Projects currently scaffolded: `BabelStudio.Domain`, `BabelStudio.Inference`, `BabelStudio.Inference.Onnx`, `BabelStudio.Benchmarks`, `BabelStudio.Benchmarks.Tests`. Everything else (App, Application, Infrastructure, Media, Contracts, Tools) is planned.
+Projects with implementation code (`.cs` sources): `BabelStudio.App`, `BabelStudio.Application`, `BabelStudio.Benchmarks`, `BabelStudio.Composition`, `BabelStudio.Contracts`, `BabelStudio.Domain`, `BabelStudio.Inference`, `BabelStudio.Inference.Onnx`, `BabelStudio.Infrastructure`, `BabelStudio.Media`, `BabelStudio.Media.Playback`, `BabelStudio.Tools`. All planned projects now have `.cs` files.
+
+Current milestone: 7 (Translation slice) — complete. Next: Milestone 8 (Video player, segment editor, project management).
 
 Bundled ONNX models live under `models/` (whisper-tiny, kokoro-onnx, chatterbox-turbo-onnx, silero-vad, opus/Helsinki-NLP-opus-mt-en-es). Each must have a manifest entry before use.
 
@@ -34,7 +41,7 @@ Packages are centrally versioned in `Directory.Build.props` / `Directory.Package
 
 - Target: `net10.0`, `LangVersion=preview`, `Nullable=enable`, `ImplicitUsings=enable`
 - No linter config present — follow existing file conventions
-- `TreatWarningsAsErrors=false` but nullable is enforced; don't suppress nullable warnings without justification
+- `TreatWarningsAsErrors=true`; nullable is enforced. Don't suppress warnings without justification — prefer fixing the underlying issue, or add a targeted `<NoWarn>` with a comment explaining why
 
 ## Testing Guidelines
 
