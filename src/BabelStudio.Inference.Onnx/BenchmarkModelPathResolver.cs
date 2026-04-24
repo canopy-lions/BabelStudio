@@ -203,15 +203,23 @@ public sealed class BenchmarkModelPathResolver
         }
 
         var candidates = new List<BenchmarkModelCandidate>();
-        candidates.Add(new BenchmarkModelCandidate(
-            CandidateKey: "variant:default",
-            DisplayName: $"{alias} (default)",
-            ModelPath: defaultResolution!.Entry.DefaultBenchmarkEntryPath,
-            VariantAlias: "default",
-            ResolutionNote: $"Resolved model alias '{reference}' using manifest '{manifestRegistry.ManifestPath}'."));
+        if (File.Exists(defaultResolution!.Entry.DefaultBenchmarkEntryPath))
+        {
+            candidates.Add(new BenchmarkModelCandidate(
+                CandidateKey: "variant:default",
+                DisplayName: $"{alias} (default)",
+                ModelPath: defaultResolution.Entry.DefaultBenchmarkEntryPath,
+                VariantAlias: "default",
+                ResolutionNote: $"Resolved model alias '{reference}' using manifest '{manifestRegistry.ManifestPath}'."));
+        }
 
         foreach (BundledModelManifestVariant variant in defaultResolution.Entry.Variants)
         {
+            if (!File.Exists(variant.EntryPath))
+            {
+                continue;
+            }
+
             candidates.Add(new BenchmarkModelCandidate(
                 CandidateKey: $"variant:{variant.Alias}",
                 DisplayName: $"{alias}@{variant.Alias}",
@@ -220,11 +228,24 @@ public sealed class BenchmarkModelPathResolver
                 ResolutionNote: $"Resolved model alias '{reference}' using manifest '{manifestRegistry.ManifestPath}'."));
         }
 
+        if (candidates.Count == 0)
+        {
+            result = new BenchmarkModelResolutionResult(
+                reference,
+                $"manifest:{alias}",
+                [],
+                null,
+                $"Model alias '{alias}' is declared in the bundled manifest, but no ONNX entry point exists on disk.");
+            return true;
+        }
+
         result = new BenchmarkModelResolutionResult(
             reference,
             $"manifest:{alias}",
             candidates,
-            "variant:default");
+            candidates.Any(candidate => candidate.CandidateKey.Equals("variant:default", StringComparison.OrdinalIgnoreCase))
+                ? "variant:default"
+                : SelectDefaultCandidateKey(candidates));
         return true;
     }
 

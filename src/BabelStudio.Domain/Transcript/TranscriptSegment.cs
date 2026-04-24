@@ -6,14 +6,16 @@ public sealed record TranscriptSegment(
     int SegmentIndex,
     double StartSeconds,
     double EndSeconds,
-    string Text)
+    string Text,
+    Guid? SpeakerId = null)
 {
     public static TranscriptSegment Create(
         Guid transcriptRevisionId,
         int segmentIndex,
         double startSeconds,
         double endSeconds,
-        string text)
+        string text,
+        Guid? speakerId = null)
     {
         if (transcriptRevisionId == Guid.Empty)
         {
@@ -46,6 +48,7 @@ public sealed record TranscriptSegment(
             segmentIndex,
             startSeconds,
             endSeconds,
-            text.Trim());
+            text.Trim(),
+            speakerId);
     }
 }

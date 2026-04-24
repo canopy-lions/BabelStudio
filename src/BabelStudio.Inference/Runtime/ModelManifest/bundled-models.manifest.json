@@ -27,6 +27,24 @@
       ]
     },
     {
+      "model_id": "nvidia/diar_sortformer_4spk-v1",
+      "task": "diarization",
+      "license": "non-commercial",
+      "commercial_allowed": false,
+      "redistribution_allowed": true,
+      "requires_attribution": true,
+      "requires_user_consent": false,
+      "voice_cloning": false,
+      "commercial_safe_mode": false,
+      "source_url": "https://huggingface.co/nvidia/diar_sortformer_4spk-v1",
+      "revision": "onnx-export-required",
+      "sha256": "",
+      "aliases": [ "sortformer-diarizer-4spk-v1", "sortformer-4spk", "nvidia-sortformer-diarizer-4spk-v1" ],
+      "root_path": "../../../../models/sortformer/nvidia-diar_sortformer_4spk-v1",
+      "benchmark_entry": "onnx/model.onnx",
+      "variants": []
+    },
+    {
       "model_id": "onnx-community/whisper-tiny",
       "task": "asr",
       "license": "unknown",

@@ -14,4 +14,10 @@ public interface ITranscriptRepository
         TranscriptRevision revision,
         IReadOnlyList<TranscriptSegment> segments,
         CancellationToken cancellationToken);
+
+    Task ReassignSpeakerAsync(
+        Guid projectId,
+        Guid sourceSpeakerId,
+        Guid targetSpeakerId,
+        CancellationToken cancellationToken);
 }

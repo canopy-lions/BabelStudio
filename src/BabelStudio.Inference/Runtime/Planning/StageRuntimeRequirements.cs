@@ -45,6 +45,13 @@ internal static class Milestone5StageRuntimeRequirementsCatalog
                 [ "opus-en-es", "helsinki-opus-en-es", "opus-en-fr", "opus-en-de", "opus-en-it", "opus-en-pt", "opus-es-en", "helsinki-opus-es-en", "madlad400-mt", "madlad400" ],
                 [ ExecutionProviderKind.DirectMl, ExecutionProviderKind.Cpu ],
                 [ "merged-decoder", "fp16" ],
-                [ "merged-decoder", "fp16" ])
+                [ "merged-decoder", "fp16" ]),
+            [RuntimeStage.Diarization] = new(
+                RuntimeStage.Diarization,
+                ModelTask.Diarization,
+                [ "sortformer-diarizer-4spk-v1", "sortformer-4spk", "nvidia-sortformer-diarizer-4spk-v1" ],
+                [ ExecutionProviderKind.DirectMl, ExecutionProviderKind.Cpu ],
+                [ "default" ],
+                [ "default" ])
         };
 }

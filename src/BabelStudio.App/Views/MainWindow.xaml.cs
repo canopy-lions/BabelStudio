@@ -15,6 +15,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using Windows.UI;
 
 namespace BabelStudio.App.Views;
 
@@ -115,7 +116,10 @@ public sealed partial class MainWindow : Window
             currentService = workspaceFactory.Create(projectRootPath);
             currentProjectRootPath = projectRootPath;
             TranscriptProjectState state = await currentService.CreateAsync(
-                new CreateTranscriptProjectRequest(ViewModel.ProjectNameDraft, mediaPath),
+                new CreateTranscriptProjectRequest(
+                    ViewModel.ProjectNameDraft,
+                    mediaPath,
+                    ViewModel.EnableSpeakerDiarizationOnImport),
                 cancellationToken).ConfigureAwait(true);
 
             await CompleteProjectLoadAsync(state, projectRootPath, cancellationToken).ConfigureAwait(true);
@@ -375,6 +379,32 @@ public sealed partial class MainWindow : Window
         }, "Deleting segment...").ConfigureAwait(true);
     }
 
+    private async void AssignSpeakerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: TranscriptSegmentItem item })
+        {
+            return;
+        }
+
+        AssignSpeakerToSegmentRequest? request = ViewModel.CreateAssignSpeakerRequest(item);
+        if (request is null)
+        {
+            ViewModel.StatusMessage = "Choose a speaker before applying the assignment.";
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.AssignSpeakerToSegmentAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Applying speaker assignment...").ConfigureAwait(true);
+    }
+
     private async void MergeSegmentsButton_Click(object sender, RoutedEventArgs e)
     {
         if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
@@ -395,6 +425,120 @@ public sealed partial class MainWindow : Window
             TranscriptProjectState state = await currentService.MergeSegmentsAsync(request, cancellationToken).ConfigureAwait(true);
             await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
         }, "Merging selected segments...").ConfigureAwait(true);
+    }
+
+    private async void RenameSpeakerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: SpeakerItem item })
+        {
+            return;
+        }
+
+        RenameSpeakerRequest? request = ViewModel.CreateRenameSpeakerRequest(item);
+        if (request is null)
+        {
+            ViewModel.StatusMessage = "Enter a new speaker name before renaming.";
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.RenameSpeakerAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Renaming speaker...").ConfigureAwait(true);
+    }
+
+    private async void MergeSpeakerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: SpeakerItem item })
+        {
+            return;
+        }
+
+        MergeSpeakersRequest? request = ViewModel.CreateMergeSpeakersRequest(item);
+        if (request is null)
+        {
+            ViewModel.StatusMessage = "Choose a different speaker to merge into.";
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.MergeSpeakersAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Merging speakers...").ConfigureAwait(true);
+    }
+
+    private async void ExtractReferenceClipButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: SpeakerItem item })
+        {
+            return;
+        }
+
+        ExtractReferenceClipRequest request = ViewModel.CreateExtractReferenceClipRequest(item);
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.ExtractReferenceClipAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Extracting reference clip...").ConfigureAwait(true);
+    }
+
+    private async void JumpToSpeakerTurnButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: SpeakerTurnItem item })
+        {
+            return;
+        }
+
+        await shellServices.PlaybackService.SeekAsync(TimeSpan.FromSeconds(item.StartSeconds), CancellationToken.None).ConfigureAwait(true);
+        await RefreshPlaybackSnapshotAsync().ConfigureAwait(true);
+    }
+
+    private async void SplitSpeakerTurnButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: SpeakerTurnItem item })
+        {
+            return;
+        }
+
+        if (ViewModel.PlaybackPositionSeconds <= item.StartSeconds || ViewModel.PlaybackPositionSeconds >= item.EndSeconds)
+        {
+            ViewModel.StatusMessage = "Move the playback cursor inside the selected speaker turn before splitting.";
+            return;
+        }
+
+        SplitSpeakerTurnRequest? request = ViewModel.CreateSplitSpeakerTurnRequest(item, ViewModel.PlaybackPositionSeconds);
+        if (request is null)
+        {
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.SplitSpeakerTurnAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Splitting speaker turn...").ConfigureAwait(true);
     }
 
     private async void TranscriptLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -722,7 +866,7 @@ public sealed partial class MainWindow : Window
 
     private void WaveformCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
     {
-        args.DrawingSession.Clear(ColorHelper.FromArgb(255, 18, 24, 32));
+        args.DrawingSession.Clear(Color.FromArgb(255, 18, 24, 32));
 
         WaveformSummary? waveform = ViewModel.CurrentWaveformSummary;
         if (waveform is null || waveform.Peaks.Count == 0 || sender.ActualWidth <= 0d || sender.ActualHeight <= 0d)
@@ -744,6 +888,16 @@ public sealed partial class MainWindow : Window
         foreach (WaveformBarLayout bar in layout.Bars)
         {
             args.DrawingSession.DrawLine(bar.X, bar.TopY, bar.X, bar.BottomY, Colors.DeepSkyBlue, bar.StrokeWidth);
+        }
+
+        float laneHeight = Math.Min(12f, height / 5f);
+        float laneTop = height - laneHeight;
+        foreach (TranscriptSegmentItem segment in ViewModel.Segments)
+        {
+            float startX = WaveformMapping.TimeToPixel(segment.StartSeconds, waveform.DurationSeconds, width);
+            float endX = WaveformMapping.TimeToPixel(segment.EndSeconds, waveform.DurationSeconds, width);
+            float laneWidth = Math.Max(1f, endX - startX);
+            args.DrawingSession.FillRectangle(startX, laneTop, laneWidth, laneHeight, segment.SpeakerColor);
         }
 
         foreach (float startX in layout.SegmentStartMarkerXs)

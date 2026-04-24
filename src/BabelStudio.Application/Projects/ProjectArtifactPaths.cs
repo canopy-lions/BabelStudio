@@ -8,6 +8,7 @@ public static class ProjectArtifactPaths
     public const string NormalizedAudioRelativePath = "media/normalized_audio.wav";
     public const string WaveformSummaryRelativePath = "artifacts/waveform/normalized_audio.waveform.json";
     public const string SpeechRegionsRelativePath = "artifacts/audio/speech-regions.json";
+    public const string ReferenceClipDirectoryRelativePath = "artifacts/reference-clips";
     public const string TranslationDirectoryRelativePath = "artifacts/translation";
 
     public static readonly string[] RequiredDirectories =
@@ -15,6 +16,7 @@ public static class ProjectArtifactPaths
         "media",
         "artifacts",
         "artifacts/audio",
+        "artifacts/reference-clips",
         "artifacts/translation/en",
         "artifacts/translation",
         "artifacts/translation/es",
@@ -50,5 +52,20 @@ public static class ProjectArtifactPaths
 
         string normalizedTargetLanguage = targetLanguage.Trim().ToLowerInvariant();
         return $"artifacts/translation/{normalizedTargetLanguage}/translation-revision-{revisionNumber:D4}.json";
+    }
+
+    public static string GetReferenceClipDirectoryRelativePath(Guid speakerId)
+    {
+        if (speakerId == Guid.Empty)
+        {
+            throw new ArgumentException("Speaker id is required.", nameof(speakerId));
+        }
+
+        return $"{ReferenceClipDirectoryRelativePath}/{speakerId:D}";
+    }
+
+    public static string GetReferenceClipRelativePath(Guid speakerId, DateTimeOffset createdAtUtc)
+    {
+        return $"{GetReferenceClipDirectoryRelativePath(speakerId)}/reference-clip-{createdAtUtc:yyyyMMddHHmmss}.wav";
     }
 }
