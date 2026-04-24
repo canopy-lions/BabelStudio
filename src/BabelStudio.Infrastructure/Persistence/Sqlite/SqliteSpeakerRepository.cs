@@ -307,6 +307,25 @@ public sealed class SqliteSpeakerRepository : ISpeakerRepository
         await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteTransaction transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
+        await using (SqliteCommand reassignSegments = connection.CreateCommand())
+        {
+            reassignSegments.Transaction = transaction;
+            reassignSegments.CommandText =
+                """
+                UPDATE transcript_segments
+                SET speaker_id = $targetSpeakerId
+                WHERE speaker_id = $sourceSpeakerId
+                  AND transcript_revision_id IN (
+                      SELECT id
+                      FROM transcript_revisions
+                      WHERE project_id = $projectId);
+                """;
+            reassignSegments.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            reassignSegments.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+            reassignSegments.Parameters.AddWithValue("$targetSpeakerId", targetSpeakerId.ToString("D"));
+            await reassignSegments.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         await using (SqliteCommand updateTurns = connection.CreateCommand())
         {
             updateTurns.Transaction = transaction;
