@@ -22,12 +22,6 @@ public interface ISpeakerRepository
         string displayName,
         CancellationToken cancellationToken);
 
-    Task MergeSpeakersAsync(
-        Guid projectId,
-        Guid sourceSpeakerId,
-        Guid targetSpeakerId,
-        CancellationToken cancellationToken);
-
     Task SplitTurnAsync(
         Guid projectId,
         Guid speakerTurnId,

@@ -120,6 +120,10 @@ internal static class ModelManifestText
             "unknown" => ModelLicenseKind.Unknown,
             "non-commercial" => ModelLicenseKind.NonCommercial,
             "noncommercial" => ModelLicenseKind.NonCommercial,
+            "cc-by-nc-4.0" => ModelLicenseKind.NonCommercial,
+            "cc-by-nc-4" => ModelLicenseKind.NonCommercial,
+            "ccby-nc-4.0" => ModelLicenseKind.NonCommercial,
+            "ccbync40" => ModelLicenseKind.NonCommercial,
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown model license.")
         };
     }
