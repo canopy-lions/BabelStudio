@@ -17,7 +17,9 @@ Inference.Onnx → Inference, Domain, Contracts
 Benchmarks → Inference, Inference.Onnx, Infrastructure, Domain
 ```
 
-Projects currently scaffolded: `BabelStudio.Domain`, `BabelStudio.Inference`, `BabelStudio.Inference.Onnx`, `BabelStudio.Benchmarks`, `BabelStudio.Benchmarks.Tests`. Everything else (App, Application, Infrastructure, Media, Contracts, Tools) is planned.
+Projects with implementation code (`.cs` sources): `BabelStudio.App`, `BabelStudio.Application`, `BabelStudio.Benchmarks`, `BabelStudio.Composition`, `BabelStudio.Contracts`, `BabelStudio.Domain`, `BabelStudio.Inference`, `BabelStudio.Inference.Onnx`, `BabelStudio.Infrastructure`, `BabelStudio.Media`, `BabelStudio.Media.Playback`, `BabelStudio.Tools`. All planned projects now have `.cs` files.
+
+Current milestone: 7 (Translation slice) — complete. Next: Milestone 8 (Video player, segment editor, project management).
 
 Bundled ONNX models live under `models/` (whisper-tiny, kokoro-onnx, chatterbox-turbo-onnx, silero-vad, opus/Helsinki-NLP-opus-mt-en-es). Each must have a manifest entry before use.
 
