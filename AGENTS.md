@@ -15,6 +15,7 @@ Media → Contracts
 Inference → Domain, Contracts
 Inference.Onnx → Inference, Domain, Contracts
 Benchmarks → Inference, Inference.Onnx, Infrastructure, Domain
+Composition → Application, Inference, Inference.Onnx, Infrastructure, Media, Media.Playback
 ```
 
 Projects with implementation code (`.cs` sources): `BabelStudio.App`, `BabelStudio.Application`, `BabelStudio.Benchmarks`, `BabelStudio.Composition`, `BabelStudio.Contracts`, `BabelStudio.Domain`, `BabelStudio.Inference`, `BabelStudio.Inference.Onnx`, `BabelStudio.Infrastructure`, `BabelStudio.Media`, `BabelStudio.Media.Playback`, `BabelStudio.Tools`. All planned projects now have `.cs` files.
@@ -38,7 +39,7 @@ Packages are centrally versioned in `Directory.Build.props` / `Directory.Package
 
 - Target: `net10.0`, `LangVersion=preview`, `Nullable=enable`, `ImplicitUsings=enable`
 - No linter config present — follow existing file conventions
-- `TreatWarningsAsErrors=false` but nullable is enforced; don't suppress nullable warnings without justification
+- `TreatWarningsAsErrors=true`; nullable is enforced. Don't suppress warnings without justification — prefer fixing the underlying issue, or add a targeted `<NoWarn>` with a comment explaining why
 
 ## Testing Guidelines
 
