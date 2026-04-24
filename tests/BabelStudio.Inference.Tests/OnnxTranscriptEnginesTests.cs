@@ -7,12 +7,13 @@ using BabelStudio.Inference.Onnx.OpusMt;
 using BabelStudio.Inference.Onnx.SileroVad;
 using BabelStudio.Inference.Onnx.Whisper;
 using BabelStudio.Inference.Runtime.Planning;
+using BabelStudio.TestDoubles;
 
 namespace BabelStudio.Inference.Tests;
 
 public sealed class OnnxTranscriptEnginesTests
 {
-    [Fact]
+    [RequiresBundledModelFact("silero-vad")]
     public async Task SileroVadSpeechRegionDetector_RunsBundledModelOnSilence()
     {
         string wavePath = CreateSilenceWaveFile(durationSeconds: 1.0);
@@ -45,7 +46,7 @@ public sealed class OnnxTranscriptEnginesTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("whisper-tiny-onnx")]
     public async Task WhisperOnnxAudioTranscriptionEngine_RunsBundledModelOnSilence()
     {
         string wavePath = CreateSilenceWaveFile(durationSeconds: 1.0);
@@ -82,7 +83,7 @@ public sealed class OnnxTranscriptEnginesTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("opus/Helsinki-NLP-opus-mt-en-es")]
     public async Task OpusMtTranslationEngine_TranslatesBundledEnglishToSpanishSentence()
     {
         var engine = new OpusMtTranslationEngine(
@@ -115,7 +116,7 @@ public sealed class OnnxTranscriptEnginesTests
         Assert.Equal("merged-decoder", engine.LastExecutionSummary.ModelVariant);
     }
 
-    [Fact]
+    [RequiresBundledModelFact("opus/onnx-community-opus-mt-es-en")]
     public async Task OpusMtTranslationEngine_TranslatesBundledSpanishToEnglishSentence()
     {
         var engine = new OpusMtTranslationEngine(

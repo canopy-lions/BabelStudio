@@ -1,10 +1,11 @@
 using BabelStudio.Inference.Onnx.Whisper;
+using BabelStudio.TestDoubles;
 
 namespace BabelStudio.Inference.Tests;
 
 public sealed class WhisperTokenizerDecoderTests
 {
-    [Fact]
+    [RequiresBundledModelFact("whisper-tiny-onnx")]
     public void BuildTranscriptionPrompt_DoesNotReuseForcedEnglishToken()
     {
         string modelRootPath = ResolveModelRootPath("whisper-tiny-onnx");
