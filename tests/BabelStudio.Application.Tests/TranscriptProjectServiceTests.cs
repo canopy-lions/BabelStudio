@@ -417,6 +417,42 @@ public sealed class TranscriptProjectServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_propagates_commercial_safe_mode_to_diarization_engine()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        var recordingEngine = new RecordingDiarizationEngine();
+        FakeServiceScope scope = CreateScope(tempDirectory, recordingEngine);
+        _ = await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest(
+                "Transcript Demo",
+                sourcePath,
+                EnableSpeakerDiarization: true,
+                CommercialSafeMode: true),
+            CancellationToken.None);
+
+        Assert.True(recordingEngine.LastCommercialSafeMode);
+    }
+
+    [Fact]
+    public async Task CreateAsync_defaults_commercial_safe_mode_to_false_when_not_specified()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        var recordingEngine = new RecordingDiarizationEngine();
+        FakeServiceScope scope = CreateScope(tempDirectory, recordingEngine);
+        _ = await scope.Service.CreateAsync(
+            new CreateTranscriptProjectRequest("Transcript Demo", sourcePath),
+            CancellationToken.None);
+
+        Assert.False(recordingEngine.LastCommercialSafeMode);
+    }
+
+    [Fact]
     public async Task CreateAsync_when_speaker_detection_is_disabled_skips_diarization_and_uses_single_speaker()
     {
         string tempDirectory = CreateTempDirectory();
@@ -460,7 +496,7 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         var mediaRepository = new FakeMediaAssetRepository();
         var speakerRepository = new FakeSpeakerRepository();
         var artifactStore = new FakeArtifactStore(Path.Combine(tempDirectory, "project"));
-        var transcriptRepository = new FakeTranscriptRepository();
+        var transcriptRepository = new FakeTranscriptRepository(speakerRepository);
         var translationRepository = new FakeTranslationRepository();
         var stageRunStore = new FakeProjectStageRunStore();
         var translationLanguageRouter = new FakeTranslationLanguageRouter();
@@ -686,6 +722,17 @@ public sealed class TranscriptProjectServiceTests : IDisposable
 
     private sealed class FakeTranscriptRepository : ITranscriptRepository
     {
+        private readonly FakeSpeakerRepository? speakerRepository;
+
+        public FakeTranscriptRepository()
+        {
+        }
+
+        public FakeTranscriptRepository(FakeSpeakerRepository speakerRepository)
+        {
+            this.speakerRepository = speakerRepository;
+        }
+
         public List<TranscriptRevision> Revisions { get; } = [];
 
         public Dictionary<Guid, IReadOnlyList<TranscriptSegment>> SegmentsByRevisionId { get; } = new();
@@ -725,6 +772,16 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             }
 
             return Task.CompletedTask;
+        }
+
+        public async Task ReassignAndMergeSpeakersAsync(Guid projectId, Guid sourceSpeakerId, Guid targetSpeakerId, CancellationToken cancellationToken)
+        {
+            await ReassignSpeakerAsync(projectId, sourceSpeakerId, targetSpeakerId, cancellationToken).ConfigureAwait(false);
+            if (speakerRepository is not null)
+            {
+                speakerRepository.Turns.RemoveAll(turn => turn.ProjectId == projectId && turn.SpeakerId == sourceSpeakerId);
+                speakerRepository.Speakers.RemoveAll(speaker => speaker.ProjectId == projectId && speaker.Id == sourceSpeakerId);
+            }
         }
     }
 
@@ -886,7 +943,26 @@ public sealed class TranscriptProjectServiceTests : IDisposable
 
     private sealed class ThrowingDiarizationEngine : ISpeakerDiarizationEngine
     {
-        public Task<IReadOnlyList<DiarizedSpeakerTurn>> DiarizeAsync(string normalizedAudioPath, double durationSeconds, IReadOnlyList<SpeechRegion> speechRegions, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<DiarizedSpeakerTurn>> DiarizeAsync(string normalizedAudioPath, double durationSeconds, IReadOnlyList<SpeechRegion> speechRegions, bool commercialSafeMode, CancellationToken cancellationToken) =>
             throw new FileNotFoundException("SortFormer ONNX export was not found.");
+    }
+
+    private sealed class RecordingDiarizationEngine : ISpeakerDiarizationEngine
+    {
+        public bool LastCommercialSafeMode { get; private set; }
+
+        public Task<IReadOnlyList<DiarizedSpeakerTurn>> DiarizeAsync(
+            string normalizedAudioPath,
+            double durationSeconds,
+            IReadOnlyList<SpeechRegion> speechRegions,
+            bool commercialSafeMode,
+            CancellationToken cancellationToken)
+        {
+            LastCommercialSafeMode = commercialSafeMode;
+            return Task.FromResult<IReadOnlyList<DiarizedSpeakerTurn>>(
+            [
+                new DiarizedSpeakerTurn("spk_0", 0.0, 1.0, Confidence: 0.9, HasOverlap: false)
+            ]);
+        }
     }
 }

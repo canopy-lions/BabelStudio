@@ -119,7 +119,8 @@ public sealed partial class MainWindow : Window
                 new CreateTranscriptProjectRequest(
                     ViewModel.ProjectNameDraft,
                     mediaPath,
-                    ViewModel.EnableSpeakerDiarizationOnImport),
+                    ViewModel.EnableSpeakerDiarizationOnImport,
+                    ViewModel.CommercialSafeMode),
                 cancellationToken).ConfigureAwait(true);
 
             await CompleteProjectLoadAsync(state, projectRootPath, cancellationToken).ConfigureAwait(true);

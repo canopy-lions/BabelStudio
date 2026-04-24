@@ -152,6 +152,30 @@ public sealed class SqliteSpeakerRepository : ISpeakerRepository
         await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using SqliteTransaction transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
+        await using (SqliteCommand checkSegments = connection.CreateCommand())
+        {
+            checkSegments.Transaction = transaction;
+            checkSegments.CommandText =
+                """
+                SELECT COUNT(1)
+                FROM transcript_segments segment
+                INNER JOIN transcript_revisions revision ON revision.id = segment.transcript_revision_id
+                INNER JOIN speakers speaker ON speaker.id = segment.speaker_id
+                WHERE revision.project_id = $projectId
+                    AND speaker.project_id = $projectId;
+                """;
+            checkSegments.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            long assignedSegments = Convert.ToInt64(
+                await checkSegments.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
+                System.Globalization.CultureInfo.InvariantCulture);
+            if (assignedSegments > 0)
+            {
+                throw new InvalidOperationException(
+                    "Cannot replace diarization: transcript segments are already assigned to existing speakers. " +
+                    "Deleting speakers would silently null out those assignments via the ON DELETE SET NULL cascade.");
+            }
+        }
+
         await using (SqliteCommand clearTurns = connection.CreateCommand())
         {
             clearTurns.Transaction = transaction;

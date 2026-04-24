@@ -31,12 +31,13 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
         string normalizedAudioPath,
         double durationSeconds,
         IReadOnlyList<SpeechRegion> speechRegions,
+        bool commercialSafeMode,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(speechRegions);
 
         StageRuntimePlan plan = await runtimePlanner.PlanAsync(
-            new StageRuntimePlanningRequest(RuntimeStage.Diarization, CommercialSafeMode: false),
+            new StageRuntimePlanningRequest(RuntimeStage.Diarization, CommercialSafeMode: commercialSafeMode),
             cancellationToken).ConfigureAwait(false);
         EnsurePlanReady(plan, RuntimeStage.Diarization);
 
@@ -50,7 +51,8 @@ public sealed class SortFormerDiarizationEngine : ISpeakerDiarizationEngine, ISt
         float[] maskedSamples = ApplySpeechMask(samples, speechRegions);
 
         using var inputSet = CreateInputSet(sessionLease.Session, maskedSamples);
-        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs = await sessionLease.Session.RunAsync(inputSet.Values, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs = sessionLease.Session.Run(inputSet.Values);
         Tensor<float> probabilityTensor = ResolveProbabilityTensor(outputs);
         IReadOnlyList<DiarizedSpeakerTurn> turns = DecodeTurns(probabilityTensor, durationSeconds, plan.ModelAlias);
 

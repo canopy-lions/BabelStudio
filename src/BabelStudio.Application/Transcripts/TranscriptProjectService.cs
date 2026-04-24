@@ -66,7 +66,7 @@ public sealed class TranscriptProjectService
         this.translationLanguageRouter = translationLanguageRouter;
         this.translationEngine = translationEngine;
         renameSpeakerHandler = new RenameSpeakerHandler(speakerRepository);
-        mergeSpeakersHandler = new MergeSpeakersHandler(speakerRepository, transcriptRepository);
+        mergeSpeakersHandler = new MergeSpeakersHandler(transcriptRepository);
     }
 
     public async Task<TranscriptProjectState> CreateAsync(
@@ -82,6 +82,7 @@ public sealed class TranscriptProjectService
             createResult.MediaAsset,
             createResult.AudioArtifact,
             request.EnableSpeakerDiarization,
+            request.CommercialSafeMode,
             cancellationToken).ConfigureAwait(false);
 
         return await OpenAsyncCore(requestedTranslationTargetLanguage: null, cancellationToken).ConfigureAwait(false);
@@ -806,6 +807,7 @@ public sealed class TranscriptProjectService
         MediaAsset mediaAsset,
         ProjectArtifact audioArtifact,
         bool enableSpeakerDiarization,
+        bool commercialSafeMode,
         CancellationToken cancellationToken)
     {
         double durationSeconds = audioArtifact.DurationSeconds ?? mediaAsset.DurationSeconds;
@@ -868,6 +870,7 @@ public sealed class TranscriptProjectService
                 durationSeconds,
                 regions,
                 recognizedSegments,
+                commercialSafeMode,
                 cancellationToken).ConfigureAwait(false)
             : await CreateDefaultSpeakerAssignmentAsync(
                 projectId,
@@ -1118,6 +1121,7 @@ public sealed class TranscriptProjectService
         double durationSeconds,
         IReadOnlyList<SpeechRegion> regions,
         IReadOnlyList<RecognizedTranscriptSegment> recognizedSegments,
+        bool commercialSafeMode,
         CancellationToken cancellationToken)
     {
         StageRunRecord diarizationStageRun = StageRunRecord.Start(projectId, "diarization", DateTimeOffset.UtcNow);
@@ -1129,6 +1133,7 @@ public sealed class TranscriptProjectService
                 normalizedAudioPath,
                 durationSeconds,
                 regions,
+                commercialSafeMode,
                 cancellationToken).ConfigureAwait(false);
 
             diarizationStageRun = ApplyRuntimeExecutionSummary(diarizationStageRun, diarizationEngine)

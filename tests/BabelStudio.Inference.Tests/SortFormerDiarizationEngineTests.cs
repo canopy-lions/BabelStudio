@@ -41,6 +41,7 @@ public sealed class SortFormerDiarizationEngineTests
                 wavePath,
                 1.0,
                 [ new SpeechRegion(0, 0.0, 1.0) ],
+                commercialSafeMode: false,
                 CancellationToken.None);
 
             Assert.NotNull(turns);

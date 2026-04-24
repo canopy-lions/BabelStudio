@@ -37,6 +37,7 @@ public sealed class FakeDiarizationEngine : ISpeakerDiarizationEngine, IStageRun
         string normalizedAudioPath,
         double durationSeconds,
         IReadOnlyList<SpeechRegion> speechRegions,
+        bool commercialSafeMode,
         CancellationToken cancellationToken)
     {
         LastExecutionSummary = new StageRuntimeExecutionSummary(

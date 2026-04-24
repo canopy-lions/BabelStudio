@@ -32,6 +32,8 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
 
         WaveClipSource source;
         byte[] clipData;
+        long startFrame;
+        long endFrame;
         await using (FileStream sourceStream = new FileStream(sourceWavePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true))
         {
             byte[] headerBuffer = new byte[4096];
@@ -44,8 +46,8 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
             source = ParseWave(headerBuffer.AsSpan(0, headerBytesRead));
 
             int bytesPerFrame = source.BlockAlign;
-            long startFrame = Math.Max(0L, (long)Math.Floor(startSeconds * source.SampleRate));
-            long endFrame = Math.Min(source.FrameCount, (long)Math.Ceiling(endSeconds * source.SampleRate));
+            startFrame = Math.Max(0L, (long)Math.Floor(startSeconds * source.SampleRate));
+            endFrame = Math.Min(source.FrameCount, (long)Math.Ceiling(endSeconds * source.SampleRate));
             if (endFrame <= startFrame)
             {
                 throw new InvalidOperationException("Clip range does not contain any audio frames.");
@@ -88,8 +90,8 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
     private static WaveClipSource ParseWave(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < 44 ||
-            !bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) ||
-            !bytes.AsSpan(8, 4).SequenceEqual("WAVE"u8))
+            !bytes.Slice(0, 4).SequenceEqual("RIFF"u8) ||
+            !bytes.Slice(8, 4).SequenceEqual("WAVE"u8))
         {
             throw new InvalidOperationException("Only RIFF/WAVE audio is supported for reference clip extraction.");
         }
@@ -104,24 +106,31 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
 
         while (offset + 8 <= bytes.Length)
         {
-            ReadOnlySpan<byte> header = bytes.AsSpan(offset, 8);
+            ReadOnlySpan<byte> header = bytes.Slice(offset, 8);
             string chunkId = System.Text.Encoding.ASCII.GetString(header[..4]);
             int chunkSize = BinaryPrimitives.ReadInt32LittleEndian(header[4..]);
             int chunkDataOffset = offset + 8;
 
-            if (chunkSize < 0 || (long)chunkDataOffset + chunkSize > bytes.Length)
+            if (chunkSize < 0)
             {
-                if (chunkSize < 0)
-                {
-                    throw new InvalidOperationException("Wave metadata could not be parsed.");
-                }
+                throw new InvalidOperationException("Wave metadata could not be parsed.");
+            }
 
+            if (string.Equals(chunkId, "data", StringComparison.Ordinal))
+            {
+                dataOffset = chunkDataOffset;
+                dataLength = chunkSize;
+                break;
+            }
+
+            if ((long)chunkDataOffset + chunkSize > bytes.Length)
+            {
                 break;
             }
 
             if (string.Equals(chunkId, "fmt ", StringComparison.Ordinal))
             {
-                ReadOnlySpan<byte> fmt = bytes.AsSpan(chunkDataOffset, chunkSize);
+                ReadOnlySpan<byte> fmt = bytes.Slice(chunkDataOffset, chunkSize);
                 short audioFormat = BinaryPrimitives.ReadInt16LittleEndian(fmt[..2]);
                 channelCount = BinaryPrimitives.ReadInt16LittleEndian(fmt[2..4]);
                 sampleRate = BinaryPrimitives.ReadInt32LittleEndian(fmt[4..8]);
@@ -131,12 +140,6 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
                 {
                     throw new InvalidOperationException("Reference clip extraction currently supports PCM16 wave files only.");
                 }
-            }
-            else if (string.Equals(chunkId, "data", StringComparison.Ordinal))
-            {
-                dataOffset = chunkDataOffset;
-                dataLength = chunkSize;
-                break;
             }
 
             offset = chunkDataOffset + chunkSize + (chunkSize % 2);

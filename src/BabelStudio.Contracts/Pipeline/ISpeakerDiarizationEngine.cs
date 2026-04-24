@@ -6,6 +6,7 @@ public interface ISpeakerDiarizationEngine
         string normalizedAudioPath,
         double durationSeconds,
         IReadOnlyList<SpeechRegion> speechRegions,
+        bool commercialSafeMode,
         CancellationToken cancellationToken);
 }
 

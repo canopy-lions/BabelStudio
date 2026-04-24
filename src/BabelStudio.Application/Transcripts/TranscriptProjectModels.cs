@@ -11,7 +11,8 @@ namespace BabelStudio.Application.Transcripts;
 public sealed record CreateTranscriptProjectRequest(
     string ProjectName,
     string SourceMediaPath,
-    bool EnableSpeakerDiarization = true);
+    bool EnableSpeakerDiarization = true,
+    bool CommercialSafeMode = false);
 
 public sealed record SaveTranscriptEditsRequest(
     Guid TranscriptRevisionId,
