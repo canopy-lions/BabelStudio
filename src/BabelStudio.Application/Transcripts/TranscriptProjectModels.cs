@@ -1,4 +1,5 @@
 using BabelStudio.Domain;
+using BabelStudio.Domain.Speakers;
 using BabelStudio.Domain.Transcript;
 using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Projects;
@@ -9,7 +10,9 @@ namespace BabelStudio.Application.Transcripts;
 
 public sealed record CreateTranscriptProjectRequest(
     string ProjectName,
-    string SourceMediaPath);
+    string SourceMediaPath,
+    bool EnableSpeakerDiarization = true,
+    bool CommercialSafeMode = false);
 
 public sealed record SaveTranscriptEditsRequest(
     Guid TranscriptRevisionId,
@@ -33,7 +36,8 @@ public sealed record SetTranslationTargetRequest(
 
 public sealed record EditedTranscriptSegment(
     Guid SegmentId,
-    string Text);
+    string Text,
+    Guid? SpeakerId);
 
 public sealed record EditedTranslatedSegment(
     int SegmentIndex,
@@ -62,10 +66,33 @@ public sealed record DeleteTranscriptSegmentRequest(
     Guid TranscriptRevisionId,
     Guid SegmentId);
 
+public sealed record RenameSpeakerRequest(
+    Guid SpeakerId,
+    string DisplayName);
+
+public sealed record MergeSpeakersRequest(
+    Guid SourceSpeakerId,
+    Guid TargetSpeakerId);
+
+public sealed record AssignSpeakerToSegmentRequest(
+    Guid TranscriptRevisionId,
+    Guid SegmentId,
+    Guid SpeakerId);
+
+public sealed record SplitSpeakerTurnRequest(
+    Guid SpeakerTurnId,
+    double SplitSeconds);
+
+public sealed record ExtractReferenceClipRequest(
+    Guid SpeakerId,
+    Guid? SpeakerTurnId = null);
+
 public sealed record TranscriptProjectState(
     OpenProjectResult ProjectState,
     TranscriptRevision? CurrentTranscriptRevision,
     IReadOnlyList<TranscriptSegment> TranscriptSegments,
+    IReadOnlyList<ProjectSpeaker> Speakers,
+    IReadOnlyList<SpeakerTurn> SpeakerTurns,
     TranslationRevision? CurrentTranslationRevision,
     IReadOnlyList<TranslatedSegment> TranslatedSegments,
     bool IsTranslationStale,

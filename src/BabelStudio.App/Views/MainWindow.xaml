@@ -121,6 +121,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -152,7 +153,11 @@
                               SelectedValuePath="LanguageCode"
                               SelectedValue="{x:Bind ViewModel.SelectedTranslationTargetLanguageCode, Mode=TwoWay}"
                               SelectionChanged="TranslationTargetComboBox_SelectionChanged" />
-                    <TextBlock Grid.Row="1"
+                    <CheckBox Grid.Row="1"
+                              Grid.ColumnSpan="6"
+                              Content="Detect speakers during transcript import"
+                              IsChecked="{x:Bind ViewModel.EnableSpeakerDiarizationOnImport, Mode=TwoWay}" />
+                    <TextBlock Grid.Row="2"
                                Grid.ColumnSpan="6"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                Text="{x:Bind ViewModel.TranslationTargetStatus, Mode=OneWay}"
@@ -178,6 +183,24 @@
                                         <Button Content="Split at Cursor" Click="SplitSegmentButton_Click" Tag="{x:Bind}" />
                                         <Button Content="Apply Timing" Click="TrimSegmentButton_Click" Tag="{x:Bind}" />
                                         <Button Content="Delete" Click="DeleteSegmentButton_Click" Tag="{x:Bind}" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Border Width="12"
+                                                Height="12"
+                                                VerticalAlignment="Center"
+                                                Background="{x:Bind SpeakerBrush, Mode=OneWay}"
+                                                CornerRadius="6" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Text="{x:Bind SpeakerLabel, Mode=OneWay}" />
+                                        <ComboBox Width="220"
+                                                  ItemsSource="{x:Bind SpeakerOptions, Mode=OneWay}"
+                                                  DisplayMemberPath="DisplayName"
+                                                  SelectedValuePath="SpeakerId"
+                                                  SelectedValue="{x:Bind SelectedSpeakerId, Mode=TwoWay}" />
+                                        <Button Content="Apply Speaker"
+                                                Click="AssignSpeakerButton_Click"
+                                                Tag="{x:Bind}" />
                                     </StackPanel>
 
                                     <Grid ColumnSpacing="12">
@@ -243,10 +266,83 @@
                         <TextBlock FontWeight="SemiBold" Text="Stages" />
                         <TextBlock Text="{x:Bind ViewModel.VadStageStatus, Mode=OneWay}" />
                         <TextBlock Text="{x:Bind ViewModel.AsrStageStatus, Mode=OneWay}" />
+                        <TextBlock Text="{x:Bind ViewModel.DiarizationStageStatus, Mode=OneWay}" />
                         <TextBlock Text="{x:Bind ViewModel.TranslationStageStatus, Mode=OneWay}" />
                         <TextBlock Margin="0,8,0,0" Text="{x:Bind ViewModel.TranscriptRevisionLabel, Mode=OneWay}" TextWrapping="WrapWholeWords" />
                         <TextBlock Text="{x:Bind ViewModel.TranslationRevisionLabel, Mode=OneWay}" TextWrapping="WrapWholeWords" />
                         <TextBlock Text="{x:Bind ViewModel.TranslationRefreshStatus, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="Speakers" />
+                        <ListView x:Name="SpeakersListView"
+                                  Height="320"
+                                  ItemsSource="{x:Bind ViewModel.Speakers, Mode=OneWay}"
+                                  SelectionMode="None">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:SpeakerItem">
+                                    <Border Margin="0,0,0,8"
+                                            Padding="10"
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8">
+                                        <StackPanel Spacing="8">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border Width="12"
+                                                        Height="12"
+                                                        VerticalAlignment="Center"
+                                                        Background="{x:Bind AccentBrush, Mode=OneWay}"
+                                                        CornerRadius="6" />
+                                                <TextBox Width="180"
+                                                         Text="{x:Bind DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button Content="Rename"
+                                                        Click="RenameSpeakerButton_Click"
+                                                        Tag="{x:Bind}" />
+                                                <ComboBox Width="160"
+                                                          ItemsSource="{x:Bind MergeTargets, Mode=OneWay}"
+                                                          DisplayMemberPath="DisplayName"
+                                                          SelectedValuePath="SpeakerId"
+                                                          SelectedValue="{x:Bind MergeTargetSpeakerId, Mode=TwoWay}" />
+                                                <Button Content="Merge"
+                                                        Click="MergeSpeakerButton_Click"
+                                                        Tag="{x:Bind}" />
+                                                <Button Content="Extract Reference"
+                                                        Click="ExtractReferenceClipButton_Click"
+                                                        Tag="{x:Bind}" />
+                                            </StackPanel>
+                                            <TextBlock Text="{x:Bind TurnSummary, Mode=OneWay}" />
+                                            <TextBlock Text="{x:Bind ReferenceClipStatus, Mode=OneWay}" />
+                                            <ListView ItemsSource="{x:Bind Turns, Mode=OneWay}"
+                                                      SelectionMode="None"
+                                                      MaxHeight="180">
+                                                <ListView.ItemTemplate>
+                                                    <DataTemplate x:DataType="viewModels:SpeakerTurnItem">
+                                                        <StackPanel Margin="0,0,0,6" Spacing="4">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <TextBlock VerticalAlignment="Center"
+                                                                           Text="{x:Bind DisplayTimeRange, Mode=OneWay}" />
+                                                                <Button Content="Jump"
+                                                                        Click="JumpToSpeakerTurnButton_Click"
+                                                                        Tag="{x:Bind}" />
+                                                                <Button Content="Split at Cursor"
+                                                                        Click="SplitSpeakerTurnButton_Click"
+                                                                        Tag="{x:Bind}" />
+                                                            </StackPanel>
+                                                            <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                       Text="{x:Bind ConfidenceLabel, Mode=OneWay}" />
+                                                            <TextBlock Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                                       Text="{x:Bind OverlapLabel, Mode=OneWay}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListView.ItemTemplate>
+                                            </ListView>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </StackPanel>
                 </Border>
 

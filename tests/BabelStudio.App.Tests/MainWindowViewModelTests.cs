@@ -7,6 +7,7 @@ using BabelStudio.Domain;
 using BabelStudio.Domain.Artifacts;
 using BabelStudio.Domain.Media;
 using BabelStudio.Domain.Projects;
+using BabelStudio.Domain.Speakers;
 using BabelStudio.Domain.Transcript;
 using BabelStudio.Domain.Translation;
 using BabelStudio.Media.Playback;
@@ -91,8 +92,9 @@ public sealed class MainWindowViewModelTests
                 [ new MediaAudioStream(0, "aac", 2, 48000, mediaAsset.DurationSeconds) ],
                 [ new MediaVideoStream(1, "h264", 1920, 1080, 24d, mediaAsset.DurationSeconds) ]),
             now);
+        ProjectSpeaker speaker = ProjectSpeaker.Create(project.Id, "Speaker 1", now);
         TranscriptRevision transcriptRevision = TranscriptRevision.Create(project.Id, stageRunId: null, revisionNumber: 1, now);
-        TranscriptSegment transcriptSegment = TranscriptSegment.Create(transcriptRevision.Id, 0, 0d, 5d, "Hello");
+        TranscriptSegment transcriptSegment = TranscriptSegment.Create(transcriptRevision.Id, 0, 0d, 5d, "Hello", speaker.Id);
         TranslationRevision translationRevision = TranslationRevision.Create(
             project.Id,
             stageRunId: null,
@@ -136,6 +138,8 @@ public sealed class MainWindowViewModelTests
                 transcriptLanguage),
             transcriptRevision,
             [ transcriptSegment ],
+            [ speaker ],
+            [ SpeakerTurn.Create(project.Id, speaker.Id, 0d, 5d, 0.9, hasOverlap: false) ],
             translationRevision,
             [ translatedSegment ],
             IsTranslationStale: staleTranslatedSegmentIndices?.Count > 0,

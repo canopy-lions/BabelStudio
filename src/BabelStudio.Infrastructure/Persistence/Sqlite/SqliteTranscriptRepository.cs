@@ -50,6 +50,7 @@ public sealed class SqliteTranscriptRepository : ITranscriptRepository
             """
             SELECT id,
                    transcript_revision_id,
+                   speaker_id,
                    segment_index,
                    start_seconds,
                    end_seconds,
@@ -67,10 +68,11 @@ public sealed class SqliteTranscriptRepository : ITranscriptRepository
             results.Add(new TranscriptSegment(
                 Guid.Parse(reader.GetString(0)),
                 Guid.Parse(reader.GetString(1)),
-                reader.GetInt32(2),
-                reader.GetDouble(3),
+                reader.GetInt32(3),
                 reader.GetDouble(4),
-                reader.GetString(5)));
+                reader.GetDouble(5),
+                reader.GetString(6),
+                reader.IsDBNull(2) ? null : Guid.Parse(reader.GetString(2))));
         }
 
         return results;
@@ -136,23 +138,26 @@ public sealed class SqliteTranscriptRepository : ITranscriptRepository
         segmentCommand.Transaction = transaction;
         segmentCommand.CommandText =
             """
-            INSERT INTO transcript_segments (
-                id,
-                transcript_revision_id,
-                segment_index,
-                start_seconds,
-                end_seconds,
-                text)
-            VALUES (
-                $id,
-                $transcriptRevisionId,
-                $segmentIndex,
-                $startSeconds,
-                $endSeconds,
-                $text);
+                INSERT INTO transcript_segments (
+                    id,
+                    transcript_revision_id,
+                    speaker_id,
+                    segment_index,
+                    start_seconds,
+                    end_seconds,
+                    text)
+                VALUES (
+                    $id,
+                    $transcriptRevisionId,
+                    $speakerId,
+                    $segmentIndex,
+                    $startSeconds,
+                    $endSeconds,
+                    $text);
             """;
         SqliteParameter segmentIdParameter = segmentCommand.Parameters.Add("$id", SqliteType.Text);
         SqliteParameter transcriptRevisionIdParameter = segmentCommand.Parameters.Add("$transcriptRevisionId", SqliteType.Text);
+        SqliteParameter speakerIdParameter = segmentCommand.Parameters.Add("$speakerId", SqliteType.Text);
         SqliteParameter segmentIndexParameter = segmentCommand.Parameters.Add("$segmentIndex", SqliteType.Integer);
         SqliteParameter startSecondsParameter = segmentCommand.Parameters.Add("$startSeconds", SqliteType.Real);
         SqliteParameter endSecondsParameter = segmentCommand.Parameters.Add("$endSeconds", SqliteType.Real);
@@ -162,11 +167,99 @@ public sealed class SqliteTranscriptRepository : ITranscriptRepository
         {
             segmentIdParameter.Value = segment.Id.ToString("D");
             transcriptRevisionIdParameter.Value = segment.TranscriptRevisionId.ToString("D");
+            speakerIdParameter.Value = segment.SpeakerId?.ToString("D") ?? (object)DBNull.Value;
             segmentIndexParameter.Value = segment.SegmentIndex;
             startSecondsParameter.Value = segment.StartSeconds;
             endSecondsParameter.Value = segment.EndSeconds;
             textParameter.Value = segment.Text;
             await segmentCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ReassignSpeakerAsync(
+        Guid projectId,
+        Guid sourceSpeakerId,
+        Guid targetSpeakerId,
+        CancellationToken cancellationToken)
+    {
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE transcript_segments
+            SET speaker_id = $targetSpeakerId
+            WHERE speaker_id = $sourceSpeakerId
+              AND transcript_revision_id IN (
+                  SELECT id
+                  FROM transcript_revisions
+                  WHERE project_id = $projectId);
+            """;
+        command.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+        command.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+        command.Parameters.AddWithValue("$targetSpeakerId", targetSpeakerId.ToString("D"));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ReassignAndMergeSpeakersAsync(
+        Guid projectId,
+        Guid sourceSpeakerId,
+        Guid targetSpeakerId,
+        CancellationToken cancellationToken)
+    {
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteConnection connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteTransaction transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using (SqliteCommand reassignSegments = connection.CreateCommand())
+        {
+            reassignSegments.Transaction = transaction;
+            reassignSegments.CommandText =
+                """
+                UPDATE transcript_segments
+                SET speaker_id = $targetSpeakerId
+                WHERE speaker_id = $sourceSpeakerId
+                  AND transcript_revision_id IN (
+                      SELECT id
+                      FROM transcript_revisions
+                      WHERE project_id = $projectId);
+                """;
+            reassignSegments.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            reassignSegments.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+            reassignSegments.Parameters.AddWithValue("$targetSpeakerId", targetSpeakerId.ToString("D"));
+            await reassignSegments.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (SqliteCommand updateTurns = connection.CreateCommand())
+        {
+            updateTurns.Transaction = transaction;
+            updateTurns.CommandText =
+                """
+                UPDATE speaker_turns
+                SET speaker_id = $targetSpeakerId
+                WHERE project_id = $projectId
+                  AND speaker_id = $sourceSpeakerId;
+                """;
+            updateTurns.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            updateTurns.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+            updateTurns.Parameters.AddWithValue("$targetSpeakerId", targetSpeakerId.ToString("D"));
+            await updateTurns.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (SqliteCommand deleteSpeaker = connection.CreateCommand())
+        {
+            deleteSpeaker.Transaction = transaction;
+            deleteSpeaker.CommandText =
+                """
+                DELETE FROM speakers
+                WHERE project_id = $projectId
+                  AND id = $sourceSpeakerId;
+                """;
+            deleteSpeaker.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
+            deleteSpeaker.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
+            await deleteSpeaker.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

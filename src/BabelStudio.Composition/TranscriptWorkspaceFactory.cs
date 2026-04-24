@@ -13,6 +13,7 @@ using BabelStudio.Infrastructure.FileSystem;
 using BabelStudio.Infrastructure.Persistence.Sqlite;
 using BabelStudio.Inference.Onnx.Madlad;
 using BabelStudio.Inference.Onnx.OpusMt;
+using BabelStudio.Inference.Onnx.SortFormer;
 using BabelStudio.Inference.Onnx.Translation;
 using BabelStudio.Media.Extraction;
 using BabelStudio.Media.Probe;
@@ -59,9 +60,12 @@ public sealed class TranscriptWorkspaceFactory
             new SqliteTranslationRepository(database),
             new SqliteProjectStageRunStore(database),
             mediaRepository,
+            new SqliteSpeakerRepository(database),
             artifactStore,
+            new Pcm16WaveClipExtractor(),
             new Sha256FileFingerprintService(),
             new SileroVadSpeechRegionDetector(runtimePlanner, modelPathResolver),
+            new SortFormerDiarizationEngine(runtimePlanner, modelPathResolver),
             new WhisperOnnxAudioTranscriptionEngine(runtimePlanner, modelPathResolver),
             translationLanguageRouter,
             new RoutedTranslationEngine(

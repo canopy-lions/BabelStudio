@@ -7,7 +7,8 @@ public enum ArtifactKind
     WaveformSummary = 2,
     SpeechRegions = 3,
     TranscriptRevision = 4,
-    TranslationRevision = 5
+    TranslationRevision = 5,
+    ReferenceClip = 6
 }
 
 public sealed record ProjectArtifact(

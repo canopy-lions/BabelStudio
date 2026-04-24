@@ -3,13 +3,26 @@ using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Transcripts;
 using BabelStudio.Contracts.Pipeline;
 using BabelStudio.Domain;
+using BabelStudio.Domain.Artifacts;
+using BabelStudio.Domain.Speakers;
 using BabelStudio.Domain.Translation;
 using BabelStudio.Media.Playback;
+using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 
 namespace BabelStudio.App.ViewModels;
 
 public sealed class MainWindowViewModel : ObservableObject
 {
+    private static readonly Color UnassignedSpeakerColor = Color.FromArgb(255, 128, 128, 128);
+    private static readonly Color[] SpeakerPalette =
+    [
+        Color.FromArgb(255, 219, 96, 69),
+        Color.FromArgb(255, 66, 145, 241),
+        Color.FromArgb(255, 101, 182, 94),
+        Color.FromArgb(255, 227, 180, 74)
+    ];
+
     private Guid? currentTranscriptRevisionId;
     private Guid? currentTranslationRevisionId;
     private string? currentTranslationTargetLanguageCode;
@@ -32,6 +45,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string persistedTranscriptLanguageCode = string.Empty;
     private string projectNameDraft = "New Project";
     private string projectRootPath = "No project loaded.";
+    private bool enableSpeakerDiarizationOnImport = true;
     private string selectedModelTier = "balanced";
     private string? selectedTranslationTargetLanguageCode;
     private string? selectedTranscriptLanguageCode;
@@ -42,6 +56,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string translationRefreshStatus = "Not translated";
     private string translationRevisionLabel = "No translation loaded.";
     private string translationStageStatus = "Not run";
+    private string diarizationStageStatus = "Not run";
     private string transcriptRevisionLabel = "No transcript loaded.";
     private string vadStageStatus = "Not run";
     private string asrStageStatus = "Not run";
@@ -63,6 +78,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public ObservableCollection<RecentProjectItem> RecentProjects { get; } = [];
 
     public ObservableCollection<TranslationTargetLanguageOption> SupportedTranslationTargets { get; } = [];
+
+    public ObservableCollection<SpeakerItem> Speakers { get; } = [];
 
     public IReadOnlyList<TranscriptLanguageChoice> TranscriptLanguageOptions { get; } =
     [
@@ -108,6 +125,12 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref projectRootPath, value);
     }
 
+    public bool EnableSpeakerDiarizationOnImport
+    {
+        get => enableSpeakerDiarizationOnImport;
+        set => SetProperty(ref enableSpeakerDiarizationOnImport, value);
+    }
+
     public string MediaPath
     {
         get => mediaPath;
@@ -136,6 +159,12 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         get => translationStageStatus;
         private set => SetProperty(ref translationStageStatus, value);
+    }
+
+    public string DiarizationStageStatus
+    {
+        get => diarizationStageStatus;
+        private set => SetProperty(ref diarizationStageStatus, value);
     }
 
     public string TranscriptRevisionLabel
@@ -314,6 +343,8 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref currentWaveformSummary, value);
     }
 
+    public Guid? CurrentTranscriptRevisionId => currentTranscriptRevisionId;
+
     public bool CanSaveTranscript => !IsBusy && currentTranscriptRevisionId is not null && Segments.Count > 0;
 
     public bool CanTranslate =>
@@ -428,6 +459,7 @@ public sealed class MainWindowViewModel : ObservableObject
         SourceStatus = statusSummary;
         VadStageStatus = BuildStageStatus(state.StageRuns, "vad");
         AsrStageStatus = BuildStageStatus(state.StageRuns, "asr");
+        DiarizationStageStatus = BuildStageStatus(state.StageRuns, "diarization");
         TranslationStageStatus = BuildStageStatus(state.StageRuns, "translation");
         TranscriptRevisionLabel = state.CurrentTranscriptRevision is null
             ? "No transcript loaded."
@@ -444,17 +476,58 @@ public sealed class MainWindowViewModel : ObservableObject
         Dictionary<int, string> translatedTextByIndex = state.TranslatedSegments
             .ToDictionary(segment => segment.SegmentIndex, segment => segment.Text);
         IReadOnlySet<int> staleTranslatedSegmentIndices = state.StaleTranslatedSegmentIndices;
+        Dictionary<Guid, SpeakerVisual> speakerVisuals = BuildSpeakerVisuals(state.Speakers);
+        SpeakerChoiceItem[] speakerChoices = state.Speakers
+            .Select(speaker => new SpeakerChoiceItem(speaker.Id, speaker.DisplayName))
+            .ToArray();
+        HashSet<Guid> referenceClipSpeakerIds = ResolveReferenceClipSpeakerIds(state.ProjectState.Artifacts);
+        Dictionary<Guid, SpeakerTurnItem[]> turnsBySpeakerId = state.SpeakerTurns
+            .GroupBy(turn => turn.SpeakerId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(turn => turn.StartSeconds)
+                    .Select(turn => new SpeakerTurnItem(
+                        turn.Id,
+                        turn.SpeakerId,
+                        turn.StartSeconds,
+                        turn.EndSeconds,
+                        turn.Confidence,
+                        turn.HasOverlap))
+                    .ToArray());
+
+        Speakers.Clear();
+        foreach (ProjectSpeaker speaker in state.Speakers.OrderBy(speaker => speaker.CreatedAtUtc))
+        {
+            SpeakerVisual visual = speakerVisuals[speaker.Id];
+            SpeakerChoiceItem[] mergeTargets = speakerChoices
+                .Where(choice => choice.SpeakerId != speaker.Id)
+                .ToArray();
+            turnsBySpeakerId.TryGetValue(speaker.Id, out SpeakerTurnItem[]? speakerTurns);
+            Speakers.Add(new SpeakerItem(
+                speaker.Id,
+                speaker.DisplayName,
+                visual.Color,
+                referenceClipSpeakerIds.Contains(speaker.Id),
+                mergeTargets,
+                speakerTurns ?? []));
+        }
 
         Segments.Clear();
         foreach (TranscriptSegmentItem item in state.TranscriptSegments
                      .OrderBy(segment => segment.SegmentIndex)
                      .Select(segment => new TranscriptSegmentItem(
-                         segment,
-                         TranslationEditorLabel,
-                         translatedTextByIndex.TryGetValue(segment.SegmentIndex, out string? translatedText)
-                             ? translatedText
-                             : string.Empty,
-                         staleTranslatedSegmentIndices.Contains(segment.SegmentIndex))))
+                        segment,
+                        segment.SpeakerId,
+                        ResolveSpeakerLabel(segment.SpeakerId, speakerVisuals),
+                        ResolveSpeakerColor(segment.SpeakerId, speakerVisuals),
+                        ResolveSpeakerBrush(segment.SpeakerId, speakerVisuals),
+                        speakerChoices,
+                        TranslationEditorLabel,
+                        translatedTextByIndex.TryGetValue(segment.SegmentIndex, out string? translatedText)
+                            ? translatedText
+                            : string.Empty,
+                        staleTranslatedSegmentIndices.Contains(segment.SegmentIndex))))
         {
             Segments.Add(item);
         }
@@ -591,7 +664,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
         return new SaveTranscriptEditsRequest(
             currentTranscriptRevisionId.Value,
-            Segments.Select(segment => new EditedTranscriptSegment(segment.SegmentId, segment.Text)).ToArray());
+            Segments.Select(segment => new EditedTranscriptSegment(segment.SegmentId, segment.Text, segment.SelectedSpeakerId)).ToArray());
     }
 
     public SaveTranslationEditsRequest? CreateSaveTranslationRequest()
@@ -638,6 +711,46 @@ public sealed class MainWindowViewModel : ObservableObject
         TranscriptSegmentItem[] ordered = selectedSegments.OrderBy(segment => segment.SegmentIndex).ToArray();
         return new MergeTranscriptSegmentsRequest(currentTranscriptRevisionId.Value, ordered[0].SegmentId, ordered[1].SegmentId);
     }
+
+    public RenameSpeakerRequest? CreateRenameSpeakerRequest(SpeakerItem speaker)
+    {
+        if (!speaker.HasRenamePending || string.IsNullOrWhiteSpace(speaker.DisplayName))
+        {
+            return null;
+        }
+
+        return new RenameSpeakerRequest(speaker.SpeakerId, speaker.DisplayName);
+    }
+
+    public MergeSpeakersRequest? CreateMergeSpeakersRequest(SpeakerItem speaker)
+    {
+        if (speaker.MergeTargetSpeakerId is not Guid targetSpeakerId || targetSpeakerId == speaker.SpeakerId)
+        {
+            return null;
+        }
+
+        return new MergeSpeakersRequest(speaker.SpeakerId, targetSpeakerId);
+    }
+
+    public AssignSpeakerToSegmentRequest? CreateAssignSpeakerRequest(TranscriptSegmentItem segment)
+    {
+        if (currentTranscriptRevisionId is null || segment.SelectedSpeakerId is not Guid speakerId)
+        {
+            return null;
+        }
+
+        return new AssignSpeakerToSegmentRequest(currentTranscriptRevisionId.Value, segment.SegmentId, speakerId);
+    }
+
+    public SplitSpeakerTurnRequest? CreateSplitSpeakerTurnRequest(SpeakerTurnItem turn, double splitSeconds)
+    {
+        return !double.IsFinite(splitSeconds)
+            ? null
+            : new SplitSpeakerTurnRequest(turn.TurnId, splitSeconds);
+    }
+
+    public ExtractReferenceClipRequest CreateExtractReferenceClipRequest(SpeakerItem speaker) =>
+        new(speaker.SpeakerId);
 
     public string? GetRequestedTranslationTargetLanguageCode() => RequestedTranslationTargetLanguageCode;
 
@@ -807,6 +920,71 @@ public sealed class MainWindowViewModel : ObservableObject
             ? null
             : languageCode.Trim().ToLowerInvariant();
 
+    private static Dictionary<Guid, SpeakerVisual> BuildSpeakerVisuals(IReadOnlyList<ProjectSpeaker> speakers)
+    {
+        return speakers
+            .OrderBy(speaker => speaker.CreatedAtUtc)
+            .Select((speaker, index) =>
+            {
+                Color color = SpeakerPalette[index % SpeakerPalette.Length];
+                Brush? brush = WinUiBrushFactory.TryCreateSolidColorBrush(color);
+                return new
+                {
+                    speaker.Id,
+                    Visual = new SpeakerVisual(speaker.DisplayName, color, brush)
+                };
+            })
+            .ToDictionary(entry => entry.Id, entry => entry.Visual);
+    }
+
+    private static HashSet<Guid> ResolveReferenceClipSpeakerIds(IReadOnlyList<ProjectArtifact> artifacts)
+    {
+        var speakerIds = new HashSet<Guid>();
+        foreach (ProjectArtifact artifact in artifacts.Where(artifact => artifact.Kind == ArtifactKind.ReferenceClip))
+        {
+            if (!string.IsNullOrWhiteSpace(artifact.Provenance) &&
+                artifact.Provenance.StartsWith("speaker-reference:", StringComparison.OrdinalIgnoreCase) &&
+                Guid.TryParse(artifact.Provenance["speaker-reference:".Length..], out Guid provenanceSpeakerId))
+            {
+                speakerIds.Add(provenanceSpeakerId);
+                continue;
+            }
+
+            string[] parts = artifact.RelativePath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+            foreach (string part in parts)
+            {
+                if (Guid.TryParse(part, out Guid pathSpeakerId))
+                {
+                    speakerIds.Add(pathSpeakerId);
+                    break;
+                }
+            }
+        }
+
+        return speakerIds;
+    }
+
+    private static string ResolveSpeakerLabel(Guid? speakerId, IReadOnlyDictionary<Guid, SpeakerVisual> speakerVisuals)
+    {
+        return speakerId is Guid resolvedSpeakerId && speakerVisuals.TryGetValue(resolvedSpeakerId, out SpeakerVisual? visual)
+            ? visual.DisplayName
+            : "Unassigned";
+    }
+
+    private static Color ResolveSpeakerColor(Guid? speakerId, IReadOnlyDictionary<Guid, SpeakerVisual> speakerVisuals)
+    {
+        return speakerId is Guid resolvedSpeakerId && speakerVisuals.TryGetValue(resolvedSpeakerId, out SpeakerVisual? visual)
+            ? visual.Color
+            : UnassignedSpeakerColor;
+    }
+
+    private static Brush? ResolveSpeakerBrush(Guid? speakerId, IReadOnlyDictionary<Guid, SpeakerVisual> speakerVisuals)
+    {
+        return speakerId is Guid resolvedSpeakerId && speakerVisuals.TryGetValue(resolvedSpeakerId, out SpeakerVisual? visual)
+            ? visual.Brush
+            : WinUiBrushFactory.TryCreateSolidColorBrush(UnassignedSpeakerColor);
+    }
+
     private void ApplySupportedTranslationTargets(IReadOnlyList<TranslationTargetLanguageOption> options)
     {
         SupportedTranslationTargets.Clear();
@@ -927,4 +1105,9 @@ public sealed class MainWindowViewModel : ObservableObject
             ? value.ToString(@"hh\:mm\:ss")
             : value.ToString(@"mm\:ss");
     }
+
+    private sealed record SpeakerVisual(
+        string DisplayName,
+        Color Color,
+        Brush? Brush);
 }

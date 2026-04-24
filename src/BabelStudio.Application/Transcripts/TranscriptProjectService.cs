@@ -8,6 +8,7 @@ using BabelStudio.Domain;
 using BabelStudio.Domain.Artifacts;
 using BabelStudio.Domain.Media;
 using BabelStudio.Domain.Projects;
+using BabelStudio.Domain.Speakers;
 using BabelStudio.Domain.Transcript;
 using BabelStudio.Domain.Translation;
 
@@ -22,12 +23,17 @@ public sealed class TranscriptProjectService
     private readonly ITranslationRepository translationRepository;
     private readonly IProjectStageRunStore stageRunStore;
     private readonly IMediaAssetRepository mediaAssetRepository;
+    private readonly ISpeakerRepository speakerRepository;
     private readonly IArtifactStore artifactStore;
+    private readonly IAudioClipExtractor audioClipExtractor;
     private readonly IFileFingerprintService fileFingerprintService;
     private readonly ISpeechRegionDetector speechRegionDetector;
+    private readonly ISpeakerDiarizationEngine diarizationEngine;
     private readonly IAudioTranscriptionEngine transcriptionEngine;
     private readonly ITranslationLanguageRouter translationLanguageRouter;
     private readonly ITranslationEngine translationEngine;
+    private readonly RenameSpeakerHandler renameSpeakerHandler;
+    private readonly MergeSpeakersHandler mergeSpeakersHandler;
 
     public TranscriptProjectService(
         ProjectMediaIngestService projectMediaIngestService,
@@ -35,9 +41,12 @@ public sealed class TranscriptProjectService
         ITranslationRepository translationRepository,
         IProjectStageRunStore stageRunStore,
         IMediaAssetRepository mediaAssetRepository,
+        ISpeakerRepository speakerRepository,
         IArtifactStore artifactStore,
+        IAudioClipExtractor audioClipExtractor,
         IFileFingerprintService fileFingerprintService,
         ISpeechRegionDetector speechRegionDetector,
+        ISpeakerDiarizationEngine diarizationEngine,
         IAudioTranscriptionEngine transcriptionEngine,
         ITranslationLanguageRouter translationLanguageRouter,
         ITranslationEngine translationEngine)
@@ -47,12 +56,17 @@ public sealed class TranscriptProjectService
         this.translationRepository = translationRepository;
         this.stageRunStore = stageRunStore;
         this.mediaAssetRepository = mediaAssetRepository;
+        this.speakerRepository = speakerRepository;
         this.artifactStore = artifactStore;
+        this.audioClipExtractor = audioClipExtractor;
         this.fileFingerprintService = fileFingerprintService;
         this.speechRegionDetector = speechRegionDetector;
+        this.diarizationEngine = diarizationEngine;
         this.transcriptionEngine = transcriptionEngine;
         this.translationLanguageRouter = translationLanguageRouter;
         this.translationEngine = translationEngine;
+        renameSpeakerHandler = new RenameSpeakerHandler(speakerRepository);
+        mergeSpeakersHandler = new MergeSpeakersHandler(transcriptRepository);
     }
 
     public async Task<TranscriptProjectState> CreateAsync(
@@ -67,6 +81,8 @@ public sealed class TranscriptProjectService
             createResult.Project.Id,
             createResult.MediaAsset,
             createResult.AudioArtifact,
+            request.EnableSpeakerDiarization,
+            request.CommercialSafeMode,
             cancellationToken).ConfigureAwait(false);
 
         return await OpenAsyncCore(requestedTranslationTargetLanguage: null, cancellationToken).ConfigureAwait(false);
@@ -91,10 +107,18 @@ public sealed class TranscriptProjectService
         TranscriptRevision? currentRevision = await transcriptRepository.GetCurrentRevisionAsync(
             openResult.Project.Id,
             cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<ProjectSpeaker> speakers = await LoadOrCreateSpeakersAsync(
+            openResult.Project.Id,
+            currentRevision,
+            cancellationToken).ConfigureAwait(false);
 
-        IReadOnlyList<TranscriptSegment> segments = currentRevision is null
+        IReadOnlyList<TranscriptSegment> storedSegments = currentRevision is null
             ? []
             : await transcriptRepository.GetSegmentsAsync(currentRevision.Id, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<TranscriptSegment> segments = ApplySingleSpeakerDefaultAssignments(storedSegments, speakers);
+        IReadOnlyList<SpeakerTurn> speakerTurns = await speakerRepository.ListTurnsAsync(
+            openResult.Project.Id,
+            cancellationToken).ConfigureAwait(false);
 
         string? normalizedTranscriptLanguage = NormalizeTranscriptLanguageCode(openResult.TranscriptLanguage);
         IReadOnlyList<TranslationTargetLanguageOption> supportedTargetLanguages = normalizedTranscriptLanguage is null
@@ -134,6 +158,8 @@ public sealed class TranscriptProjectService
             openResult,
             currentRevision,
             segments,
+            speakers,
+            speakerTurns,
             currentTranslationRevision,
             translatedSegments,
             isTranslationStale,
@@ -164,9 +190,9 @@ public sealed class TranscriptProjectService
         TranscriptRevision currentRevision = GetRequiredTranscriptRevision(currentState);
         EnsureRevisionMatches(currentRevision, request.TranscriptRevisionId, "Transcript edits were based on an out-of-date revision.");
 
-        Dictionary<Guid, string> replacements = request.Segments.ToDictionary(
+        Dictionary<Guid, EditedTranscriptSegment> replacements = request.Segments.ToDictionary(
             segment => segment.SegmentId,
-            segment => segment.Text,
+            segment => segment,
             comparer: EqualityComparer<Guid>.Default);
 
         TranscriptSegment[] editedSegments = currentState.TranscriptSegments
@@ -176,9 +202,12 @@ public sealed class TranscriptProjectService
                 index,
                 segment.StartSeconds,
                 segment.EndSeconds,
-                replacements.TryGetValue(segment.Id, out string? replacement)
-                    ? replacement
-                    : segment.Text))
+                replacements.TryGetValue(segment.Id, out EditedTranscriptSegment? replacement)
+                    ? replacement.Text
+                    : segment.Text,
+                replacements.TryGetValue(segment.Id, out replacement)
+                    ? replacement.SpeakerId
+                    : segment.SpeakerId))
             .ToArray();
 
         return await SaveTranscriptRevisionAsync(currentState, editedSegments, "manual-edit", cancellationToken).ConfigureAwait(false);
@@ -221,7 +250,8 @@ public sealed class TranscriptProjectService
                     revisedIndex++,
                     segment.StartSeconds,
                     segment.EndSeconds,
-                    segment.Text));
+                    segment.Text,
+                    segment.SpeakerId));
                 continue;
             }
 
@@ -230,13 +260,15 @@ public sealed class TranscriptProjectService
                 revisedIndex++,
                 segment.StartSeconds,
                 request.SplitSeconds,
-                leftText));
+                leftText,
+                segment.SpeakerId));
             revisedSegments.Add(TranscriptSegment.Create(
                 currentRevision.Id,
                 revisedIndex++,
                 request.SplitSeconds,
                 segment.EndSeconds,
-                rightText));
+                rightText,
+                segment.SpeakerId));
         }
 
         return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-split", cancellationToken).ConfigureAwait(false);
@@ -267,6 +299,7 @@ public sealed class TranscriptProjectService
 
         var revisedSegments = new List<TranscriptSegment>(existingSegments.Length - 1);
         int revisedIndex = 0;
+        Guid? mergedSpeakerId = left.SpeakerId == right.SpeakerId ? left.SpeakerId : null;
         foreach (TranscriptSegment segment in existingSegments)
         {
             if (segment.Id == left.Id)
@@ -276,7 +309,8 @@ public sealed class TranscriptProjectService
                     revisedIndex++,
                     left.StartSeconds,
                     right.EndSeconds,
-                    MergeSegmentText(left.Text, right.Text)));
+                    MergeSegmentText(left.Text, right.Text),
+                    mergedSpeakerId));
                 continue;
             }
 
@@ -290,7 +324,8 @@ public sealed class TranscriptProjectService
                 revisedIndex++,
                 segment.StartSeconds,
                 segment.EndSeconds,
-                segment.Text));
+                segment.Text,
+                segment.SpeakerId));
         }
 
         return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-merge", cancellationToken).ConfigureAwait(false);
@@ -339,7 +374,8 @@ public sealed class TranscriptProjectService
                 revisedIndex++,
                 isTarget ? request.StartSeconds : segment.StartSeconds,
                 isTarget ? request.EndSeconds : segment.EndSeconds,
-                segment.Text));
+                segment.Text,
+                segment.SpeakerId));
         }
 
         return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-trim", cancellationToken).ConfigureAwait(false);
@@ -381,7 +417,8 @@ public sealed class TranscriptProjectService
                 revisedIndex++,
                 segment.StartSeconds,
                 segment.EndSeconds,
-                segment.Text));
+                segment.Text,
+                segment.SpeakerId));
         }
 
         return await SaveTranscriptRevisionAsync(currentState, revisedSegments, "segment-delete", cancellationToken).ConfigureAwait(false);
@@ -592,6 +629,138 @@ public sealed class TranscriptProjectService
         return await OpenAsyncCore(targetLanguage, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<TranscriptProjectState> RenameSpeakerAsync(
+        RenameSpeakerRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await renameSpeakerHandler.HandleAsync(
+            currentState.ProjectState.Project.Id,
+            request.SpeakerId,
+            request.DisplayName,
+            cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> MergeSpeakersAsync(
+        MergeSpeakersRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await mergeSpeakersHandler.HandleAsync(
+            currentState.ProjectState.Project.Id,
+            request.SourceSpeakerId,
+            request.TargetSpeakerId,
+            cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> AssignSpeakerToSegmentAsync(
+        AssignSpeakerToSegmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        TranscriptRevision currentRevision = GetRequiredTranscriptRevision(currentState);
+        EnsureRevisionMatches(currentRevision, request.TranscriptRevisionId, "Speaker assignment was based on an out-of-date transcript revision.");
+
+        TranscriptSegment[] revisedSegments = currentState.TranscriptSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .Select((segment, index) => TranscriptSegment.Create(
+                currentRevision.Id,
+                index,
+                segment.StartSeconds,
+                segment.EndSeconds,
+                segment.Text,
+                segment.Id == request.SegmentId
+                    ? request.SpeakerId
+                    : segment.SpeakerId))
+            .ToArray();
+
+        return await SaveTranscriptRevisionAsync(
+            currentState,
+            revisedSegments,
+            "speaker-assignment",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> SplitSpeakerTurnAsync(
+        SplitSpeakerTurnRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await speakerRepository.SplitTurnAsync(
+            currentState.ProjectState.Project.Id,
+            request.SpeakerTurnId,
+            request.SplitSeconds,
+            cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> ExtractReferenceClipAsync(
+        ExtractReferenceClipRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        MediaAsset mediaAsset = GetRequiredMediaAsset(currentState);
+        ClipRange clipRange = ResolveReferenceClipRange(currentState, request);
+        string sourceWavePath = artifactStore.GetPath(ProjectArtifactPaths.NormalizedAudioRelativePath);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        string relativePath = ProjectArtifactPaths.GetReferenceClipRelativePath(request.SpeakerId, now);
+        ArtifactWriteHandle writeHandle = artifactStore.CreateWriteHandle(relativePath);
+        bool committed = false;
+
+        try
+        {
+            AudioClipExtractionResult extraction = await audioClipExtractor.ExtractAsync(
+                sourceWavePath,
+                clipRange.StartSeconds,
+                clipRange.EndSeconds,
+                writeHandle.TemporaryPath,
+                cancellationToken).ConfigureAwait(false);
+            await artifactStore.CommitAsync(writeHandle, cancellationToken).ConfigureAwait(false);
+
+            FileFingerprint fingerprint = await fileFingerprintService.ComputeAsync(
+                artifactStore.GetPath(relativePath),
+                cancellationToken).ConfigureAwait(false);
+
+            var artifact = new ProjectArtifact(
+                Guid.NewGuid(),
+                currentState.ProjectState.Project.Id,
+                mediaAsset.Id,
+                ArtifactKind.ReferenceClip,
+                relativePath,
+                fingerprint.Sha256,
+                fingerprint.SizeBytes,
+                extraction.DurationSeconds,
+                extraction.SampleRate,
+                extraction.ChannelCount,
+                now,
+                StageRunId: null,
+                Provenance: $"speaker-reference:{request.SpeakerId:D}");
+            await mediaAssetRepository.SaveArtifactAsync(artifact, cancellationToken).ConfigureAwait(false);
+
+            committed = true;
+        }
+        catch
+        {
+            if (File.Exists(artifactStore.GetPath(relativePath)))
+            {
+                File.Delete(artifactStore.GetPath(relativePath));
+            }
+
+            throw;
+        }
+        finally
+        {
+            if (!committed && File.Exists(writeHandle.TemporaryPath))
+            {
+                File.Delete(writeHandle.TemporaryPath);
+            }
+        }
+
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<TranscriptProjectState> SaveTranscriptRevisionAsync(
         TranscriptProjectState currentState,
         IReadOnlyList<TranscriptSegment> segments,
@@ -616,7 +785,8 @@ public sealed class TranscriptProjectService
                 index,
                 segment.StartSeconds,
                 segment.EndSeconds,
-                segment.Text))
+                segment.Text,
+                segment.SpeakerId))
             .ToArray();
 
         await transcriptRepository.SaveRevisionAsync(editedRevision, revisedSegments, cancellationToken).ConfigureAwait(false);
@@ -636,6 +806,8 @@ public sealed class TranscriptProjectService
         Guid projectId,
         MediaAsset mediaAsset,
         ProjectArtifact audioArtifact,
+        bool enableSpeakerDiarization,
+        bool commercialSafeMode,
         CancellationToken cancellationToken)
     {
         double durationSeconds = audioArtifact.DurationSeconds ?? mediaAsset.DurationSeconds;
@@ -691,6 +863,19 @@ public sealed class TranscriptProjectService
 
         int revisionNumber = await transcriptRepository.GetNextRevisionNumberAsync(projectId, cancellationToken).ConfigureAwait(false);
         TranscriptRevision revision = TranscriptRevision.Create(projectId, asrStageRun.Id, revisionNumber, DateTimeOffset.UtcNow);
+        SpeakerAssignmentResult speakerAssignment = enableSpeakerDiarization
+            ? await CreateSpeakerAssignmentAsync(
+                projectId,
+                normalizedAudioPath,
+                durationSeconds,
+                regions,
+                recognizedSegments,
+                commercialSafeMode,
+                cancellationToken).ConfigureAwait(false)
+            : await CreateDefaultSpeakerAssignmentAsync(
+                projectId,
+                recognizedSegments,
+                cancellationToken).ConfigureAwait(false);
         TranscriptSegment[] segments = recognizedSegments
             .OrderBy(segment => segment.Index)
             .Select(segment => TranscriptSegment.Create(
@@ -698,7 +883,10 @@ public sealed class TranscriptProjectService
                 segment.Index,
                 segment.StartSeconds,
                 segment.EndSeconds,
-                segment.Text))
+                segment.Text,
+                speakerAssignment.SegmentSpeakerIdsByIndex.TryGetValue(segment.Index, out Guid speakerId)
+                    ? speakerId
+                    : null))
             .ToArray();
 
         await transcriptRepository.SaveRevisionAsync(revision, segments, cancellationToken).ConfigureAwait(false);
@@ -841,6 +1029,45 @@ public sealed class TranscriptProjectService
             cancellationToken);
     }
 
+    private async Task<IReadOnlyList<ProjectSpeaker>> LoadOrCreateSpeakersAsync(
+        Guid projectId,
+        TranscriptRevision? currentRevision,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<ProjectSpeaker> speakers = await speakerRepository.ListSpeakersAsync(
+            projectId,
+            cancellationToken).ConfigureAwait(false);
+        if (speakers.Count > 0 || currentRevision is null)
+        {
+            return speakers;
+        }
+
+        ProjectSpeaker defaultSpeaker = await speakerRepository.EnsureDefaultSpeakerAsync(
+            projectId,
+            cancellationToken).ConfigureAwait(false);
+        return [ defaultSpeaker ];
+    }
+
+    private static IReadOnlyList<TranscriptSegment> ApplySingleSpeakerDefaultAssignments(
+        IReadOnlyList<TranscriptSegment> segments,
+        IReadOnlyList<ProjectSpeaker> speakers)
+    {
+        if (segments.Count == 0 ||
+            speakers.Count != 1 ||
+            segments.All(segment => segment.SpeakerId is not null))
+        {
+            return segments;
+        }
+
+        Guid defaultSpeakerId = speakers[0].Id;
+        return segments
+            .OrderBy(segment => segment.SegmentIndex)
+            .Select(segment => segment.SpeakerId is null
+                ? segment with { SpeakerId = defaultSpeakerId }
+                : segment)
+            .ToArray();
+    }
+
     private static TranscriptRevision GetRequiredTranscriptRevision(TranscriptProjectState state) =>
         state.CurrentTranscriptRevision
             ?? throw new InvalidOperationException("The project does not contain a transcript revision.");
@@ -887,6 +1114,186 @@ public sealed class TranscriptProjectService
     private static MediaAsset GetRequiredMediaAsset(TranscriptProjectState state) =>
         state.ProjectState.MediaAsset
             ?? throw new InvalidOperationException("The project does not contain a primary media asset.");
+
+    private async Task<SpeakerAssignmentResult> CreateSpeakerAssignmentAsync(
+        Guid projectId,
+        string normalizedAudioPath,
+        double durationSeconds,
+        IReadOnlyList<SpeechRegion> regions,
+        IReadOnlyList<RecognizedTranscriptSegment> recognizedSegments,
+        bool commercialSafeMode,
+        CancellationToken cancellationToken)
+    {
+        StageRunRecord diarizationStageRun = StageRunRecord.Start(projectId, "diarization", DateTimeOffset.UtcNow);
+        await stageRunStore.CreateAsync(diarizationStageRun, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            IReadOnlyList<DiarizedSpeakerTurn> diarizedTurns = await diarizationEngine.DiarizeAsync(
+                normalizedAudioPath,
+                durationSeconds,
+                regions,
+                commercialSafeMode,
+                cancellationToken).ConfigureAwait(false);
+
+            diarizationStageRun = ApplyRuntimeExecutionSummary(diarizationStageRun, diarizationEngine)
+                .Complete(DateTimeOffset.UtcNow);
+            await stageRunStore.UpdateAsync(diarizationStageRun, cancellationToken).ConfigureAwait(false);
+
+            if (diarizedTurns.Count == 0)
+            {
+                return await CreateDefaultSpeakerAssignmentAsync(projectId, recognizedSegments, cancellationToken).ConfigureAwait(false);
+            }
+
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            var speakerData = diarizedTurns
+                .OrderBy(turn => turn.StartSeconds)
+                .GroupBy(turn => turn.NormalizedSpeakerKey, StringComparer.OrdinalIgnoreCase)
+                .Select((group, index) =>
+                {
+                    ProjectSpeaker speaker = ProjectSpeaker.Create(projectId, $"Speaker {index + 1}", now.AddMilliseconds(index));
+                    return new { SpeakerKey = group.Key, Speaker = speaker, SpeakerId = speaker.Id };
+                })
+                .ToArray();
+
+            ProjectSpeaker[] speakers = speakerData.Select(entry => entry.Speaker).ToArray();
+            Dictionary<string, Guid> speakerIdsByKey = speakerData.ToDictionary(
+                entry => entry.SpeakerKey,
+                entry => entry.SpeakerId,
+                StringComparer.OrdinalIgnoreCase);
+
+            SpeakerTurn[] turns = diarizedTurns
+                .OrderBy(turn => turn.StartSeconds)
+                .Select(turn => SpeakerTurn.Create(
+                    projectId,
+                    speakerIdsByKey[turn.NormalizedSpeakerKey],
+                    turn.StartSeconds,
+                    turn.EndSeconds,
+                    turn.Confidence,
+                    turn.HasOverlap,
+                    diarizationStageRun.Id))
+                .ToArray();
+
+            await speakerRepository.ReplaceDiarizationAsync(
+                projectId,
+                speakers,
+                turns,
+                cancellationToken).ConfigureAwait(false);
+
+            return new SpeakerAssignmentResult(
+                speakers,
+                turns,
+                AssignTranscriptSegmentsToSpeakers(recognizedSegments, speakers, turns));
+        }
+        catch (Exception ex)
+        {
+            if (ex is OperationCanceledException or TaskCanceledException)
+            {
+                throw;
+            }
+
+            StageRunRecord failed = ApplyRuntimeExecutionSummary(diarizationStageRun, diarizationEngine)
+                .Fail(DateTimeOffset.UtcNow, ex.Message);
+            await stageRunStore.UpdateAsync(failed, cancellationToken).ConfigureAwait(false);
+
+            return await CreateDefaultSpeakerAssignmentAsync(projectId, recognizedSegments, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<SpeakerAssignmentResult> CreateDefaultSpeakerAssignmentAsync(
+        Guid projectId,
+        IReadOnlyList<RecognizedTranscriptSegment> recognizedSegments,
+        CancellationToken cancellationToken)
+    {
+        ProjectSpeaker defaultSpeaker = await speakerRepository.EnsureDefaultSpeakerAsync(projectId, cancellationToken).ConfigureAwait(false);
+        return CreateDefaultSpeakerAssignment(defaultSpeaker, recognizedSegments);
+    }
+
+    private static SpeakerAssignmentResult CreateDefaultSpeakerAssignment(
+        ProjectSpeaker speaker,
+        IReadOnlyList<RecognizedTranscriptSegment> recognizedSegments)
+    {
+        Dictionary<int, Guid> segmentSpeakerIdsByIndex = recognizedSegments
+            .OrderBy(segment => segment.Index)
+            .ToDictionary(segment => segment.Index, _ => speaker.Id);
+        return new SpeakerAssignmentResult([ speaker ], [], segmentSpeakerIdsByIndex);
+    }
+
+    private static Dictionary<int, Guid> AssignTranscriptSegmentsToSpeakers(
+        IReadOnlyList<RecognizedTranscriptSegment> recognizedSegments,
+        IReadOnlyList<ProjectSpeaker> speakers,
+        IReadOnlyList<SpeakerTurn> turns)
+    {
+        Guid? fallbackSpeakerId = speakers.OrderBy(speaker => speaker.CreatedAtUtc).FirstOrDefault()?.Id;
+        var speakerIdsBySegmentIndex = new Dictionary<int, Guid>();
+
+        foreach (RecognizedTranscriptSegment segment in recognizedSegments.OrderBy(segment => segment.Index))
+        {
+            SpeakerTurn? bestTurn = turns
+                .Select(turn => new
+                {
+                    Turn = turn,
+                    OverlapSeconds = GetOverlapSeconds(segment.StartSeconds, segment.EndSeconds, turn.StartSeconds, turn.EndSeconds)
+                })
+                .Where(entry => entry.OverlapSeconds > 0d)
+                .OrderByDescending(entry => entry.OverlapSeconds)
+                .ThenByDescending(entry => entry.Turn.Confidence ?? -1d)
+                .ThenBy(entry => entry.Turn.StartSeconds)
+                .Select(entry => entry.Turn)
+                .FirstOrDefault();
+
+            if (bestTurn is not null)
+            {
+                speakerIdsBySegmentIndex[segment.Index] = bestTurn.SpeakerId;
+            }
+            else if (fallbackSpeakerId is Guid speakerId)
+            {
+                speakerIdsBySegmentIndex[segment.Index] = speakerId;
+            }
+        }
+
+        return speakerIdsBySegmentIndex;
+    }
+
+    private static double GetOverlapSeconds(
+        double leftStartSeconds,
+        double leftEndSeconds,
+        double rightStartSeconds,
+        double rightEndSeconds)
+    {
+        double overlap = Math.Min(leftEndSeconds, rightEndSeconds) - Math.Max(leftStartSeconds, rightStartSeconds);
+        return overlap > 0d ? overlap : 0d;
+    }
+
+    private static ClipRange ResolveReferenceClipRange(
+        TranscriptProjectState state,
+        ExtractReferenceClipRequest request)
+    {
+        SpeakerTurn? turn = request.SpeakerTurnId is Guid speakerTurnId
+            ? state.SpeakerTurns.FirstOrDefault(candidate => candidate.Id == speakerTurnId && candidate.SpeakerId == request.SpeakerId)
+            : state.SpeakerTurns
+                .Where(candidate => candidate.SpeakerId == request.SpeakerId)
+                .OrderBy(candidate => candidate.HasOverlap)
+                .ThenByDescending(candidate => candidate.Confidence ?? -1d)
+                .ThenByDescending(candidate => candidate.EndSeconds - candidate.StartSeconds)
+                .FirstOrDefault();
+
+        if (turn is not null)
+        {
+            return new ClipRange(turn.StartSeconds, turn.EndSeconds);
+        }
+
+        TranscriptSegment? segment = state.TranscriptSegments
+            .Where(candidate => candidate.SpeakerId == request.SpeakerId)
+            .OrderByDescending(candidate => candidate.EndSeconds - candidate.StartSeconds)
+            .FirstOrDefault();
+        if (segment is not null)
+        {
+            return new ClipRange(segment.StartSeconds, segment.EndSeconds);
+        }
+
+        throw new InvalidOperationException("No speaker turn or transcript segment is available for reference clip extraction.");
+    }
 
     private static StageRunRecord ApplyRuntimeExecutionSummary(StageRunRecord stageRun, object stageEngine)
     {
@@ -1077,7 +1484,8 @@ public sealed class TranscriptProjectService
                         segment.SegmentIndex,
                         segment.StartSeconds,
                         segment.EndSeconds,
-                        segment.Text))
+                        segment.Text,
+                        segment.SpeakerId))
                     .ToArray());
     }
 
@@ -1124,7 +1532,8 @@ public sealed class TranscriptProjectService
         int SegmentIndex,
         double StartSeconds,
         double EndSeconds,
-        string Text);
+        string Text,
+        Guid? SpeakerId);
 
     private sealed record TranslatedSegmentArtifactDocument(
         int SegmentIndex,
@@ -1132,4 +1541,13 @@ public sealed class TranscriptProjectService
         double EndSeconds,
         string Text,
         string? SourceSegmentHash);
+
+    private sealed record SpeakerAssignmentResult(
+        IReadOnlyList<ProjectSpeaker> Speakers,
+        IReadOnlyList<SpeakerTurn> Turns,
+        IReadOnlyDictionary<int, Guid> SegmentSpeakerIdsByIndex);
+
+    private sealed record ClipRange(
+        double StartSeconds,
+        double EndSeconds);
 }

@@ -18,6 +18,9 @@ public sealed class SqliteProjectDatabase
     private const string TranslationModelIdColumnName = "model_id";
     private const string TranslationExecutionProviderColumnName = "execution_provider";
     private const string SourceSegmentHashColumnName = "source_segment_hash";
+    private const string TranscriptSpeakerIdColumnName = "speaker_id";
+    private const string SpeakerTurnConfidenceColumnName = "confidence";
+    private const string SpeakerTurnHasOverlapColumnName = "has_overlap";
     private readonly string databasePath;
 
     public SqliteProjectDatabase(string projectRootPath)
@@ -105,11 +108,35 @@ public sealed class SqliteProjectDatabase
             CREATE TABLE IF NOT EXISTS transcript_segments (
                 id TEXT NOT NULL PRIMARY KEY,
                 transcript_revision_id TEXT NOT NULL,
+                speaker_id TEXT NULL,
                 segment_index INTEGER NOT NULL,
                 start_seconds REAL NOT NULL,
                 end_seconds REAL NOT NULL,
                 text TEXT NOT NULL,
-                FOREIGN KEY (transcript_revision_id) REFERENCES transcript_revisions(id) ON DELETE CASCADE
+                FOREIGN KEY (transcript_revision_id) REFERENCES transcript_revisions(id) ON DELETE CASCADE,
+                FOREIGN KEY (speaker_id) REFERENCES speakers(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS speakers (
+                id TEXT NOT NULL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS speaker_turns (
+                id TEXT NOT NULL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                speaker_id TEXT NOT NULL,
+                stage_run_id TEXT NULL,
+                start_seconds REAL NOT NULL,
+                end_seconds REAL NOT NULL,
+                confidence REAL NULL,
+                has_overlap INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (speaker_id) REFERENCES speakers(id) ON DELETE CASCADE,
+                FOREIGN KEY (stage_run_id) REFERENCES StageRuns(Id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS translation_revisions (
@@ -147,6 +174,12 @@ public sealed class SqliteProjectDatabase
                 ON transcript_revisions (project_id, revision_number);
             CREATE INDEX IF NOT EXISTS ix_transcript_segments_revision_id
                 ON transcript_segments (transcript_revision_id, segment_index);
+            CREATE INDEX IF NOT EXISTS ix_speakers_project_id
+                ON speakers (project_id, created_at_utc);
+            CREATE INDEX IF NOT EXISTS ix_speaker_turns_project_id
+                ON speaker_turns (project_id, start_seconds);
+            CREATE INDEX IF NOT EXISTS ix_speaker_turns_speaker_id
+                ON speaker_turns (speaker_id, start_seconds);
             CREATE INDEX IF NOT EXISTS ix_translation_revisions_project_language
                 ON translation_revisions (project_id, target_language, revision_number);
             CREATE INDEX IF NOT EXISTS ix_translated_segments_revision_id
@@ -167,6 +200,9 @@ public sealed class SqliteProjectDatabase
         await EnsureTranslationRevisionColumnAsync(connection, TranslationModelIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureTranslationRevisionColumnAsync(connection, TranslationExecutionProviderColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureTranslatedSegmentColumnAsync(connection, SourceSegmentHashColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTranscriptSegmentColumnAsync(connection, TranscriptSpeakerIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureSpeakerTurnColumnAsync(connection, SpeakerTurnConfidenceColumnName, "REAL NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureSpeakerTurnColumnAsync(connection, SpeakerTurnHasOverlapColumnName, "INTEGER NOT NULL DEFAULT 0", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -284,6 +320,38 @@ public sealed class SqliteProjectDatabase
 
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText = $"ALTER TABLE translated_segments ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureTranscriptSegmentColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await TableColumnExistsAsync(connection, "transcript_segments", columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE transcript_segments ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureSpeakerTurnColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await TableColumnExistsAsync(connection, "speaker_turns", columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE speaker_turns ADD COLUMN {columnName} {columnDefinition};";
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
