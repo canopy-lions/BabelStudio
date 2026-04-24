@@ -5,6 +5,8 @@ namespace BabelStudio.Media.Extraction;
 
 public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
 {
+    private const int MAX_CHUNK_SIZE = 1_000_000_000;
+
     public async Task<AudioClipExtractionResult> ExtractAsync(
         string sourceWavePath,
         double startSeconds,
@@ -111,7 +113,7 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
             int chunkSize = BinaryPrimitives.ReadInt32LittleEndian(header[4..]);
             int chunkDataOffset = offset + 8;
 
-            if (chunkSize < 0)
+            if (chunkSize < 0 || chunkSize > MAX_CHUNK_SIZE)
             {
                 throw new InvalidOperationException("Wave metadata could not be parsed.");
             }
@@ -123,13 +125,23 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
                 break;
             }
 
-            if ((long)chunkDataOffset + chunkSize > bytes.Length)
+            long nextOffset = (long)chunkDataOffset + chunkSize + (chunkSize % 2);
+            if (nextOffset > bytes.Length)
             {
+                if (!string.Equals(chunkId, "data", StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("Wave metadata could not be parsed.");
+                }
                 break;
             }
 
             if (string.Equals(chunkId, "fmt ", StringComparison.Ordinal))
             {
+                if (chunkSize < 16)
+                {
+                    throw new InvalidOperationException("Wave metadata could not be parsed.");
+                }
+
                 ReadOnlySpan<byte> fmt = bytes.Slice(chunkDataOffset, chunkSize);
                 short audioFormat = BinaryPrimitives.ReadInt16LittleEndian(fmt[..2]);
                 channelCount = BinaryPrimitives.ReadInt16LittleEndian(fmt[2..4]);
@@ -142,7 +154,7 @@ public sealed class Pcm16WaveClipExtractor : IAudioClipExtractor
                 }
             }
 
-            offset = chunkDataOffset + chunkSize + (chunkSize % 2);
+            offset = (int)nextOffset;
         }
 
         if (dataOffset < 0 || sampleRate <= 0 || channelCount <= 0 || blockAlign <= 0)

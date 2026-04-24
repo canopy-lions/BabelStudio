@@ -1136,10 +1136,6 @@ public sealed class TranscriptProjectService
                 commercialSafeMode,
                 cancellationToken).ConfigureAwait(false);
 
-            diarizationStageRun = ApplyRuntimeExecutionSummary(diarizationStageRun, diarizationEngine)
-                .Complete(DateTimeOffset.UtcNow);
-            await stageRunStore.UpdateAsync(diarizationStageRun, cancellationToken).ConfigureAwait(false);
-
             if (diarizedTurns.Count == 0)
             {
                 return await CreateDefaultSpeakerAssignmentAsync(projectId, recognizedSegments, cancellationToken).ConfigureAwait(false);
@@ -1179,6 +1175,10 @@ public sealed class TranscriptProjectService
                 speakers,
                 turns,
                 cancellationToken).ConfigureAwait(false);
+
+            diarizationStageRun = ApplyRuntimeExecutionSummary(diarizationStageRun, diarizationEngine)
+                .Complete(DateTimeOffset.UtcNow);
+            await stageRunStore.UpdateAsync(diarizationStageRun, cancellationToken).ConfigureAwait(false);
 
             return new SpeakerAssignmentResult(
                 speakers,

@@ -504,7 +504,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ExtractReferenceClipRequest request = ViewModel.CreateExtractReferenceClipRequest(item);
+        ExtractReferenceClipRequest? request = ViewModel.CreateExtractReferenceClipRequest(item);
+        if (request is null)
+        {
+            ViewModel.StatusMessage = "Unable to create reference clip extraction request.";
+            return;
+        }
+
         await RunAsync(async cancellationToken =>
         {
             TranscriptProjectState state = await currentService.ExtractReferenceClipAsync(request, cancellationToken).ConfigureAwait(true);
@@ -544,6 +550,7 @@ public sealed partial class MainWindow : Window
         SplitSpeakerTurnRequest? request = ViewModel.CreateSplitSpeakerTurnRequest(item, ViewModel.PlaybackPositionSeconds);
         if (request is null)
         {
+            ViewModel.StatusMessage = "Unable to create speaker turn split request.";
             return;
         }
 

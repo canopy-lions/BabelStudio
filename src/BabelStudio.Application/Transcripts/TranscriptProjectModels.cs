@@ -37,7 +37,7 @@ public sealed record SetTranslationTargetRequest(
 public sealed record EditedTranscriptSegment(
     Guid SegmentId,
     string Text,
-    Guid? SpeakerId);
+    Guid? SpeakerId = null);
 
 public sealed record EditedTranslatedSegment(
     int SegmentIndex,
