@@ -7,7 +7,8 @@ Windows-native, local-first AI dubbing workstation. .NET 10 / C# / WinUI 3 (plan
 **Strict dependency direction — Domain depends on nothing:**
 
 ```
-App → Application → Domain ← Contracts
+App → Application, Composition, Domain, Media.Playback
+Application → Domain ← Contracts
 Infrastructure → Application → Domain
 Infrastructure → Contracts
 Media → Application → Domain
