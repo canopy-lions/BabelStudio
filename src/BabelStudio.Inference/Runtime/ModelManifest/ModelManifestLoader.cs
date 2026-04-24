@@ -83,10 +83,16 @@ public static class ModelManifestLoader
                 $"Manifest '{sourceName}' entry '{path}' cannot mark a model commercial-safe when commercial use is not allowed.");
         }
 
-        if ((license is ModelLicenseKind.Unknown or ModelLicenseKind.NonCommercial) && commercialSafeMode)
+        if ((license is ModelLicenseKind.Unknown or ModelLicenseKind.NonCommercial or ModelLicenseKind.CcByNc40) && commercialSafeMode)
         {
             throw new ModelManifestValidationException(
                 $"Manifest '{sourceName}' entry '{path}' cannot mark an unknown-license or non-commercial model as commercial-safe.");
+        }
+
+        if ((license is ModelLicenseKind.NonCommercial or ModelLicenseKind.CcByNc40) && commercialAllowed)
+        {
+            throw new ModelManifestValidationException(
+                $"Manifest '{sourceName}' entry '{path}' cannot set 'commercial_allowed' to true when the license is non-commercial.");
         }
 
         if (!string.IsNullOrWhiteSpace(benchmarkEntry) && string.IsNullOrWhiteSpace(rootPath))
@@ -307,7 +313,7 @@ public static class ModelManifestLoader
         TryParse(
             () => ModelManifestText.ParseLicense(value),
             () => new ModelManifestValidationException(
-                $"Manifest '{sourceName}' field '{path}.license' value '{value}' is invalid. Expected MIT, Apache-2.0, CC-BY-4.0, custom, unknown, non-commercial, or noncommercial."));
+                $"Manifest '{sourceName}' field '{path}.license' value '{value}' is invalid. Expected MIT, Apache-2.0, CC-BY-4.0, CC-BY-NC-4.0, custom, unknown, non-commercial, or noncommercial."));
 
     private static T TryParse<T>(Func<T> parser, Func<Exception> errorFactory)
     {

@@ -3,12 +3,13 @@ using BabelStudio.Domain;
 using BabelStudio.Inference.Onnx.Runtime.Planning;
 using BabelStudio.Inference.Runtime.ModelManifest;
 using BabelStudio.Inference.Runtime.Planning;
+using BabelStudio.TestDoubles;
 
 namespace BabelStudio.Inference.Tests;
 
 public sealed class BundledInventoryRuntimePlannerTests
 {
-    [Fact]
+    [RequiresBundledModelFact("silero-vad")]
     public async Task RuntimePlanner_UsesBundledManifestInventoryForVadCpuPlan()
     {
         Assert.True(BundledModelManifestRegistry.TryLoadDefault(out BundledModelManifestRegistry? registry, out string? error), error);

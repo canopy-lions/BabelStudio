@@ -140,6 +140,85 @@ public sealed class ModelManifestLoaderTests
     }
 
     [Fact]
+    public void LoadCatalog_RejectsCcByNc40LicenseWithCommercialSafeMode()
+    {
+        string manifestPath = WriteTempManifest(
+            """
+            {
+              "models": [
+                {
+                  "model_id": "example/noncommercial-model",
+                  "task": "diarization",
+                  "license": "CC-BY-NC-4.0",
+                  "commercial_allowed": true,
+                  "redistribution_allowed": true,
+                  "requires_attribution": true,
+                  "requires_user_consent": false,
+                  "voice_cloning": false,
+                  "commercial_safe_mode": true,
+                  "source_url": "",
+                  "revision": "",
+                  "sha256": "",
+                  "variants": []
+                }
+              ]
+            }
+            """);
+
+        try
+        {
+            ModelManifestValidationException exception = Assert.Throws<ModelManifestValidationException>(
+                () => ModelManifestLoader.LoadCatalog(manifestPath));
+
+            Assert.Contains("commercial-safe", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(manifestPath);
+        }
+    }
+
+    [Fact]
+    public void LoadCatalog_RejectsCcByNc40LicenseWithCommercialAllowed()
+    {
+        string manifestPath = WriteTempManifest(
+            """
+            {
+              "models": [
+                {
+                  "model_id": "example/noncommercial-model",
+                  "task": "diarization",
+                  "license": "CC-BY-NC-4.0",
+                  "commercial_allowed": true,
+                  "redistribution_allowed": true,
+                  "requires_attribution": true,
+                  "requires_user_consent": false,
+                  "voice_cloning": false,
+                  "commercial_safe_mode": false,
+                  "source_url": "",
+                  "revision": "",
+                  "sha256": "",
+                  "variants": []
+                }
+              ]
+            }
+            """);
+
+        try
+        {
+            ModelManifestValidationException exception = Assert.Throws<ModelManifestValidationException>(
+                () => ModelManifestLoader.LoadCatalog(manifestPath));
+
+            Assert.Contains("commercial_allowed", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("non-commercial", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(manifestPath);
+        }
+    }
+
+    [Fact]
     public void LoadCatalog_RejectsDuplicateAliases()
     {
         string manifestPath = WriteTempManifest(
@@ -348,6 +427,15 @@ public sealed class CommercialSafeEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_RejectsCcByNc40License()
+    {
+        CommercialSafeEvaluation result = evaluator.Evaluate(CreateManifest(license: ModelLicenseKind.CcByNc40, commercialAllowed: false));
+
+        Assert.False(result.IsCommercialSafe);
+        Assert.Contains(result.Reasons, reason => reason.Contains("Non-commercial", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Evaluate_RejectsManifestWithoutCommercialSafeModeFlag()
     {
         CommercialSafeEvaluation result = evaluator.Evaluate(CreateManifest(commercialSafeMode: false));
@@ -394,7 +482,7 @@ public sealed class CommercialSafeEvaluatorTests
             RequiresAttribution: requiresAttribution,
             RequiresUserConsent: requiresUserConsent,
             VoiceCloning: voiceCloning,
-            CommercialSafeMode: commercialSafeMode ?? (commercialAllowed && license is not ModelLicenseKind.Unknown and not ModelLicenseKind.NonCommercial),
+            CommercialSafeMode: commercialSafeMode ?? (commercialAllowed && license is not ModelLicenseKind.Unknown and not ModelLicenseKind.NonCommercial and not ModelLicenseKind.CcByNc40),
             SourceUrl: "",
             Revision: "",
             Sha256: "",

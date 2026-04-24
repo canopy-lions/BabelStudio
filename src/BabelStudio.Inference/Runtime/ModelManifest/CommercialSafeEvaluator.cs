@@ -12,7 +12,7 @@ public sealed class CommercialSafeEvaluator
             reasons.Add("Unknown-license models are not commercial-safe.");
         }
 
-        if (manifest.License is ModelLicenseKind.NonCommercial)
+        if (manifest.License is ModelLicenseKind.NonCommercial or ModelLicenseKind.CcByNc40)
         {
             reasons.Add("Non-commercial models are not commercial-safe.");
         }

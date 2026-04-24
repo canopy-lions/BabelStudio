@@ -26,4 +26,8 @@
     <ProjectReference Include="..\..\src\BabelStudio.Tools\BabelStudio.Tools.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\BabelStudio.TestDoubles\RequiresBundledModelFactAttribute.cs" Link="TestDoubles\RequiresBundledModelFactAttribute.cs" />
+  </ItemGroup>
+
 </Project>

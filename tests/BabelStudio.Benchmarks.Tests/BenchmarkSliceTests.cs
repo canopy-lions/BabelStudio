@@ -4,6 +4,7 @@ using BabelStudio.Benchmarks;
 using BabelStudio.Domain;
 using BabelStudio.Inference.Onnx;
 using BabelStudio.Inference.Runtime.ModelManifest;
+using BabelStudio.TestDoubles;
 using Microsoft.ML.OnnxRuntime;
 
 namespace BabelStudio.Benchmarks.Tests;
@@ -18,7 +19,7 @@ public sealed class BenchmarkOptionsTests
         }
     };
 
-    [Fact]
+    [WindowsOnlyFact]
     public void TryParse_ParsesExpectedValues()
     {
         var args = new[]
@@ -73,7 +74,7 @@ public sealed class BenchmarkOptionsTests
         Assert.False(success);
     }
 
-    [Fact]
+    [RequiresBundledModelFact("silero-vad/onnx/model_q4.onnx")]
     public async Task ProgramRunAsync_HonorsEmbeddedVariantReference()
     {
         string reportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
@@ -103,7 +104,7 @@ public sealed class BenchmarkOptionsTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("silero-vad/onnx/model.onnx")]
     public async Task ProgramRunAsync_PromptsForAmbiguousDirectoryAndStoresChoice()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), $"babelstudio-bench-{Guid.NewGuid():N}");
@@ -166,7 +167,7 @@ public sealed class BenchmarkOptionsTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("silero-vad/onnx/model.onnx")]
     public async Task ProgramRunAsync_AllVariantsWritesAggregateAndPerVariantReports()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), $"babelstudio-bench-{Guid.NewGuid():N}");
@@ -229,7 +230,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
             "..", "..", "..", "..", "..",
             "models", "opus", "Helsinki-NLP-opus-mt-en-es", "encoder_model.onnx"));
 
-    [Fact]
+    [RequiresBundledModelFact("silero-vad/onnx/model.onnx")]
     public async Task RunAsync_BuildsPlannedReportForExistingModel()
     {
         var modelPath = SampleModelPath;
@@ -263,7 +264,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("silero-vad/onnx/model.onnx")]
     public async Task RunAsync_BuildsCompletedReportForManifestScopedSileroModel()
     {
         var reportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
@@ -287,7 +288,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("whisper-tiny-onnx/onnx/encoder_model.onnx")]
     public async Task RunAsync_BuildsCompletedReportForWhisperEncoderModel()
     {
         var reportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
@@ -315,7 +316,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("opus/Helsinki-NLP-opus-mt-en-es/encoder_model.onnx")]
     public async Task RunAsync_BuildsCompletedReportForOpusEncoderModel()
     {
         var reportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
@@ -341,7 +342,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("opus/Helsinki-NLP-opus-mt-en-es/encoder_model.onnx")]
     public async Task RunAsync_BuildsCompletedReportForManifestScopedOpusModel()
     {
         var reportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
@@ -370,7 +371,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("silero-vad/onnx/model.onnx")]
     public async Task RunAsync_ResolvesSingleOnnxFileFromOnnxSubdirectory()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), $"babelstudio-bench-{Guid.NewGuid():N}");
@@ -404,7 +405,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
         }
     }
 
-    [Theory]
+    [RequiresBundledModelTheory("silero-vad/onnx/model.onnx")]
     [InlineData(BenchmarkProviderPreference.Cpu, "cpu", "cpu")]
     [InlineData(BenchmarkProviderPreference.Dml, "dml", "dml")]
     [InlineData(BenchmarkProviderPreference.Auto, "auto", "auto")]
@@ -451,7 +452,7 @@ public sealed class OnnxModelBenchmarkRunnerTests
         }
     }
 
-    [Fact]
+    [RequiresBundledModelFact("silero-vad/onnx/model.onnx")]
     public async Task RunAsync_RecordsWindowsMlBootstrapOutcomeForNonCpuProviders()
     {
         var reportPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");

@@ -1,10 +1,11 @@
 using BabelStudio.Inference.Onnx.OpusMt;
+using BabelStudio.TestDoubles;
 
 namespace BabelStudio.Inference.Tests;
 
 public sealed class OpusTokenizerDecoderTests
 {
-    [Fact]
+    [RequiresBundledModelFact("opus/onnx-community-opus-mt-es-en")]
     public void EncodeSourceText_MapsSentencePiecePiecesThroughMarianVocabulary()
     {
         string modelRootPath = ResolveModelRootPath("onnx-community-opus-mt-es-en");

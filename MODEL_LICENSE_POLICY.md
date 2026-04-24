@@ -8,7 +8,7 @@ Every model should have a manifest entry with:
 {
   "model_id": "example/model",
   "task": "asr | translation | tts | diarization | vad | separation",
-  "license": "MIT | Apache-2.0 | CC-BY-4.0 | custom | unknown",
+  "license": "MIT | Apache-2.0 | CC-BY-4.0 | CC-BY-NC-4.0 | custom | unknown",
   "commercial_allowed": true,
   "redistribution_allowed": true,
   "requires_attribution": false,
