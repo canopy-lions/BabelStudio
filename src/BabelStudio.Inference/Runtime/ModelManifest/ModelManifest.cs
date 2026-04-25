@@ -124,6 +124,7 @@ internal static class ModelManifestText
             "ccby-nc-4.0" => ModelLicenseKind.CcByNc40,
             "ccbync4" => ModelLicenseKind.CcByNc40,
             "ccbync40" => ModelLicenseKind.CcByNc40,
+            "ccby-nc-4.0" => ModelLicenseKind.CcByNc40,
             "custom" => ModelLicenseKind.Custom,
             "unknown" => ModelLicenseKind.Unknown,
             "non-commercial" => ModelLicenseKind.NonCommercial,
