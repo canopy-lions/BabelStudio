@@ -98,7 +98,7 @@ public sealed class KokoroVoicepackLoaderTests : IDisposable
         InvalidOperationException ex = Assert.Throws<InvalidOperationException>(
             () => KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 1));
 
-        Assert.Contains("too small", ex.Message);
+        Assert.Contains("style rows", ex.Message);
     }
 
     [Fact]

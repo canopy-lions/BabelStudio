@@ -61,7 +61,7 @@ public sealed class KokoroTokenizerTests : IDisposable
     [Fact]
     public void Encode_EmptyPhonemes_ReturnsBosAndEosOnly()
     {
-        WriteTokenizerJson(MinimalTokenizerJson([('a', 1)]));
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 1)]));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         long[] tokens = tokenizer.Encode("");
@@ -74,7 +74,7 @@ public sealed class KokoroTokenizerTests : IDisposable
     [Fact]
     public void Encode_KnownCharacters_ReturnsBosTokensEos()
     {
-        WriteTokenizerJson(MinimalTokenizerJson([('h', 10), ('i', 20)]));
+        WriteTokenizerJson(MinimalTokenizerJson([("h", 10), ("i", 20)]));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         long[] tokens = tokenizer.Encode("hi");
@@ -89,7 +89,7 @@ public sealed class KokoroTokenizerTests : IDisposable
     [Fact]
     public void Encode_UnknownCharacters_AreSkipped()
     {
-        WriteTokenizerJson(MinimalTokenizerJson([('a', 5)]));
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 5)]));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         // 'b' and 'c' are unknown; only 'a' is in the vocab
@@ -104,7 +104,7 @@ public sealed class KokoroTokenizerTests : IDisposable
     [Fact]
     public void Encode_AllUnknownCharacters_ReturnsBosAndEosOnly()
     {
-        WriteTokenizerJson(MinimalTokenizerJson([('x', 99)]));
+        WriteTokenizerJson(MinimalTokenizerJson([("x", 99)]));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         long[] tokens = tokenizer.Encode("zzz");
@@ -117,7 +117,7 @@ public sealed class KokoroTokenizerTests : IDisposable
     [Fact]
     public void Encode_AlwaysStartsWithBosTokenId0()
     {
-        WriteTokenizerJson(MinimalTokenizerJson([('a', 1)]));
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 1)]));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         long[] tokens = tokenizer.Encode("a");
@@ -128,7 +128,7 @@ public sealed class KokoroTokenizerTests : IDisposable
     [Fact]
     public void Encode_AlwaysEndsWithEosTokenId0()
     {
-        WriteTokenizerJson(MinimalTokenizerJson([('a', 1)]));
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 1)]));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         long[] tokens = tokenizer.Encode("a");
@@ -141,13 +141,13 @@ public sealed class KokoroTokenizerTests : IDisposable
     {
         // Build a vocab with 511 unique characters using Unicode range
         var vocabEntries = Enumerable.Range(0, 512)
-            .Select(i => (ch: (char)(0x0100 + i), id: i + 1))
+            .Select(i => (ch: ((char)(0x0100 + i)).ToString(), id: i + 1))
             .ToList();
         WriteTokenizerJson(MinimalTokenizerJson(vocabEntries));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         // Input of 600 characters — all known, exceeds max of 512
-        string input = new string(Enumerable.Range(0, 600).Select(i => vocabEntries[i % vocabEntries.Count].ch).ToArray());
+        string input = new string(Enumerable.Range(0, 600).Select(i => vocabEntries[i % vocabEntries.Count].ch[0]).ToArray());
         long[] tokens = tokenizer.Encode(input);
 
         // Must be capped: [BOS, ...510 tokens..., EOS] = 512
@@ -160,7 +160,7 @@ public sealed class KokoroTokenizerTests : IDisposable
     public void Encode_InputWithinMaxLength_NotTruncated()
     {
         var vocabEntries = Enumerable.Range(0, 26)
-            .Select(i => (ch: (char)('a' + i), id: i + 1))
+            .Select(i => (ch: ((char)('a' + i)).ToString(), id: i + 1))
             .ToList();
         WriteTokenizerJson(MinimalTokenizerJson(vocabEntries));
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
