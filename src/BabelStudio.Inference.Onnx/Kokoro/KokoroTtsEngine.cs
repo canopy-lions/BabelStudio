@@ -43,7 +43,11 @@ public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter
         EnsurePlanReady(plan);
 
         BenchmarkModelCandidate candidate = modelPathResolver.ResolveSingle(plan.ModelAlias!, plan.Variant);
-        string modelRootPath = Path.GetDirectoryName(candidate.ModelPath)
+        // Prefer the manifest-declared model root (which contains tokenizer.json and voices/).
+        // Fall back to the model file's parent directory only when the resolver couldn't
+        // determine a root (e.g. user supplied a bare .onnx path outside the bundled layout).
+        string modelRootPath = candidate.RootDirectory
+            ?? Path.GetDirectoryName(candidate.ModelPath)
             ?? throw new InvalidOperationException("Cannot resolve Kokoro model root path.");
 
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(modelRootPath);
