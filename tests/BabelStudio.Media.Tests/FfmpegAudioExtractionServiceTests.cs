@@ -5,7 +5,7 @@ namespace BabelStudio.Media.Tests;
 
 public sealed class FfmpegAudioExtractionServiceTests
 {
-    [Fact]
+    [RequiresFfmpegFact]
     public async Task ExtractNormalizedAudioAsync_creates_mono_wav_output_and_waveform()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), "BabelStudio.Media.Tests", Guid.NewGuid().ToString("N"));

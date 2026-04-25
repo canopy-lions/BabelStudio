@@ -38,7 +38,14 @@ public sealed class SqliteProjectSpineTests
 
         IReadOnlyList<SchemaVersionRecord> versions = await database.Migrator.GetAppliedVersionsAsync();
 
-        Assert.Equal([1, 2, 3, 4], versions.Select(version => version.Version).ToArray());
+        int[] appliedVersions = versions.Select(version => version.Version).ToArray();
+        int[] expectedVersions = SqliteMigrations.All
+            .Select(migration => migration.Version)
+            .Order()
+            .ToArray();
+
+        Assert.Equal(expectedVersions, appliedVersions);
+        Assert.Equal(appliedVersions.Distinct().Count(), versions.Count);
     }
 
     [Fact]

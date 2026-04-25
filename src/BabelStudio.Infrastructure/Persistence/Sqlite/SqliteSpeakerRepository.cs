@@ -336,7 +336,6 @@ public sealed class SqliteSpeakerRepository : ISpeakerRepository
                       FROM transcript_revisions
                       WHERE project_id = $projectId);
                 """;
-                """;
             updateSegments.Parameters.AddWithValue("$projectId", projectId.ToString("D"));
             updateSegments.Parameters.AddWithValue("$sourceSpeakerId", sourceSpeakerId.ToString("D"));
             updateSegments.Parameters.AddWithValue("$targetSpeakerId", targetSpeakerId.ToString("D"));

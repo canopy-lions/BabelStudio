@@ -121,16 +121,13 @@ internal static class ModelManifestText
             "cc-by-nc-4.0" => ModelLicenseKind.CcByNc40,
             "cc-by-nc-4" => ModelLicenseKind.CcByNc40,
             "ccbync-4.0" => ModelLicenseKind.CcByNc40,
+            "ccby-nc-4.0" => ModelLicenseKind.CcByNc40,
             "ccbync4" => ModelLicenseKind.CcByNc40,
             "ccbync40" => ModelLicenseKind.CcByNc40,
             "custom" => ModelLicenseKind.Custom,
             "unknown" => ModelLicenseKind.Unknown,
             "non-commercial" => ModelLicenseKind.NonCommercial,
             "noncommercial" => ModelLicenseKind.NonCommercial,
-            "cc-by-nc-4.0" => ModelLicenseKind.NonCommercial,
-            "cc-by-nc-4" => ModelLicenseKind.NonCommercial,
-            "ccby-nc-4.0" => ModelLicenseKind.NonCommercial,
-            "ccbync40" => ModelLicenseKind.NonCommercial,
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown model license.")
         };
     }
