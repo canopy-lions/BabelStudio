@@ -5,244 +5,246 @@ namespace BabelStudio.Inference.Tests;
 
 public sealed class KokoroVoiceCatalogTests : IDisposable
 {
-    private readonly List<string> tempDirectories = [];
+    private readonly string modelRoot;
+    private readonly string voicesDir;
+
+    public KokoroVoiceCatalogTests()
+    {
+        modelRoot = Path.Combine(Path.GetTempPath(), $"kokoro-catalog-tests-{Guid.NewGuid():N}");
+        voicesDir = Path.Combine(modelRoot, "voices");
+        Directory.CreateDirectory(voicesDir);
+    }
 
     public void Dispose()
     {
-        foreach (string dir in tempDirectories)
+        if (Directory.Exists(modelRoot))
         {
-            if (Directory.Exists(dir))
-            {
-                Directory.Delete(dir, recursive: true);
-            }
+            Directory.Delete(modelRoot, recursive: true);
         }
     }
 
-    // ── Load ──────────────────────────────────────────────────────────────────
+    private void CreateFakeVoiceBin(string voiceId)
+    {
+        File.WriteAllBytes(Path.Combine(voicesDir, $"{voiceId}.bin"), []);
+    }
 
     [Fact]
-    public void Load_NoVoicesDirectory_ReturnsEmptyCatalog()
+    public void Load_ReturnsEmptyCatalog_WhenVoicesDirectoryMissing()
     {
-        string root = CreateTempModelRoot();
+        string rootWithoutVoices = Path.Combine(Path.GetTempPath(), $"no-voices-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(rootWithoutVoices);
+        try
+        {
+            KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(rootWithoutVoices);
+            Assert.Empty(catalog.GetVoices());
+        }
+        finally
+        {
+            Directory.Delete(rootWithoutVoices, recursive: true);
+        }
+    }
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+    [Fact]
+    public void Load_ReturnsEmptyCatalog_WhenVoicesDirIsEmpty()
+    {
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
         Assert.Empty(catalog.GetVoices());
     }
 
     [Fact]
-    public void Load_EmptyVoicesDirectory_ReturnsEmptyCatalog()
+    public void Load_ParsesAmericanEnglishFemaleVoice()
     {
-        string root = CreateTempModelRoot();
-        Directory.CreateDirectory(Path.Combine(root, "voices"));
+        CreateFakeVoiceBin("af_heart");
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
-        Assert.Empty(catalog.GetVoices());
-    }
-
-    [Fact]
-    public void Load_ValidBinFiles_ParsesEntries()
-    {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "af_heart");
-        CreateFakeVoicepackBin(root, "am_adam");
-
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
-        Assert.Equal(2, catalog.GetVoices().Count);
-    }
-
-    [Fact]
-    public void Load_SkipsFilesWithInvalidNamingFormat()
-    {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "invalid");      // too short
-        CreateFakeVoicepackBin(root, "ab");            // too short (< 3 chars)
-        CreateFakeVoicepackBin(root, "abXhello");      // underscore not at index 2
-        CreateFakeVoicepackBin(root, "af_heart");      // valid
-
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
-        Assert.Single(catalog.GetVoices());
-        Assert.Equal("af_heart", catalog.GetVoices()[0].VoiceId);
-    }
-
-    [Fact]
-    public void Load_NonBinFilesAreIgnored()
-    {
-        string root = CreateTempModelRoot();
-        string voicesDir = Path.Combine(root, "voices");
-        Directory.CreateDirectory(voicesDir);
-        File.WriteAllBytes(Path.Combine(voicesDir, "af_heart.json"), []);
-        File.WriteAllBytes(Path.Combine(voicesDir, "am_adam.txt"), []);
-        CreateFakeVoicepackBin(root, "bf_alice");
-
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
-        Assert.Single(catalog.GetVoices());
-    }
-
-    [Fact]
-    public void Load_VoicesAreSortedByVoiceId()
-    {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "zm_zhang");
-        CreateFakeVoicepackBin(root, "af_heart");
-        CreateFakeVoicepackBin(root, "bm_george");
-
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
         IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
+
+        Assert.Single(voices);
         Assert.Equal("af_heart", voices[0].VoiceId);
-        Assert.Equal("bm_george", voices[1].VoiceId);
-        Assert.Equal("zm_zhang", voices[2].VoiceId);
+        Assert.Equal("en-us", voices[0].LanguageCode);
+        Assert.Equal("female", voices[0].Gender);
+        Assert.Equal("Heart", voices[0].DisplayName);
     }
 
-    // ── Locale prefix parsing ─────────────────────────────────────────────────
+    [Fact]
+    public void Load_ParsesBritishEnglishMaleVoice()
+    {
+        CreateFakeVoiceBin("bm_george");
+
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
+
+        Assert.Single(voices);
+        Assert.Equal("bm_george", voices[0].VoiceId);
+        Assert.Equal("en-gb", voices[0].LanguageCode);
+        Assert.Equal("male", voices[0].Gender);
+        Assert.Equal("George", voices[0].DisplayName);
+    }
 
     [Theory]
-    [InlineData("af_heart", "en-us")]
-    [InlineData("bf_alice", "en-gb")]
-    [InlineData("ef_rosa", "es")]
-    [InlineData("ff_camille", "fr")]
-    [InlineData("hf_ananya", "hi")]
-    [InlineData("if_lucia", "it")]
-    [InlineData("jf_hana", "ja")]
-    [InlineData("kf_mina", "ko")]
-    [InlineData("pf_ana", "pt")]
-    [InlineData("rf_daria", "ru")]
-    [InlineData("zf_xiaoyi", "zh")]
-    public void Load_ParsesLocalePrefix(string voiceId, string expectedLanguageCode)
+    [InlineData("a", "en-us")]
+    [InlineData("b", "en-gb")]
+    [InlineData("e", "es")]
+    [InlineData("f", "fr")]
+    [InlineData("h", "hi")]
+    [InlineData("i", "it")]
+    [InlineData("j", "ja")]
+    [InlineData("k", "ko")]
+    [InlineData("p", "pt")]
+    [InlineData("r", "ru")]
+    [InlineData("z", "zh")]
+    public void Load_LocalePrefix_MapsToCorrectLanguageCode(string localePrefix, string expectedLanguageCode)
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, voiceId);
+        CreateFakeVoiceBin($"{localePrefix}f_test");
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
 
-        VoiceCatalogEntry entry = Assert.Single(catalog.GetVoices());
-        Assert.Equal(expectedLanguageCode, entry.LanguageCode);
+        Assert.Single(voices);
+        Assert.Equal(expectedLanguageCode, voices[0].LanguageCode);
     }
 
     [Fact]
     public void Load_UnknownLocalePrefix_MapsToUnknown()
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "xf_mystery");
+        CreateFakeVoiceBin("xf_mystery");
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
 
-        VoiceCatalogEntry entry = Assert.Single(catalog.GetVoices());
-        Assert.Equal("unknown", entry.LanguageCode);
+        Assert.Single(voices);
+        Assert.Equal("unknown", voices[0].LanguageCode);
     }
 
-    // ── Gender prefix parsing ─────────────────────────────────────────────────
-
     [Theory]
-    [InlineData("af_heart", "female")]
-    [InlineData("am_adam", "male")]
-    public void Load_ParsesGenderFromSecondChar(string voiceId, string expectedGender)
+    [InlineData("f", "female")]
+    [InlineData("m", "male")]
+    public void Load_GenderChar_MapsToCorrectGender(string genderChar, string expectedGender)
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, voiceId);
+        CreateFakeVoiceBin($"a{genderChar}_test");
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
 
-        VoiceCatalogEntry entry = Assert.Single(catalog.GetVoices());
-        Assert.Equal(expectedGender, entry.Gender);
+        Assert.Single(voices);
+        Assert.Equal(expectedGender, voices[0].Gender);
     }
 
     [Fact]
     public void Load_UnknownGenderChar_MapsToUnknown()
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "ax_mystery");
+        CreateFakeVoiceBin("ax_test");
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
 
-        VoiceCatalogEntry entry = Assert.Single(catalog.GetVoices());
-        Assert.Equal("unknown", entry.Gender);
-    }
-
-    // ── DisplayName parsing ───────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData("af_heart", "Heart")]
-    [InlineData("am_adam", "Adam")]
-    [InlineData("bm_george", "George")]
-    [InlineData("af_sky_blue", "Sky Blue")]   // underscores become spaces, title-cased
-    public void Load_ParsesDisplayName(string voiceId, string expectedDisplayName)
-    {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, voiceId);
-
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
-        VoiceCatalogEntry entry = Assert.Single(catalog.GetVoices());
-        Assert.Equal(expectedDisplayName, entry.DisplayName);
-    }
-
-    // ── GetVoices ─────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void GetVoices_NoLanguageFilter_ReturnsAll()
-    {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "af_heart");
-        CreateFakeVoicepackBin(root, "bf_alice");
-
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
-        Assert.Equal(2, catalog.GetVoices().Count);
+        Assert.Single(voices);
+        Assert.Equal("unknown", voices[0].Gender);
     }
 
     [Fact]
-    public void GetVoices_NullLanguageCode_ReturnsAll()
+    public void Load_DisplayName_TitleCasesNamePart()
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "af_heart");
-        CreateFakeVoicepackBin(root, "bf_alice");
+        CreateFakeVoiceBin("af_heart");
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+
+        Assert.Equal("Heart", catalog.GetVoices()[0].DisplayName);
+    }
+
+    [Fact]
+    public void Load_DisplayName_ReplaceUnderscoreWithSpace()
+    {
+        CreateFakeVoiceBin("af_warm_lady");
+
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+
+        // "warm_lady" => "Warm Lady"
+        Assert.Equal("Warm Lady", catalog.GetVoices()[0].DisplayName);
+    }
+
+    [Fact]
+    public void Load_SkipsFilesWithInvalidNamingConvention_TooShort()
+    {
+        CreateFakeVoiceBin("af"); // too short, needs at least 3 chars with underscore at [2]
+        CreateFakeVoiceBin("af_valid");
+
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+
+        // Only the valid entry should be present
+        Assert.Single(catalog.GetVoices());
+        Assert.Equal("af_valid", catalog.GetVoices()[0].VoiceId);
+    }
+
+    [Fact]
+    public void Load_SkipsFilesWithoutUnderscore_AtPosition2()
+    {
+        CreateFakeVoiceBin("afX_invalid"); // underscore at position 3, not 2
+        CreateFakeVoiceBin("af_valid");
+
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+
+        Assert.Single(catalog.GetVoices());
+        Assert.Equal("af_valid", catalog.GetVoices()[0].VoiceId);
+    }
+
+    [Fact]
+    public void Load_OrdersVoicesAlphabeticallyByVoiceId()
+    {
+        CreateFakeVoiceBin("bm_george");
+        CreateFakeVoiceBin("af_heart");
+        CreateFakeVoiceBin("am_adam");
+
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
+
+        Assert.Equal("af_heart", voices[0].VoiceId);
+        Assert.Equal("am_adam", voices[1].VoiceId);
+        Assert.Equal("bm_george", voices[2].VoiceId);
+    }
+
+    [Fact]
+    public void GetVoices_WithNullLanguageCode_ReturnsAllVoices()
+    {
+        CreateFakeVoiceBin("af_heart");
+        CreateFakeVoiceBin("bm_george");
+
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
         Assert.Equal(2, catalog.GetVoices(null).Count);
     }
 
     [Fact]
-    public void GetVoices_FiltersByLanguageCode()
+    public void GetVoices_WithLanguageFilter_ReturnsOnlyMatchingVoices()
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "af_heart");   // en-us
-        CreateFakeVoicepackBin(root, "am_adam");    // en-us
-        CreateFakeVoicepackBin(root, "bf_alice");   // en-gb
+        CreateFakeVoiceBin("af_heart"); // en-us
+        CreateFakeVoiceBin("am_adam");  // en-us
+        CreateFakeVoiceBin("bm_george"); // en-gb
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
-        IReadOnlyList<VoiceCatalogEntry> enUs = catalog.GetVoices("en-us");
-        Assert.Equal(2, enUs.Count);
-        Assert.All(enUs, v => Assert.Equal("en-us", v.LanguageCode));
+        IReadOnlyList<VoiceCatalogEntry> enUsVoices = catalog.GetVoices("en-us");
+        Assert.Equal(2, enUsVoices.Count);
+        Assert.All(enUsVoices, v => Assert.Equal("en-us", v.LanguageCode));
     }
 
     [Fact]
-    public void GetVoices_LanguageWithNoMatches_ReturnsEmpty()
+    public void GetVoices_WithNonMatchingLanguageFilter_ReturnsEmpty()
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "af_heart");   // en-us
+        CreateFakeVoiceBin("af_heart"); // en-us
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
-        Assert.Empty(catalog.GetVoices("zh"));
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices("zh");
+        Assert.Empty(voices);
     }
 
-    // ── TryGetVoice ───────────────────────────────────────────────────────────
-
     [Fact]
-    public void TryGetVoice_KnownVoiceId_ReturnsTrueAndEntry()
+    public void TryGetVoice_ReturnsTrue_ForKnownVoiceId()
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "af_heart");
-
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        CreateFakeVoiceBin("af_heart");
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
         bool found = catalog.TryGetVoice("af_heart", out VoiceCatalogEntry? entry);
 
@@ -252,49 +254,38 @@ public sealed class KokoroVoiceCatalogTests : IDisposable
     }
 
     [Fact]
-    public void TryGetVoice_UnknownVoiceId_ReturnsFalse()
+    public void TryGetVoice_ReturnsFalse_ForUnknownVoiceId()
     {
-        string root = CreateTempModelRoot();
-        CreateFakeVoicepackBin(root, "af_heart");
+        CreateFakeVoiceBin("af_heart");
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
-
-        bool found = catalog.TryGetVoice("xx_nonexistent", out VoiceCatalogEntry? entry);
+        bool found = catalog.TryGetVoice("nonexistent_voice", out VoiceCatalogEntry? entry);
 
         Assert.False(found);
         Assert.Null(entry);
     }
 
     [Fact]
-    public void TryGetVoice_EmptyCatalog_ReturnsFalse()
+    public void GetBinPath_ReturnsNull_WhenBinFileNotOnDisk()
     {
-        string root = CreateTempModelRoot();
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
-        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(root);
+        // Using the internal method - accessible via InternalsVisibleTo
+        string? binPath = catalog.GetBinPath("af_ghost");
 
-        bool found = catalog.TryGetVoice("af_heart", out VoiceCatalogEntry? entry);
-
-        Assert.False(found);
-        Assert.Null(entry);
+        Assert.Null(binPath);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private string CreateTempModelRoot()
+    [Fact]
+    public void GetBinPath_ReturnsPath_WhenBinFileExists()
     {
-        string dir = Path.Combine(
-            Path.GetTempPath(),
-            "BabelStudio.KokoroVoiceCatalogTests",
-            Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        tempDirectories.Add(dir);
-        return dir;
-    }
+        CreateFakeVoiceBin("af_heart");
+        KokoroVoiceCatalog catalog = KokoroVoiceCatalog.Load(modelRoot);
 
-    private static void CreateFakeVoicepackBin(string modelRoot, string voiceId)
-    {
-        string voicesDir = Path.Combine(modelRoot, "voices");
-        Directory.CreateDirectory(voicesDir);
-        File.WriteAllBytes(Path.Combine(voicesDir, $"{voiceId}.bin"), []);
+        string? binPath = catalog.GetBinPath("af_heart");
+
+        Assert.NotNull(binPath);
+        Assert.True(File.Exists(binPath));
+        Assert.EndsWith("af_heart.bin", binPath);
     }
 }

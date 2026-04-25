@@ -4,10 +4,20 @@ namespace BabelStudio.Application.Tests;
 
 public sealed class ProjectArtifactPathsTests
 {
-    // ── GetTtsTakeRelativePath ────────────────────────────────────────────────
+    [Fact]
+    public void TtsDirectoryRelativePath_HasExpectedValue()
+    {
+        Assert.Equal("artifacts/tts", ProjectArtifactPaths.TtsDirectoryRelativePath);
+    }
 
     [Fact]
-    public void GetTtsTakeRelativePath_ValidInputs_ReturnsExpectedPath()
+    public void RequiredDirectories_ContainsTtsDirectory()
+    {
+        Assert.Contains("artifacts/tts", ProjectArtifactPaths.RequiredDirectories);
+    }
+
+    [Fact]
+    public void GetTtsTakeRelativePath_ReturnsExpectedFormat()
     {
         Guid speakerId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         Guid segmentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -20,101 +30,102 @@ public sealed class ProjectArtifactPathsTests
     }
 
     [Fact]
-    public void GetTtsTakeRelativePath_EmptySpeakerId_Throws()
+    public void GetTtsTakeRelativePath_PadsTakeNumberToFourDigits()
     {
-        ArgumentException ex = Assert.Throws<ArgumentException>(
-            () => ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.Empty, Guid.NewGuid(), takeNumber: 1));
+        Guid speakerId = Guid.NewGuid();
+        Guid segmentId = Guid.NewGuid();
 
-        Assert.Contains("speakerId", ex.ParamName, StringComparison.OrdinalIgnoreCase);
+        string take1 = ProjectArtifactPaths.GetTtsTakeRelativePath(speakerId, segmentId, takeNumber: 1);
+        string take99 = ProjectArtifactPaths.GetTtsTakeRelativePath(speakerId, segmentId, takeNumber: 99);
+        string take1000 = ProjectArtifactPaths.GetTtsTakeRelativePath(speakerId, segmentId, takeNumber: 1000);
+
+        Assert.EndsWith("-take-0001.wav", take1);
+        Assert.EndsWith("-take-0099.wav", take99);
+        Assert.EndsWith("-take-1000.wav", take1000);
     }
 
     [Fact]
-    public void GetTtsTakeRelativePath_EmptySegmentId_Throws()
+    public void GetTtsTakeRelativePath_UsesDashSeparatedGuids()
     {
-        ArgumentException ex = Assert.Throws<ArgumentException>(
-            () => ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.Empty, takeNumber: 1));
+        Guid speakerId = Guid.NewGuid();
+        Guid segmentId = Guid.NewGuid();
 
-        Assert.Contains("segmentId", ex.ParamName, StringComparison.OrdinalIgnoreCase);
+        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(speakerId, segmentId, 1);
+
+        // Should use "D" format (lowercase hex with hyphens, no braces)
+        Assert.Contains(speakerId.ToString("D"), path);
+        Assert.Contains(segmentId.ToString("D"), path);
     }
 
     [Fact]
-    public void GetTtsTakeRelativePath_ZeroTakeNumber_Throws()
+    public void GetTtsTakeRelativePath_StartsWithTtsDirectory()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), takeNumber: 0));
+        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), 1);
+
+        Assert.StartsWith("artifacts/tts/", path);
     }
 
     [Fact]
-    public void GetTtsTakeRelativePath_NegativeTakeNumber_Throws()
+    public void GetTtsTakeRelativePath_EndsWithWavExtension()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), takeNumber: -5));
+        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), 1);
+
+        Assert.EndsWith(".wav", path);
+    }
+
+    [Fact]
+    public void GetTtsTakeRelativePath_RejectsEmptySpeakerId()
+    {
+        ArgumentException ex = Assert.Throws<ArgumentException>(() =>
+            ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.Empty, Guid.NewGuid(), 1));
+
+        Assert.Contains("speakerId", ex.ParamName);
+    }
+
+    [Fact]
+    public void GetTtsTakeRelativePath_RejectsEmptySegmentId()
+    {
+        ArgumentException ex = Assert.Throws<ArgumentException>(() =>
+            ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.Empty, 1));
+
+        Assert.Contains("segmentId", ex.ParamName);
+    }
+
+    [Fact]
+    public void GetTtsTakeRelativePath_RejectsZeroTakeNumber()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), 0));
+    }
+
+    [Fact]
+    public void GetTtsTakeRelativePath_RejectsNegativeTakeNumber()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), -1));
+    }
+
+    [Fact]
+    public void GetTtsTakeRelativePath_AcceptsMinimumValidTakeNumber()
+    {
+        // take number 1 is the minimum positive value
+        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), 1);
+
+        Assert.NotNull(path);
+        Assert.EndsWith("-take-0001.wav", path);
     }
 
     [Theory]
     [InlineData(1, "0001")]
     [InlineData(9, "0009")]
     [InlineData(10, "0010")]
-    [InlineData(999, "0999")]
+    [InlineData(100, "0100")]
     [InlineData(9999, "9999")]
-    public void GetTtsTakeRelativePath_FormatsTheTakeNumberWithLeadingZeros(int takeNumber, string expectedPad)
+    [InlineData(10000, "10000")]
+    public void GetTtsTakeRelativePath_TakeNumberFormatting(int takeNumber, string expectedSuffix)
     {
-        Guid speakerId = Guid.NewGuid();
-        Guid segmentId = Guid.NewGuid();
+        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), takeNumber);
 
-        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(speakerId, segmentId, takeNumber);
-
-        Assert.EndsWith($"-take-{expectedPad}.wav", path, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GetTtsTakeRelativePath_PathStartsWithTtsDirectory()
-    {
-        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), takeNumber: 1);
-
-        Assert.StartsWith("artifacts/tts/", path, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GetTtsTakeRelativePath_PathEndsWithWavExtension()
-    {
-        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), Guid.NewGuid(), takeNumber: 3);
-
-        Assert.EndsWith(".wav", path, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GetTtsTakeRelativePath_ContainsSpeakerIdInPath()
-    {
-        Guid speakerId = Guid.NewGuid();
-
-        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(speakerId, Guid.NewGuid(), takeNumber: 1);
-
-        Assert.Contains(speakerId.ToString("D"), path, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GetTtsTakeRelativePath_ContainsSegmentIdInFilename()
-    {
-        Guid segmentId = Guid.NewGuid();
-
-        string path = ProjectArtifactPaths.GetTtsTakeRelativePath(Guid.NewGuid(), segmentId, takeNumber: 1);
-
-        string filename = Path.GetFileName(path);
-        Assert.StartsWith(segmentId.ToString("D"), filename, StringComparison.Ordinal);
-    }
-
-    // ── Constants ─────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void TtsDirectoryRelativePath_HasExpectedValue()
-    {
-        Assert.Equal("artifacts/tts", ProjectArtifactPaths.TtsDirectoryRelativePath);
-    }
-
-    [Fact]
-    public void RequiredDirectories_IncludesTtsDirectory()
-    {
-        Assert.Contains("artifacts/tts", ProjectArtifactPaths.RequiredDirectories);
+        Assert.EndsWith($"-take-{expectedSuffix}.wav", path);
     }
 }

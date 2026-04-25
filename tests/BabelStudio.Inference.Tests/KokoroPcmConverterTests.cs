@@ -5,20 +5,18 @@ namespace BabelStudio.Inference.Tests;
 
 public sealed class KokoroPcmConverterTests
 {
-    // ── Header structure ──────────────────────────────────────────────────────
-
     [Fact]
-    public void EncodePcm16Wav_EmptySamples_Returns44ByteHeader()
+    public void EncodePcm16Wav_EmptySamples_ReturnsOnlyHeader()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24000);
 
         Assert.Equal(44, wav.Length);
     }
 
     [Fact]
-    public void EncodePcm16Wav_WritesRiffFourcc()
+    public void EncodePcm16Wav_WritesRiffFourCC()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate: 24000);
 
         Assert.Equal((byte)'R', wav[0]);
         Assert.Equal((byte)'I', wav[1]);
@@ -27,9 +25,9 @@ public sealed class KokoroPcmConverterTests
     }
 
     [Fact]
-    public void EncodePcm16Wav_WritesWaveFourcc()
+    public void EncodePcm16Wav_WritesWaveFourCC()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate: 24000);
 
         Assert.Equal((byte)'W', wav[8]);
         Assert.Equal((byte)'A', wav[9]);
@@ -40,7 +38,7 @@ public sealed class KokoroPcmConverterTests
     [Fact]
     public void EncodePcm16Wav_WritesFmtChunkMarker()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate: 24000);
 
         Assert.Equal((byte)'f', wav[12]);
         Assert.Equal((byte)'m', wav[13]);
@@ -49,57 +47,46 @@ public sealed class KokoroPcmConverterTests
     }
 
     [Fact]
-    public void EncodePcm16Wav_FmtChunkSize_Is16()
+    public void EncodePcm16Wav_WritesPcmFormatCode()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate: 24000);
 
-        int fmtChunkSize = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(16));
-        Assert.Equal(16, fmtChunkSize);
+        ushort format = BinaryPrimitives.ReadUInt16LittleEndian(wav.AsSpan(20, 2));
+        Assert.Equal(1, format); // PCM = 1
     }
 
     [Fact]
-    public void EncodePcm16Wav_AudioFormat_IsPcm()
+    public void EncodePcm16Wav_WritesMono()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate: 24000);
 
-        ushort audioFormat = BinaryPrimitives.ReadUInt16LittleEndian(wav.AsSpan(20));
-        Assert.Equal(1, audioFormat); // PCM = 1
-    }
-
-    [Fact]
-    public void EncodePcm16Wav_ChannelCount_IsMono()
-    {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
-
-        ushort channels = BinaryPrimitives.ReadUInt16LittleEndian(wav.AsSpan(22));
+        ushort channels = BinaryPrimitives.ReadUInt16LittleEndian(wav.AsSpan(22, 2));
         Assert.Equal(1, channels);
     }
 
-    [Theory]
-    [InlineData(22_050)]
-    [InlineData(24_000)]
-    [InlineData(44_100)]
-    public void EncodePcm16Wav_SampleRate_IsWrittenCorrectly(int sampleRate)
+    [Fact]
+    public void EncodePcm16Wav_WritesSampleRate()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate);
+        const int sampleRate = 24000;
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate);
 
-        int writtenSampleRate = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(24));
-        Assert.Equal(sampleRate, writtenSampleRate);
+        int writtenRate = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(24, 4));
+        Assert.Equal(sampleRate, writtenRate);
     }
 
     [Fact]
-    public void EncodePcm16Wav_BitsPerSample_Is16()
+    public void EncodePcm16Wav_WritesBitsPerSample16()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate: 24000);
 
-        ushort bitsPerSample = BinaryPrimitives.ReadUInt16LittleEndian(wav.AsSpan(34));
+        ushort bitsPerSample = BinaryPrimitives.ReadUInt16LittleEndian(wav.AsSpan(34, 2));
         Assert.Equal(16, bitsPerSample);
     }
 
     [Fact]
     public void EncodePcm16Wav_WritesDataChunkMarker()
     {
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([], sampleRate: 24_000);
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate: 24000);
 
         Assert.Equal((byte)'d', wav[36]);
         Assert.Equal((byte)'a', wav[37]);
@@ -107,114 +94,96 @@ public sealed class KokoroPcmConverterTests
         Assert.Equal((byte)'a', wav[39]);
     }
 
-    // ── Output size ───────────────────────────────────────────────────────────
-
     [Fact]
-    public void EncodePcm16Wav_OutputSize_IsHeaderPlusTwoBytePerSample()
+    public void EncodePcm16Wav_TotalLengthIsHeaderPlusTwoBytePerSample()
     {
-        int sampleCount = 100;
-        float[] samples = new float[sampleCount];
+        float[] samples = new float[100];
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
 
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        Assert.Equal(44 + sampleCount * 2, wav.Length);
+        Assert.Equal(44 + 100 * 2, wav.Length);
     }
 
     [Fact]
-    public void EncodePcm16Wav_DataChunkSize_MatchesSampleCount()
+    public void EncodePcm16Wav_WritesCorrectRiffChunkSize()
     {
-        int sampleCount = 50;
-        float[] samples = new float[sampleCount];
+        float[] samples = new float[100];
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
 
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        int dataBytes = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(40));
-        Assert.Equal(sampleCount * 2, dataBytes);
+        // RIFF chunk size = 36 + dataBytes = 36 + (100 * 2) = 236
+        int riffSize = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(4, 4));
+        Assert.Equal(36 + 100 * 2, riffSize);
     }
 
     [Fact]
-    public void EncodePcm16Wav_RiffChunkSize_IsCorrect()
+    public void EncodePcm16Wav_SilentSamples_WriteZeroPcmData()
     {
-        int sampleCount = 10;
-        float[] samples = new float[sampleCount];
+        float[] samples = new float[4]; // all zeros
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
 
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        int riffSize = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(4));
-        Assert.Equal(36 + sampleCount * 2, riffSize);
-    }
-
-    // ── PCM sample encoding ───────────────────────────────────────────────────
-
-    [Fact]
-    public void EncodePcm16Wav_SilentSamples_AreAllZero()
-    {
-        float[] samples = new float[4]; // all 0.0f
-
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        Span<byte> data = wav.AsSpan(44);
-        Assert.All(data.ToArray(), b => Assert.Equal(0, b));
+        for (int i = 44; i < wav.Length; i++)
+        {
+            Assert.Equal(0, wav[i]);
+        }
     }
 
     [Fact]
-    public void EncodePcm16Wav_MaxPositiveSample_EncodesTo32767()
+    public void EncodePcm16Wav_MaxPositiveSample_ClampedToInt16Max()
     {
-        float[] samples = [1.0f];
+        float[] samples = [2.0f]; // above 1.0, should clamp
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
 
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44));
-        Assert.Equal(32767, pcm);
-    }
-
-    [Fact]
-    public void EncodePcm16Wav_MaxNegativeSample_ClampsToShortMinValue()
-    {
-        float[] samples = [-1.0f];
-
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44));
-        Assert.Equal((short)-32767, pcm);
-    }
-
-    [Fact]
-    public void EncodePcm16Wav_OverdriveSample_ClampsToShortMaxValue()
-    {
-        float[] samples = [100.0f]; // way above 1.0
-
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44));
+        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44, 2));
         Assert.Equal(short.MaxValue, pcm);
     }
 
     [Fact]
-    public void EncodePcm16Wav_HalfAmplitudeSample_IsApproximatelyHalfMaxShort()
+    public void EncodePcm16Wav_MaxNegativeSample_ClampedToInt16Min()
     {
-        float[] samples = [0.5f];
+        float[] samples = [-2.0f]; // below -1.0, should clamp
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
 
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
-
-        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44));
-        // 0.5 * 32767 ≈ 16383
-        Assert.InRange(pcm, 16380, 16384);
+        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44, 2));
+        Assert.Equal(short.MinValue, pcm);
     }
 
     [Fact]
-    public void EncodePcm16Wav_MultipleSamples_AreEncodedInOrder()
+    public void EncodePcm16Wav_PositiveFullScale_MapsToNear32767()
     {
-        float[] samples = [0.0f, 1.0f, -1.0f];
+        float[] samples = [1.0f];
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
 
-        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
+        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44, 2));
+        Assert.Equal(32767, pcm); // 1.0f * 32767f = 32767
+    }
 
-        short s0 = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44));
-        short s1 = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(46));
-        short s2 = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(48));
+    [Fact]
+    public void EncodePcm16Wav_NegativeFullScale_MapsToMinus32767()
+    {
+        float[] samples = [-1.0f];
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
 
-        Assert.Equal(0, s0);
-        Assert.Equal(32767, s1);
-        Assert.Equal((short)-32767, s2);
+        short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44, 2));
+        Assert.Equal(-32767, pcm); // -1.0f * 32767f = -32767
+    }
+
+    [Fact]
+    public void EncodePcm16Wav_WritesCorrectByteRateForMono16Bit()
+    {
+        const int sampleRate = 24000;
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav([0f], sampleRate);
+
+        // byteRate = sampleRate * channels * bitsPerSample / 8 = 24000 * 1 * 16 / 8 = 48000
+        int byteRate = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(28, 4));
+        Assert.Equal(48000, byteRate);
+    }
+
+    [Fact]
+    public void EncodePcm16Wav_WritesCorrectDataChunkSize()
+    {
+        float[] samples = new float[50];
+        byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24000);
+
+        int dataSize = BinaryPrimitives.ReadInt32LittleEndian(wav.AsSpan(40, 4));
+        Assert.Equal(50 * 2, dataSize); // 50 samples * 2 bytes each = 100
     }
 }

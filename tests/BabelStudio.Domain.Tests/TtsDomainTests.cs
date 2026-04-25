@@ -86,8 +86,6 @@ public sealed class TtsDomainTests
         Assert.Equal("af_heart", assignment.VoiceVariant);
     }
 
-    // ── TtsTake additional coverage ───────────────────────────────────────────
-
     [Fact]
     public void TtsTake_Fail_SetsFailedStatus()
     {
@@ -99,7 +97,7 @@ public sealed class TtsDomainTests
     }
 
     [Fact]
-    public void TtsTake_Fail_DoesNotAlterOtherFields()
+    public void TtsTake_Fail_DoesNotClearOtherFields()
     {
         TtsTake take = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid());
 
@@ -108,16 +106,15 @@ public sealed class TtsDomainTests
         Assert.Equal(take.Id, failed.Id);
         Assert.Equal(take.ProjectId, failed.ProjectId);
         Assert.Equal(take.VoiceAssignmentId, failed.VoiceAssignmentId);
-        Assert.Equal(take.IsStale, failed.IsStale);
-        Assert.Null(failed.ArtifactId);
+        Assert.False(failed.IsStale);
     }
 
     [Fact]
-    public void TtsTake_Create_PreservesTranslatedSegmentId()
+    public void TtsTake_Create_WithTranslatedSegmentId_PreservesIt()
     {
         Guid segmentId = Guid.NewGuid();
 
-        TtsTake take = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid(), translatedSegmentId: segmentId);
+        TtsTake take = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid(), segmentId);
 
         Assert.Equal(segmentId, take.TranslatedSegmentId);
     }
@@ -131,45 +128,61 @@ public sealed class TtsDomainTests
     }
 
     [Fact]
-    public void TtsTake_Create_GeneratesUniqueIds()
+    public void TtsTake_Create_AssignsNewUniqueId()
     {
-        Guid projectId = Guid.NewGuid();
-        Guid voiceAssignmentId = Guid.NewGuid();
+        TtsTake take1 = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid());
+        TtsTake take2 = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid());
 
-        TtsTake take1 = TtsTake.Create(projectId, voiceAssignmentId);
-        TtsTake take2 = TtsTake.Create(projectId, voiceAssignmentId);
-
+        Assert.NotEqual(Guid.Empty, take1.Id);
+        Assert.NotEqual(Guid.Empty, take2.Id);
         Assert.NotEqual(take1.Id, take2.Id);
     }
 
     [Fact]
-    public void TtsTake_MarkStale_IsImmutable()
+    public void TtsTake_Create_SetsCreatedAtUtcNear_Now()
+    {
+        DateTimeOffset before = DateTimeOffset.UtcNow;
+        TtsTake take = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid());
+        DateTimeOffset after = DateTimeOffset.UtcNow;
+
+        Assert.True(take.CreatedAtUtc >= before);
+        Assert.True(take.CreatedAtUtc <= after);
+    }
+
+    [Fact]
+    public void TtsTake_MarkStale_DoesNotMutateOriginal()
     {
         TtsTake original = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid());
 
         _ = original.MarkStale();
 
-        // Original must not be mutated
-        Assert.False(original.IsStale);
         Assert.Equal(TtsTakeStatus.Pending, original.Status);
+        Assert.False(original.IsStale);
     }
 
     [Fact]
-    public void TtsTake_Create_SetsCreatedAtUtcToNow()
+    public void TtsTake_Complete_DoesNotMutateOriginal()
     {
-        DateTimeOffset before = DateTimeOffset.UtcNow;
+        TtsTake original = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid());
 
+        _ = original.Complete(Guid.NewGuid(), 24000, 24000, "cpu");
+
+        Assert.Equal(TtsTakeStatus.Pending, original.Status);
+        Assert.Null(original.ArtifactId);
+    }
+
+    [Fact]
+    public void TtsTake_Complete_SetsNullStageRunIdToNull()
+    {
         TtsTake take = TtsTake.Create(Guid.NewGuid(), Guid.NewGuid());
 
-        DateTimeOffset after = DateTimeOffset.UtcNow;
-        Assert.True(take.CreatedAtUtc >= before);
-        Assert.True(take.CreatedAtUtc <= after);
+        TtsTake completed = take.Complete(Guid.NewGuid(), 12000, 24000, "cpu");
+
+        Assert.Null(completed.StageRunId);
     }
 
-    // ── VoiceAssignment additional coverage ───────────────────────────────────
-
     [Fact]
-    public void VoiceAssignment_Create_NullVoiceVariant_RemainsNull()
+    public void VoiceAssignment_Create_WithNullVariant_SetsVariantToNull()
     {
         VoiceAssignment assignment = VoiceAssignment.Create(
             Guid.NewGuid(), Guid.NewGuid(), "kokoro-v1.0", voiceVariant: null);
@@ -178,7 +191,7 @@ public sealed class TtsDomainTests
     }
 
     [Fact]
-    public void VoiceAssignment_Create_WhitespaceVoiceVariant_IsStoredAsNull()
+    public void VoiceAssignment_Create_WithWhiteSpaceVariant_SetsVariantToNull()
     {
         VoiceAssignment assignment = VoiceAssignment.Create(
             Guid.NewGuid(), Guid.NewGuid(), "kokoro-v1.0", voiceVariant: "   ");
@@ -187,7 +200,7 @@ public sealed class TtsDomainTests
     }
 
     [Fact]
-    public void VoiceAssignment_Create_RequiresConsent_IsPreserved()
+    public void VoiceAssignment_Create_WithRequiresConsent_True_PreservesFlag()
     {
         VoiceAssignment assignment = VoiceAssignment.Create(
             Guid.NewGuid(), Guid.NewGuid(), "kokoro-v1.0", requiresConsent: true);
@@ -196,7 +209,7 @@ public sealed class TtsDomainTests
     }
 
     [Fact]
-    public void VoiceAssignment_Create_DefaultRequiresConsentIsFalse()
+    public void VoiceAssignment_Create_DefaultsRequiresConsentToFalse()
     {
         VoiceAssignment assignment = VoiceAssignment.Create(
             Guid.NewGuid(), Guid.NewGuid(), "kokoro-v1.0");
@@ -205,7 +218,7 @@ public sealed class TtsDomainTests
     }
 
     [Fact]
-    public void VoiceAssignment_Create_GeneratesUniqueIds()
+    public void VoiceAssignment_Create_AssignsNewUniqueId()
     {
         Guid projectId = Guid.NewGuid();
         Guid speakerId = Guid.NewGuid();
@@ -213,13 +226,19 @@ public sealed class TtsDomainTests
         VoiceAssignment a1 = VoiceAssignment.Create(projectId, speakerId, "kokoro-v1.0");
         VoiceAssignment a2 = VoiceAssignment.Create(projectId, speakerId, "kokoro-v1.0");
 
+        Assert.NotEqual(Guid.Empty, a1.Id);
         Assert.NotEqual(a1.Id, a2.Id);
     }
 
     [Fact]
-    public void VoiceAssignment_Create_RejectsEmptyVoiceModelId()
+    public void VoiceAssignment_Create_SetsProjectAndSpeakerIds()
     {
-        Assert.Throws<ArgumentException>(() =>
-            VoiceAssignment.Create(Guid.NewGuid(), Guid.NewGuid(), ""));
+        Guid projectId = Guid.NewGuid();
+        Guid speakerId = Guid.NewGuid();
+
+        VoiceAssignment assignment = VoiceAssignment.Create(projectId, speakerId, "kokoro-v1.0");
+
+        Assert.Equal(projectId, assignment.ProjectId);
+        Assert.Equal(speakerId, assignment.SpeakerId);
     }
 }

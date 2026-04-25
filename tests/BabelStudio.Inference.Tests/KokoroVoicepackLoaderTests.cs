@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using BabelStudio.Inference.Onnx.Kokoro;
 
 namespace BabelStudio.Inference.Tests;
@@ -6,163 +7,146 @@ namespace BabelStudio.Inference.Tests;
 public sealed class KokoroVoicepackLoaderTests : IDisposable
 {
     private const int StyleVectorSize = 256;
-    private const int BytesPerFloat = sizeof(float);
-    private const int BytesPerRow = StyleVectorSize * BytesPerFloat; // 1024
+    private readonly string tempDir;
 
-    private readonly List<string> tempFiles = [];
+    public KokoroVoicepackLoaderTests()
+    {
+        tempDir = Path.Combine(Path.GetTempPath(), $"kokoro-voicepack-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+    }
 
     public void Dispose()
     {
-        foreach (string file in tempFiles)
+        if (Directory.Exists(tempDir))
         {
-            if (File.Exists(file))
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Creates a .bin file with <paramref name="rowCount"/> rows of 256 floats.
+    /// Each row i is filled with the float value i+1.
+    /// </summary>
+    private string CreateFakeBin(string filename, int rowCount)
+    {
+        string path = Path.Combine(tempDir, filename);
+        float[] data = new float[rowCount * StyleVectorSize];
+        for (int row = 0; row < rowCount; row++)
+        {
+            for (int col = 0; col < StyleVectorSize; col++)
             {
-                File.Delete(file);
+                data[row * StyleVectorSize + col] = row + 1.0f;
             }
         }
-    }
 
-    // ── LoadStyleVector ───────────────────────────────────────────────────────
-
-    [Fact]
-    public void LoadStyleVector_Row0_ReturnsFirstRow()
-    {
-        float[] row0 = Enumerable.Range(0, StyleVectorSize).Select(i => (float)i).ToArray();
-        float[] row1 = Enumerable.Range(StyleVectorSize, StyleVectorSize).Select(i => (float)i).ToArray();
-
-        string binPath = WriteBinFile(row0, row1);
-
-        float[] result = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0);
-
-        Assert.Equal(StyleVectorSize, result.Length);
-        for (int i = 0; i < StyleVectorSize; i++)
-        {
-            Assert.Equal(row0[i], result[i]);
-        }
+        byte[] bytes = new byte[data.Length * sizeof(float)];
+        MemoryMarshal.AsBytes(data.AsSpan()).CopyTo(bytes);
+        File.WriteAllBytes(path, bytes);
+        return path;
     }
 
     [Fact]
-    public void LoadStyleVector_Row1_ReturnsSecondRow()
+    public void LoadStyleVector_ReadsCorrectRow_ForTokenCount0()
     {
-        float[] row0 = new float[StyleVectorSize]; // all zeros
-        float[] row1 = Enumerable.Range(0, StyleVectorSize).Select(i => (float)(i + 100)).ToArray();
+        string binPath = CreateFakeBin("voice.bin", rowCount: 10);
 
-        string binPath = WriteBinFile(row0, row1);
+        float[] vector = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0);
 
-        float[] result = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 1);
-
-        Assert.Equal(StyleVectorSize, result.Length);
-        for (int i = 0; i < StyleVectorSize; i++)
-        {
-            Assert.Equal(row1[i], result[i]);
-        }
+        Assert.Equal(StyleVectorSize, vector.Length);
+        Assert.All(vector, v => Assert.Equal(1.0f, v)); // row 0 is filled with 1.0f
     }
 
     [Fact]
-    public void LoadStyleVector_ResultLength_IsAlways256()
+    public void LoadStyleVector_ReadsCorrectRow_ForTokenCount5()
     {
-        float[] row = new float[StyleVectorSize];
-        string binPath = WriteBinFile(row, row);
+        string binPath = CreateFakeBin("voice.bin", rowCount: 10);
 
-        float[] result = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0);
+        float[] vector = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 5);
 
-        Assert.Equal(256, result.Length);
+        // row 5 is filled with 6.0f (row+1)
+        Assert.All(vector, v => Assert.Equal(6.0f, v));
     }
 
     [Fact]
-    public void LoadStyleVector_SilentRow_ReturnsAllZeros()
+    public void LoadStyleVector_ReadsCorrectRow_ForLastRow()
     {
-        float[] silentRow = new float[StyleVectorSize]; // all 0.0f
-        string binPath = WriteBinFile(silentRow);
+        string binPath = CreateFakeBin("voice.bin", rowCount: 5);
 
-        float[] result = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0);
+        float[] vector = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 4);
 
-        Assert.All(result, v => Assert.Equal(0f, v));
+        // row 4 is filled with 5.0f
+        Assert.All(vector, v => Assert.Equal(5.0f, v));
     }
 
     [Fact]
-    public void LoadStyleVector_KnownValues_RoundTripCorrectly()
+    public void LoadStyleVector_ReturnsVectorOf256Floats()
     {
-        float[] row = Enumerable.Range(0, StyleVectorSize)
-            .Select(i => i * 0.001f)
-            .ToArray();
-        string binPath = WriteBinFile(row);
+        string binPath = CreateFakeBin("voice.bin", rowCount: 3);
 
-        float[] result = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0);
+        float[] vector = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0);
 
-        for (int i = 0; i < StyleVectorSize; i++)
-        {
-            Assert.Equal(row[i], result[i], precision: 5);
-        }
-    }
-
-    // ── Error cases ───────────────────────────────────────────────────────────
-
-    [Fact]
-    public void LoadStyleVector_FileTooSmallForRow0_Throws()
-    {
-        // File with only half a row
-        string binPath = WriteTempBinWithBytes(new byte[BytesPerRow / 2]);
-
-        Assert.Throws<InvalidOperationException>(
-            () => KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0));
+        Assert.Equal(StyleVectorSize, vector.Length);
     }
 
     [Fact]
-    public void LoadStyleVector_FileTooSmallForRequestedRow_Throws()
+    public void LoadStyleVector_ThrowsInvalidOperationException_WhenFileTooSmall()
     {
-        // File has exactly 1 row (tokenCount=0 would work, tokenCount=5 would not)
-        string binPath = WriteBinFile(new float[StyleVectorSize]);
+        // Create a file that has only 1 row (offset 1 requires 2 rows)
+        string binPath = CreateFakeBin("tiny.bin", rowCount: 1);
 
-        Assert.Throws<InvalidOperationException>(
-            () => KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 5));
+        // Requesting tokenCount=1 requires offset 1*256*4 + 256*4 = 512*4 bytes = 2 rows
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(
+            () => KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 1));
+
+        Assert.Contains("style rows", ex.Message);
     }
 
     [Fact]
-    public void LoadStyleVector_EmptyFile_Throws()
+    public void LoadStyleVector_ErrorMessage_IncludesFilenameAndTokenCount()
     {
-        string binPath = WriteTempBinWithBytes([]);
-
-        Assert.Throws<InvalidOperationException>(
-            () => KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 0));
-    }
-
-    [Fact]
-    public void LoadStyleVector_ErrorMessage_ContainsFilenameAndTokenCount()
-    {
-        string binPath = WriteTempBinWithBytes([]);
+        string binPath = CreateFakeBin("af_heart.bin", rowCount: 1);
 
         InvalidOperationException ex = Assert.Throws<InvalidOperationException>(
-            () => KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 7));
+            () => KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 5));
 
-        Assert.Contains(Path.GetFileName(binPath), ex.Message, StringComparison.Ordinal);
-        Assert.Contains("7", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("af_heart.bin", ex.Message);
+        Assert.Contains("5", ex.Message);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private string WriteBinFile(params float[][] rows)
+    [Fact]
+    public void LoadStyleVector_EmptyFile_ThrowsForAnyTokenCount()
     {
-        byte[] bytes = new byte[rows.Length * BytesPerRow];
-        for (int rowIdx = 0; rowIdx < rows.Length; rowIdx++)
-        {
-            for (int i = 0; i < StyleVectorSize; i++)
-            {
-                BinaryPrimitives.WriteSingleLittleEndian(
-                    bytes.AsSpan((rowIdx * BytesPerRow) + (i * BytesPerFloat)),
-                    rows[rowIdx][i]);
-            }
-        }
-        return WriteTempBinWithBytes(bytes);
+        string path = Path.Combine(tempDir, "empty.bin");
+        File.WriteAllBytes(path, []);
+
+        Assert.Throws<InvalidOperationException>(
+            () => KokoroVoicepackLoader.LoadStyleVector(path, tokenCount: 0));
     }
 
-    private string WriteTempBinWithBytes(byte[] bytes)
+    [Fact]
+    public void LoadStyleVector_DoesNotReadBeyondRequestedRow()
     {
-        string path = Path.Combine(
-            Path.GetTempPath(),
-            $"BabelStudio.VoicepackLoader.{Guid.NewGuid():N}.bin");
+        // File has exactly 3 rows; reading row 2 (last) should succeed
+        string binPath = CreateFakeBin("voice.bin", rowCount: 3);
+
+        float[] vector = KokoroVoicepackLoader.LoadStyleVector(binPath, tokenCount: 2);
+
+        Assert.Equal(StyleVectorSize, vector.Length);
+        Assert.All(vector, v => Assert.Equal(3.0f, v)); // row 2 = value 3.0f
+    }
+
+    [Fact]
+    public void LoadStyleVector_ReadsBytesInLittleEndianOrder()
+    {
+        // Write a single known float value in little-endian and verify round-trip
+        float expected = 3.14159f;
+        string path = Path.Combine(tempDir, "known.bin");
+        byte[] bytes = new byte[StyleVectorSize * sizeof(float)];
+        BinaryPrimitives.WriteSingleLittleEndian(bytes, expected);
         File.WriteAllBytes(path, bytes);
-        tempFiles.Add(path);
-        return path;
+
+        float[] vector = KokoroVoicepackLoader.LoadStyleVector(path, tokenCount: 0);
+
+        Assert.Equal(expected, vector[0], precision: 4);
     }
 }

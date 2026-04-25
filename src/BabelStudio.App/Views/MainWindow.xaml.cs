@@ -13,6 +13,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.UI;
@@ -53,6 +55,7 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? activeOperationCancellationSource;
     private TranscriptProjectService? currentService;
     private string? currentProjectRootPath;
+    private MediaPlayer? ttsAuditionPlayer;
     private bool isApplyingProjectState;
 
     public MainWindow()
@@ -98,6 +101,8 @@ public sealed partial class MainWindow : Window
         activeOperationCancellationSource?.Cancel();
         activeOperationCancellationSource?.Dispose();
         activeOperationCancellationSource = null;
+        ttsAuditionPlayer?.Dispose();
+        ttsAuditionPlayer = null;
         Closed -= MainWindow_Closed;
     }
 
@@ -518,6 +523,96 @@ public sealed partial class MainWindow : Window
         }, "Extracting reference clip...").ConfigureAwait(true);
     }
 
+    private async void AssignVoiceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: SpeakerItem item })
+        {
+            return;
+        }
+
+        AssignVoiceToSpeakerRequest? request = ViewModel.CreateAssignVoiceRequest(item);
+        if (request is null)
+        {
+            ViewModel.StatusMessage = "Choose a Kokoro voice before assigning.";
+            return;
+        }
+
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.AssignVoiceToSpeakerAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Assigning Kokoro voice...").ConfigureAwait(true);
+    }
+
+    private async void GenerateTtsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: SpeakerItem item })
+        {
+            return;
+        }
+
+        GenerateTtsForSpeakerRequest request = ViewModel.CreateGenerateTtsRequest(item);
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.GenerateTtsForSpeakerAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Generating TTS for speaker...").ConfigureAwait(true);
+    }
+
+    private async void RegenerateStaleTtsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentService is null || string.IsNullOrWhiteSpace(currentProjectRootPath))
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: SpeakerItem item })
+        {
+            return;
+        }
+
+        RegenerateStaleTtsForSpeakerRequest request = ViewModel.CreateRegenerateStaleTtsRequest(item);
+        await RunAsync(async cancellationToken =>
+        {
+            TranscriptProjectState state = await currentService.RegenerateStaleTtsForSpeakerAsync(request, cancellationToken).ConfigureAwait(true);
+            await CompleteProjectLoadAsync(state, currentProjectRootPath, cancellationToken).ConfigureAwait(true);
+        }, "Regenerating stale TTS takes...").ConfigureAwait(true);
+    }
+
+    private async void AuditionTtsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: TranscriptSegmentItem item })
+        {
+            return;
+        }
+
+        string? ttsArtifactPath = ViewModel.ResolveTtsArtifactPath(item);
+        if (string.IsNullOrWhiteSpace(ttsArtifactPath) || !File.Exists(ttsArtifactPath))
+        {
+            ViewModel.StatusMessage = "TTS take artifact is missing.";
+            return;
+        }
+
+        await shellServices.PlaybackService.SeekAsync(TimeSpan.FromSeconds(item.StartSeconds), CancellationToken.None).ConfigureAwait(true);
+        await shellServices.PlaybackService.PauseAsync(CancellationToken.None).ConfigureAwait(true);
+        await RefreshPlaybackSnapshotAsync().ConfigureAwait(true);
+
+        ttsAuditionPlayer ??= new MediaPlayer { AutoPlay = false };
+        ttsAuditionPlayer.Source = MediaSource.CreateFromUri(new Uri(ttsArtifactPath, UriKind.Absolute));
+        ttsAuditionPlayer.Play();
+        ViewModel.StatusMessage = $"Auditioning TTS at {item.StartSeconds:F2}s.";
+    }
+
     private async void JumpToSpeakerTurnButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: SpeakerTurnItem item })
@@ -917,7 +1012,12 @@ public sealed partial class MainWindow : Window
             float startX = WaveformMapping.TimeToPixel(segment.StartSeconds, waveform.DurationSeconds, width);
             float endX = WaveformMapping.TimeToPixel(segment.EndSeconds, waveform.DurationSeconds, width);
             float laneWidth = Math.Max(1f, endX - startX);
-            args.DrawingSession.FillRectangle(startX, laneTop, laneWidth, laneHeight, segment.SpeakerColor);
+            args.DrawingSession.FillRectangle(
+                startX,
+                laneTop,
+                laneWidth,
+                laneHeight,
+                segment.HasTtsDurationWarning ? Colors.OrangeRed : segment.SpeakerColor);
         }
 
         foreach (float startX in layout.SegmentStartMarkerXs)

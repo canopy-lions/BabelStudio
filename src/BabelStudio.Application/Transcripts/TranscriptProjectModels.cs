@@ -5,6 +5,7 @@ using BabelStudio.Application.Contracts;
 using BabelStudio.Application.Projects;
 using BabelStudio.Contracts.Pipeline;
 using BabelStudio.Domain.Translation;
+using BabelStudio.Domain.Tts;
 
 namespace BabelStudio.Application.Transcripts;
 
@@ -74,6 +75,17 @@ public sealed record MergeSpeakersRequest(
     Guid SourceSpeakerId,
     Guid TargetSpeakerId);
 
+public sealed record AssignVoiceToSpeakerRequest(
+    Guid SpeakerId,
+    string VoiceId,
+    string VoiceModelId = "kokoro-onnx");
+
+public sealed record GenerateTtsForSpeakerRequest(
+    Guid SpeakerId);
+
+public sealed record RegenerateStaleTtsForSpeakerRequest(
+    Guid SpeakerId);
+
 public sealed record AssignSpeakerToSegmentRequest(
     Guid TranscriptRevisionId,
     Guid SegmentId,
@@ -86,6 +98,22 @@ public sealed record SplitSpeakerTurnRequest(
 public sealed record ExtractReferenceClipRequest(
     Guid SpeakerId,
     Guid? SpeakerTurnId = null);
+
+public sealed record VoiceAssignmentWarning(
+    Guid SpeakerId,
+    string VoiceId,
+    string Message);
+
+public sealed record TtsSegmentState(
+    int SegmentIndex,
+    Guid? TakeId,
+    string? ArtifactRelativePath,
+    TtsTakeStatus? Status,
+    bool IsStale,
+    double? DurationSeconds,
+    double? DurationOverrunRatio,
+    bool HasDurationWarning,
+    string? WarningMessage);
 
 public sealed record TranscriptProjectState(
     OpenProjectResult ProjectState,
@@ -101,4 +129,9 @@ public sealed record TranscriptProjectState(
     IReadOnlyList<TranslationTargetLanguageOption> SupportedTargetLanguages,
     string? SelectedTranslationTargetLanguage,
     IReadOnlySet<int> StaleTranslatedSegmentIndices,
-    WaveformSummary? WaveformSummary);
+    WaveformSummary? WaveformSummary,
+    IReadOnlyList<VoiceCatalogEntry> AvailableVoices,
+    IReadOnlyList<VoiceAssignment> VoiceAssignments,
+    IReadOnlyList<TtsTake> TtsTakes,
+    IReadOnlyList<TtsSegmentState> TtsSegmentStates,
+    IReadOnlyList<VoiceAssignmentWarning> VoiceAssignmentWarnings);

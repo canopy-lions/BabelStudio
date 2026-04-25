@@ -90,20 +90,30 @@ Unicode characters (IPA symbols, ASCII, punctuation) to integer token IDs. A
 `KokoroTokenizer` class loads this map at synthesis time and truncates at 512
 tokens.
 
-## Decision 6 — Phase B defers session caching
+## Decision 6 — Phase C pins a lazy ONNX session
 
-`KokoroTtsEngine` creates and disposes an `InferenceSession` on each
-`SynthesizeAsync` call, following the Madlad/OpusMt engine pattern. Loading a
-150 MB ONNX model per call is acceptable for Phase B where correctness is the
-goal. A lazy-load / pin-session optimization is planned for Phase C.
+`KokoroTtsEngine` now lazy-loads and pins one `InferenceSession` per resolved
+model path and execution provider. Consecutive `SynthesizeAsync` calls reuse
+that session instead of cold-loading the ONNX graph per segment.
+
+The engine serializes access to the pinned session with a `SemaphoreSlim`. This
+is intentionally conservative for M11: it avoids concurrent mutation risk in
+provider-specific session state while still removing the dominant per-segment
+load cost. If a future milestone proves concurrent `Run` calls safe for the
+selected provider set, this can be relaxed behind a benchmark.
 
 ---
 
 ## Consequences
 
-- `EspeakNgPhonemizer` requires `espeak-ng.exe` to be installed. For developer
-  builds this means running `winget install eSpeak-NG.eSpeak-NG`. A bundled
-  binary path may be added to the installer in Phase C.
+- `EspeakNgPhonemizer` resolves `espeak-ng.exe` from a bundled installer path
+  first, then falls back to `PATH`. Developer builds can still use
+  `winget install eSpeak-NG.eSpeak-NG`.
+- Supported bundled binary locations are:
+  - `tools/espeak-ng/espeak-ng.exe`
+  - `runtimes/win-x64/native/espeak-ng/espeak-ng.exe`
+  - `runtimes/win-x64/native/espeak-ng.exe`
+  - `espeak-ng/espeak-ng.exe`
 - DirectML will not accelerate Kokoro until the upstream ONNX ConvTranspose fix
   lands. Latency on CPU for a 5-second segment is ~200–400 ms on a modern
   laptop.

@@ -18,6 +18,8 @@ public sealed class TranscriptSegmentItem : ObservableObject
     private double startSeconds;
     private string speakerLabel;
     private string text;
+    private string ttsStatusLabel;
+    private string ttsWarningLabel;
     private string translationLabel;
     private string translationText;
 
@@ -30,7 +32,10 @@ public sealed class TranscriptSegmentItem : ObservableObject
         IReadOnlyList<SpeakerChoiceItem> speakerOptions,
         string translationLabel,
         string translationText,
-        bool isTranslationStale)
+        bool isTranslationStale,
+        string ttsStatusLabel,
+        string ttsWarningLabel,
+        string? ttsArtifactRelativePath)
     {
         SegmentId = segment.Id;
         SegmentIndex = segment.SegmentIndex;
@@ -44,6 +49,9 @@ public sealed class TranscriptSegmentItem : ObservableObject
         this.translationLabel = translationLabel;
         this.translationText = translationText;
         this.isTranslationStale = isTranslationStale;
+        this.ttsStatusLabel = ttsStatusLabel;
+        this.ttsWarningLabel = ttsWarningLabel;
+        TtsArtifactRelativePath = ttsArtifactRelativePath;
 
         foreach (SpeakerChoiceItem option in speakerOptions)
         {
@@ -138,6 +146,30 @@ public sealed class TranscriptSegmentItem : ObservableObject
     }
 
     public string TranslationStatusLabel => IsTranslationStale ? "Stale translation" : string.Empty;
+
+    public string TtsStatusLabel
+    {
+        get => ttsStatusLabel;
+        set => SetProperty(ref ttsStatusLabel, value);
+    }
+
+    public string TtsWarningLabel
+    {
+        get => ttsWarningLabel;
+        set
+        {
+            if (SetProperty(ref ttsWarningLabel, value))
+            {
+                OnPropertyChanged(nameof(HasTtsDurationWarning));
+            }
+        }
+    }
+
+    public string? TtsArtifactRelativePath { get; }
+
+    public bool CanAuditionTts => !string.IsNullOrWhiteSpace(TtsArtifactRelativePath);
+
+    public bool HasTtsDurationWarning => !string.IsNullOrWhiteSpace(TtsWarningLabel);
 
     public bool IsActive
     {

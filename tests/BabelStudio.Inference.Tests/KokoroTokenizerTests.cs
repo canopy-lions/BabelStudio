@@ -4,53 +4,66 @@ namespace BabelStudio.Inference.Tests;
 
 public sealed class KokoroTokenizerTests : IDisposable
 {
-    private readonly List<string> tempFiles = [];
+    private readonly string tempDir;
 
-    // ── Load ──────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void Load_MissingTokenizerJson_ThrowsFileNotFoundException()
+    public KokoroTokenizerTests()
     {
-        string dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
+        tempDir = Path.Combine(Path.GetTempPath(), $"kokoro-tokenizer-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+    }
 
-        try
+    public void Dispose()
+    {
+        if (Directory.Exists(tempDir))
         {
-            Assert.Throws<FileNotFoundException>(
-                () => KokoroTokenizer.Load(dir));
-        }
-        finally
-        {
-            Directory.Delete(dir, recursive: true);
+            Directory.Delete(tempDir, recursive: true);
         }
     }
 
-    [Fact]
-    public void Load_ValidTokenizerJson_Succeeds()
+    private void WriteTokenizerJson(string json)
     {
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["a"] = 1,
-            ["b"] = 2,
-            ["c"] = 3
-        });
-
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
-
-        Assert.NotNull(tokenizer);
+        File.WriteAllText(Path.Combine(tempDir, "tokenizer.json"), json);
     }
 
-    // ── Encode ────────────────────────────────────────────────────────────────
+    private static string MinimalTokenizerJson(IEnumerable<(string ch, int id)> vocabEntries)
+    {
+        string vocabPairs = string.Join(",\n",
+            vocabEntries.Select(e => $"    \"{EscapeJson(e.ch)}\": {e.id}"));
+        return $$"""
+            {
+              "model": {
+                "vocab": {
+            {{vocabPairs}}
+                }
+              }
+            }
+            """;
+    }
+
+    private static string EscapeJson(string s) =>
+        s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     [Fact]
-    public void Encode_EmptyString_ReturnsBosEosOnly()
+    public void Load_ThrowsFileNotFoundException_WhenTokenizerJsonMissing()
     {
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["a"] = 1
-        });
+        Assert.Throws<FileNotFoundException>(() => KokoroTokenizer.Load(tempDir));
+    }
 
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
+    [Fact]
+    public void Load_ThrowsFileNotFoundException_WithHelpfulMessage()
+    {
+        FileNotFoundException ex = Assert.Throws<FileNotFoundException>(
+            () => KokoroTokenizer.Load(tempDir));
+
+        Assert.Contains("tokenizer.json", ex.Message);
+    }
+
+    [Fact]
+    public void Encode_EmptyPhonemes_ReturnsBosAndEosOnly()
+    {
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 1)]));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
+
         long[] tokens = tokenizer.Encode("");
 
         Assert.Equal(2, tokens.Length);
@@ -59,157 +72,126 @@ public sealed class KokoroTokenizerTests : IDisposable
     }
 
     [Fact]
-    public void Encode_KnownCharacters_WrapsWithBosEos()
+    public void Encode_KnownCharacters_ReturnsBosTokensEos()
     {
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["a"] = 1,
-            ["b"] = 2,
-            ["c"] = 3
-        });
+        WriteTokenizerJson(MinimalTokenizerJson([("h", 10), ("i", 20)]));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
-        long[] tokens = tokenizer.Encode("abc");
+        long[] tokens = tokenizer.Encode("hi");
 
-        Assert.Equal(5, tokens.Length);
-        Assert.Equal(0L, tokens[0]);  // BOS ($)
-        Assert.Equal(1L, tokens[1]);  // 'a'
-        Assert.Equal(2L, tokens[2]);  // 'b'
-        Assert.Equal(3L, tokens[3]);  // 'c'
-        Assert.Equal(0L, tokens[4]);  // EOS ($)
+        Assert.Equal(4, tokens.Length);
+        Assert.Equal(0L, tokens[0]);  // BOS
+        Assert.Equal(10L, tokens[1]); // 'h'
+        Assert.Equal(20L, tokens[2]); // 'i'
+        Assert.Equal(0L, tokens[3]);  // EOS
     }
 
     [Fact]
     public void Encode_UnknownCharacters_AreSkipped()
     {
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["a"] = 1,
-            ["c"] = 3
-        });
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 5)]));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
-        long[] tokens = tokenizer.Encode("abc");
+        // 'b' and 'c' are unknown; only 'a' is in the vocab
+        long[] tokens = tokenizer.Encode("bac");
 
-        // 'b' not in vocab → skipped
-        Assert.Equal(4, tokens.Length);
-        Assert.Equal(0L, tokens[0]);  // BOS
-        Assert.Equal(1L, tokens[1]);  // 'a'
-        Assert.Equal(3L, tokens[2]);  // 'c'
-        Assert.Equal(0L, tokens[3]);  // EOS
+        Assert.Equal(3, tokens.Length); // BOS + 'a' + EOS
+        Assert.Equal(0L, tokens[0]);
+        Assert.Equal(5L, tokens[1]);
+        Assert.Equal(0L, tokens[2]);
     }
 
     [Fact]
-    public void Encode_AllCharactersUnknown_ReturnsBosEosOnly()
+    public void Encode_AllUnknownCharacters_ReturnsBosAndEosOnly()
     {
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["x"] = 99
-        });
+        WriteTokenizerJson(MinimalTokenizerJson([("x", 99)]));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
-        long[] tokens = tokenizer.Encode("abcdef");
+        long[] tokens = tokenizer.Encode("zzz");
 
-        Assert.Equal(2, tokens.Length); // BOS + EOS only
+        Assert.Equal(2, tokens.Length);
         Assert.Equal(0L, tokens[0]);
         Assert.Equal(0L, tokens[1]);
     }
 
     [Fact]
-    public void Encode_LongInput_TruncatesAt512Tokens()
+    public void Encode_AlwaysStartsWithBosTokenId0()
     {
-        // Build a 1-char vocab and feed 600 chars
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["a"] = 1
-        });
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 1)]));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
-        string longInput = new string('a', 600);
-
-        long[] tokens = tokenizer.Encode(longInput);
-
-        // Max sequence is 512 (BOS + up to 510 tokens + EOS)
-        Assert.Equal(512, tokens.Length);
-        Assert.Equal(0L, tokens[0]);           // BOS
-        Assert.Equal(0L, tokens[511]);         // EOS
-    }
-
-    [Fact]
-    public void Encode_ExactlyAtLimit_ProducesExactly512Tokens()
-    {
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["a"] = 1
-        });
-
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
-        // 510 'a's + BOS + EOS = 512
-        string input = new string('a', 510);
-
-        long[] tokens = tokenizer.Encode(input);
-
-        Assert.Equal(512, tokens.Length);
-    }
-
-    [Fact]
-    public void Encode_BosAndEosTokenIdIsZero()
-    {
-        string dir = WriteTokenizerJson(new Dictionary<string, int>
-        {
-            ["a"] = 1
-        });
-
-        KokoroTokenizer tokenizer = KokoroTokenizer.Load(dir);
         long[] tokens = tokenizer.Encode("a");
 
         Assert.Equal(0L, tokens[0]);
-        Assert.Equal(0L, tokens[tokens.Length - 1]);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private string WriteTokenizerJson(Dictionary<string, int> vocab)
+    [Fact]
+    public void Encode_AlwaysEndsWithEosTokenId0()
     {
-        string dir = Path.Combine(
-            Path.GetTempPath(),
-            "BabelStudio.KokoroTokenizerTests",
-            Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        tempFiles.Add(dir); // track for cleanup
+        WriteTokenizerJson(MinimalTokenizerJson([("a", 1)]));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
-        var vocabEntries = string.Join(",\n    ",
-            vocab.Select(kv => $"\"{EscapeJson(kv.Key)}\": {kv.Value}"));
+        long[] tokens = tokenizer.Encode("a");
 
-        string json = $$"""
+        Assert.Equal(0L, tokens[^1]);
+    }
+
+    [Fact]
+    public void Encode_TruncatesAtMaxSequenceLength512()
+    {
+        // Build a vocab with 511 unique characters using Unicode range
+        var vocabEntries = Enumerable.Range(0, 512)
+            .Select(i => (ch: ((char)(0x0100 + i)).ToString(), id: i + 1))
+            .ToList();
+        WriteTokenizerJson(MinimalTokenizerJson(vocabEntries));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
+
+        // Input of 600 characters — all known, exceeds max of 512
+        string input = new string(Enumerable.Range(0, 600).Select(i => vocabEntries[i % vocabEntries.Count].ch[0]).ToArray());
+        long[] tokens = tokenizer.Encode(input);
+
+        // Must be capped: [BOS, ...510 tokens..., EOS] = 512
+        Assert.Equal(512, tokens.Length);
+        Assert.Equal(0L, tokens[0]);
+        Assert.Equal(0L, tokens[^1]);
+    }
+
+    [Fact]
+    public void Encode_InputWithinMaxLength_NotTruncated()
+    {
+        var vocabEntries = Enumerable.Range(0, 26)
+            .Select(i => (ch: ((char)('a' + i)).ToString(), id: i + 1))
+            .ToList();
+        WriteTokenizerJson(MinimalTokenizerJson(vocabEntries));
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
+
+        string input = "hello"; // 5 chars, all known
+        long[] tokens = tokenizer.Encode(input);
+
+        // [BOS, h, e, l, l, o, EOS] = 7
+        Assert.Equal(7, tokens.Length);
+    }
+
+    [Fact]
+    public void Load_IgnoresNonIntegerVocabValues()
+    {
+        // Vocabulary entry with a non-integer value should be silently ignored
+        string json = """
             {
               "model": {
                 "vocab": {
-                  {{vocabEntries}}
+                  "a": 1,
+                  "b": "not_an_int"
                 }
               }
             }
             """;
+        WriteTokenizerJson(json);
+        KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
-        File.WriteAllText(Path.Combine(dir, "tokenizer.json"), json);
-        return dir;
-    }
+        long[] tokens = tokenizer.Encode("ab");
 
-    private static string EscapeJson(string s) =>
-        s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-
-    public void Dispose()
-    {
-        foreach (string path in tempFiles)
-        {
-            if (Directory.Exists(path))
-            {
-                Directory.Delete(path, recursive: true);
-            }
-            else if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
+        // 'b' was ignored, only 'a' is tokenized
+        Assert.Equal(3, tokens.Length); // BOS + a + EOS
     }
 }

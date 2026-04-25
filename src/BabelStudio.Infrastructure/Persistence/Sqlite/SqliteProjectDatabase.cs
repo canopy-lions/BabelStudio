@@ -21,6 +21,11 @@ public sealed class SqliteProjectDatabase
     private const string TranscriptSpeakerIdColumnName = "speaker_id";
     private const string SpeakerTurnConfidenceColumnName = "confidence";
     private const string SpeakerTurnHasOverlapColumnName = "has_overlap";
+    private const string TtsTakeSegmentIndexColumnName = "segment_index";
+    private const string TtsTakeTranslatedTextHashColumnName = "translated_text_hash";
+    private const string TtsTakeModelIdColumnName = "model_id";
+    private const string TtsTakeVoiceIdColumnName = "voice_id";
+    private const string TtsTakeDurationOverrunRatioColumnName = "duration_overrun_ratio";
     private readonly string databasePath;
 
     public SqliteProjectDatabase(string projectRootPath)
@@ -166,6 +171,43 @@ public sealed class SqliteProjectDatabase
                 FOREIGN KEY (translation_revision_id) REFERENCES translation_revisions(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS voice_assignments (
+                id TEXT NOT NULL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                speaker_id TEXT NOT NULL,
+                voice_model_id TEXT NOT NULL,
+                voice_variant TEXT NULL,
+                requires_consent INTEGER NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (speaker_id) REFERENCES speakers(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS tts_takes (
+                id TEXT NOT NULL PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                voice_assignment_id TEXT NOT NULL,
+                translated_segment_id TEXT NULL,
+                segment_index INTEGER NOT NULL DEFAULT 0,
+                translated_text_hash TEXT NULL,
+                artifact_id TEXT NULL,
+                stage_run_id TEXT NULL,
+                status TEXT NOT NULL,
+                is_stale INTEGER NOT NULL DEFAULT 0,
+                duration_samples INTEGER NULL,
+                sample_rate INTEGER NULL,
+                provider TEXT NULL,
+                model_id TEXT NULL,
+                voice_id TEXT NULL,
+                duration_overrun_ratio REAL NULL,
+                created_at_utc TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (voice_assignment_id) REFERENCES voice_assignments(id) ON DELETE CASCADE,
+                FOREIGN KEY (translated_segment_id) REFERENCES translated_segments(id) ON DELETE SET NULL,
+                FOREIGN KEY (artifact_id) REFERENCES artifacts(id) ON DELETE SET NULL,
+                FOREIGN KEY (stage_run_id) REFERENCES StageRuns(Id) ON DELETE SET NULL
+            );
+
             CREATE UNIQUE INDEX IF NOT EXISTS ix_artifacts_project_relative_path
                 ON artifacts (project_id, relative_path);
             CREATE INDEX IF NOT EXISTS ix_stage_runs_project_id
@@ -184,6 +226,12 @@ public sealed class SqliteProjectDatabase
                 ON translation_revisions (project_id, target_language, revision_number);
             CREATE INDEX IF NOT EXISTS ix_translated_segments_revision_id
                 ON translated_segments (translation_revision_id, segment_index);
+            CREATE UNIQUE INDEX IF NOT EXISTS ix_voice_assignments_project_speaker
+                ON voice_assignments (project_id, speaker_id);
+            CREATE INDEX IF NOT EXISTS ix_tts_takes_project_segment
+                ON tts_takes (project_id, segment_index, created_at_utc);
+            CREATE INDEX IF NOT EXISTS ix_tts_takes_voice_assignment
+                ON tts_takes (voice_assignment_id, is_stale);
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -203,6 +251,11 @@ public sealed class SqliteProjectDatabase
         await EnsureTranscriptSegmentColumnAsync(connection, TranscriptSpeakerIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
         await EnsureSpeakerTurnColumnAsync(connection, SpeakerTurnConfidenceColumnName, "REAL NULL", cancellationToken).ConfigureAwait(false);
         await EnsureSpeakerTurnColumnAsync(connection, SpeakerTurnHasOverlapColumnName, "INTEGER NOT NULL DEFAULT 0", cancellationToken).ConfigureAwait(false);
+        await EnsureTtsTakeColumnAsync(connection, TtsTakeSegmentIndexColumnName, "INTEGER NOT NULL DEFAULT 0", cancellationToken).ConfigureAwait(false);
+        await EnsureTtsTakeColumnAsync(connection, TtsTakeTranslatedTextHashColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTtsTakeColumnAsync(connection, TtsTakeModelIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTtsTakeColumnAsync(connection, TtsTakeVoiceIdColumnName, "TEXT NULL", cancellationToken).ConfigureAwait(false);
+        await EnsureTtsTakeColumnAsync(connection, TtsTakeDurationOverrunRatioColumnName, "REAL NULL", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -352,6 +405,22 @@ public sealed class SqliteProjectDatabase
 
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText = $"ALTER TABLE speaker_turns ADD COLUMN {columnName} {columnDefinition};";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureTtsTakeColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (await TableColumnExistsAsync(connection, "tts_takes", columnName, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE tts_takes ADD COLUMN {columnName} {columnDefinition};";
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

@@ -6,6 +6,7 @@ using BabelStudio.Domain;
 using BabelStudio.Domain.Artifacts;
 using BabelStudio.Domain.Speakers;
 using BabelStudio.Domain.Translation;
+using BabelStudio.Domain.Tts;
 using BabelStudio.Media.Playback;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
@@ -57,6 +58,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string translationRevisionLabel = "No translation loaded.";
     private string translationStageStatus = "Not run";
     private string diarizationStageStatus = "Not run";
+    private string ttsStageStatus = "Not run";
     private string transcriptRevisionLabel = "No transcript loaded.";
     private string vadStageStatus = "Not run";
     private string asrStageStatus = "Not run";
@@ -165,6 +167,12 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         get => diarizationStageStatus;
         private set => SetProperty(ref diarizationStageStatus, value);
+    }
+
+    public string TtsStageStatus
+    {
+        get => ttsStageStatus;
+        private set => SetProperty(ref ttsStageStatus, value);
     }
 
     public string TranscriptRevisionLabel
@@ -461,6 +469,7 @@ public sealed class MainWindowViewModel : ObservableObject
         AsrStageStatus = BuildStageStatus(state.StageRuns, "asr");
         DiarizationStageStatus = BuildStageStatus(state.StageRuns, "diarization");
         TranslationStageStatus = BuildStageStatus(state.StageRuns, "translation");
+        TtsStageStatus = BuildStageStatus(state.StageRuns, "tts");
         TranscriptRevisionLabel = state.CurrentTranscriptRevision is null
             ? "No transcript loaded."
             : $"Revision {state.CurrentTranscriptRevision.RevisionNumber} with {state.TranscriptSegments.Count} segment(s).";
@@ -481,6 +490,21 @@ public sealed class MainWindowViewModel : ObservableObject
             .Select(speaker => new SpeakerChoiceItem(speaker.Id, speaker.DisplayName))
             .ToArray();
         HashSet<Guid> referenceClipSpeakerIds = ResolveReferenceClipSpeakerIds(state.ProjectState.Artifacts);
+        VoiceChoiceItem[] voiceChoices = state.AvailableVoices
+            .OrderBy(voice => voice.LanguageCode)
+            .ThenBy(voice => voice.DisplayName)
+            .Select(voice => new VoiceChoiceItem(voice.VoiceId, voice.DisplayName, voice.LanguageCode))
+            .ToArray();
+        Dictionary<Guid, VoiceAssignment> voiceAssignmentsBySpeakerId = state.VoiceAssignments
+            .ToDictionary(assignment => assignment.SpeakerId);
+        Dictionary<Guid, string> voiceWarningsBySpeakerId = state.VoiceAssignmentWarnings
+            .GroupBy(warning => warning.SpeakerId)
+            .ToDictionary(group => group.Key, group => string.Join(' ', group.Select(warning => warning.Message)));
+        HashSet<Guid> speakersWithStaleTts = state.TranscriptSegments
+            .Where(segment => segment.SpeakerId is Guid speakerId &&
+                              state.TtsSegmentStates.Any(tts => tts.SegmentIndex == segment.SegmentIndex && tts.IsStale))
+            .Select(segment => segment.SpeakerId!.Value)
+            .ToHashSet();
         Dictionary<Guid, SpeakerTurnItem[]> turnsBySpeakerId = state.SpeakerTurns
             .GroupBy(turn => turn.SpeakerId)
             .ToDictionary(
@@ -504,15 +528,29 @@ public sealed class MainWindowViewModel : ObservableObject
                 .Where(choice => choice.SpeakerId != speaker.Id)
                 .ToArray();
             turnsBySpeakerId.TryGetValue(speaker.Id, out SpeakerTurnItem[]? speakerTurns);
+            voiceAssignmentsBySpeakerId.TryGetValue(speaker.Id, out VoiceAssignment? voiceAssignment);
+            string? selectedVoiceId = voiceAssignment is null
+                ? null
+                : string.IsNullOrWhiteSpace(voiceAssignment.VoiceVariant)
+                    ? voiceAssignment.VoiceModelId
+                    : voiceAssignment.VoiceVariant;
+            voiceWarningsBySpeakerId.TryGetValue(speaker.Id, out string? voiceWarning);
             Speakers.Add(new SpeakerItem(
                 speaker.Id,
                 speaker.DisplayName,
                 visual.Color,
                 referenceClipSpeakerIds.Contains(speaker.Id),
                 mergeTargets,
-                speakerTurns ?? []));
+                speakerTurns ?? [],
+                voiceChoices,
+                selectedVoiceId,
+                selectedVoiceId is null ? "No voice assigned" : $"Voice: {selectedVoiceId}",
+                voiceWarning ?? string.Empty,
+                speakersWithStaleTts.Contains(speaker.Id)));
         }
 
+        Dictionary<int, TtsSegmentState> ttsStateBySegmentIndex = state.TtsSegmentStates
+            .ToDictionary(ttsState => ttsState.SegmentIndex);
         Segments.Clear();
         foreach (TranscriptSegmentItem item in state.TranscriptSegments
                      .OrderBy(segment => segment.SegmentIndex)
@@ -527,7 +565,12 @@ public sealed class MainWindowViewModel : ObservableObject
                         translatedTextByIndex.TryGetValue(segment.SegmentIndex, out string? translatedText)
                             ? translatedText
                             : string.Empty,
-                        staleTranslatedSegmentIndices.Contains(segment.SegmentIndex))))
+                        staleTranslatedSegmentIndices.Contains(segment.SegmentIndex),
+                        ttsStateBySegmentIndex.TryGetValue(segment.SegmentIndex, out TtsSegmentState? ttsState)
+                            ? BuildTtsStatusLabel(ttsState)
+                            : "TTS not generated",
+                        ttsState?.WarningMessage ?? string.Empty,
+                        ttsState?.ArtifactRelativePath)))
         {
             Segments.Add(item);
         }
@@ -752,7 +795,61 @@ public sealed class MainWindowViewModel : ObservableObject
     public ExtractReferenceClipRequest? CreateExtractReferenceClipRequest(SpeakerItem speaker) =>
         new(speaker.SpeakerId);
 
+    public AssignVoiceToSpeakerRequest? CreateAssignVoiceRequest(SpeakerItem speaker) =>
+        string.IsNullOrWhiteSpace(speaker.SelectedVoiceId)
+            ? null
+            : new AssignVoiceToSpeakerRequest(speaker.SpeakerId, speaker.SelectedVoiceId);
+
+    public GenerateTtsForSpeakerRequest CreateGenerateTtsRequest(SpeakerItem speaker) =>
+        new(speaker.SpeakerId);
+
+    public RegenerateStaleTtsForSpeakerRequest CreateRegenerateStaleTtsRequest(SpeakerItem speaker) =>
+        new(speaker.SpeakerId);
+
+    public string? ResolveTtsArtifactPath(TranscriptSegmentItem segment)
+    {
+        if (string.IsNullOrWhiteSpace(ProjectRootPath) ||
+            ProjectRootPath == "No project loaded." ||
+            string.IsNullOrWhiteSpace(segment.TtsArtifactRelativePath))
+        {
+            return null;
+        }
+
+        return Path.GetFullPath(Path.Combine(
+            ProjectRootPath,
+            segment.TtsArtifactRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+    }
+
     public string? GetRequestedTranslationTargetLanguageCode() => RequestedTranslationTargetLanguageCode;
+
+    private static string BuildTtsStatusLabel(TtsSegmentState state)
+    {
+        if (state.Status is null)
+        {
+            return "TTS not generated";
+        }
+
+        string label = state.Status switch
+        {
+            TtsTakeStatus.Completed => "TTS ready",
+            TtsTakeStatus.Stale => "TTS stale",
+            TtsTakeStatus.Failed => "TTS failed",
+            TtsTakeStatus.Pending => "TTS pending",
+            _ => state.Status.ToString() ?? "TTS"
+        };
+
+        if (state.IsStale && state.Status is not TtsTakeStatus.Stale)
+        {
+            label = $"{label} (stale)";
+        }
+
+        if (state.DurationSeconds is double durationSeconds)
+        {
+            label = $"{label} - {durationSeconds:F2}s";
+        }
+
+        return label;
+    }
 
     private static string BuildStageStatus(IReadOnlyList<StageRunRecord> stageRuns, string stageName)
     {
