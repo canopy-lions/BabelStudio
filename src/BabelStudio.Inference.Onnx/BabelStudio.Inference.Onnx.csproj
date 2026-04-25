@@ -6,9 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="BabelStudio.Inference.Tests" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BabelStudio.Contracts\BabelStudio.Contracts.csproj" />
