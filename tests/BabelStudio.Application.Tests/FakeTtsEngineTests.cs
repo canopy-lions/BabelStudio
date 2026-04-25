@@ -64,7 +64,7 @@ public sealed class FakeTtsEngineTests
     }
 
     [Fact]
-    public void FakeVoiceCatalog_GetVoices_FiltersbyLanguage()
+    public void FakeVoiceCatalog_GetVoices_FiltersByLanguage()
     {
         var catalog = new FakeVoiceCatalog();
 
