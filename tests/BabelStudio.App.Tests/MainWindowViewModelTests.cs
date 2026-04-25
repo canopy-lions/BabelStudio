@@ -156,7 +156,15 @@ public sealed class MainWindowViewModelTests
             ],
             SelectedTranslationTargetLanguage: targetLanguage,
             StaleTranslatedSegmentIndices: staleTranslatedSegmentIndices ?? new HashSet<int>(),
-            WaveformSummary: new WaveformSummary(2, 48000, 1, 12d, [ 0.2f, 0.4f ]));
+            WaveformSummary: new WaveformSummary(2, 48000, 1, 12d, [ 0.2f, 0.4f ]),
+            AvailableVoices:
+            [
+                new VoiceCatalogEntry("af_heart", "en-us", "female", "Heart (American English)")
+            ],
+            VoiceAssignments: [],
+            TtsTakes: [],
+            TtsSegmentStates: [],
+            VoiceAssignmentWarnings: []);
     }
 
     private static string GetLanguageDisplayName(string languageCode) =>

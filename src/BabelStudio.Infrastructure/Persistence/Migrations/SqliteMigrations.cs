@@ -246,6 +246,19 @@ internal static class SqliteMigrations
             ALTER TABLE TtsTakes ADD COLUMN DurationSamples INTEGER NULL;
             ALTER TABLE TtsTakes ADD COLUMN SampleRate INTEGER NULL;
             ALTER TABLE TtsTakes ADD COLUMN Provider TEXT NULL;
+            """),
+        new(
+            6,
+            "tts-m11-metadata",
+            """
+            ALTER TABLE TtsTakes ADD COLUMN SegmentIndex INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE TtsTakes ADD COLUMN TranslatedTextHash TEXT NULL;
+            ALTER TABLE TtsTakes ADD COLUMN ModelId TEXT NULL;
+            ALTER TABLE TtsTakes ADD COLUMN VoiceId TEXT NULL;
+            ALTER TABLE TtsTakes ADD COLUMN DurationOverrunRatio REAL NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_VoiceAssignments_ProjectId_SpeakerId ON VoiceAssignments(ProjectId, SpeakerId);
+            CREATE INDEX IF NOT EXISTS IX_TtsTakes_ProjectId_SegmentIndex ON TtsTakes(ProjectId, SegmentIndex);
+            CREATE INDEX IF NOT EXISTS IX_TtsTakes_VoiceAssignmentId_IsStale ON TtsTakes(VoiceAssignmentId, IsStale);
             """)
     ];
 }

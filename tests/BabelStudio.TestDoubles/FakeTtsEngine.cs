@@ -9,6 +9,9 @@ public sealed class FakeTtsEngine : ITtsEngine
 
     public string? LastInputText { get; private set; }
     public VoiceCatalogEntry? LastVoicepack { get; private set; }
+    public int SynthesizeCallCount { get; private set; }
+    public int DurationSamples { get; set; } = DefaultDurationSamples;
+    public int SampleRate { get; set; } = DefaultSampleRate;
 
     public Task<TtsSynthesisResult> SynthesizeAsync(TtsSynthesisRequest request, CancellationToken cancellationToken)
     {
@@ -16,12 +19,13 @@ public sealed class FakeTtsEngine : ITtsEngine
 
         LastInputText = request.Text;
         LastVoicepack = request.Voice;
+        SynthesizeCallCount++;
 
-        byte[] wav = BuildMinimalSilentWav(DefaultSampleRate, DefaultDurationSamples);
+        byte[] wav = BuildMinimalSilentWav(SampleRate, DurationSamples);
         return Task.FromResult(new TtsSynthesisResult(
             wav,
-            DefaultDurationSamples,
-            DefaultSampleRate,
+            DurationSamples,
+            SampleRate,
             ModelId: "fake",
             request.Voice.VoiceId,
             Provider: "fake"));

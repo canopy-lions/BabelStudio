@@ -11,6 +11,7 @@ using BabelStudio.Domain.Projects;
 using BabelStudio.Domain.Speakers;
 using BabelStudio.Domain.Transcript;
 using BabelStudio.Domain.Translation;
+using BabelStudio.Domain.Tts;
 
 namespace BabelStudio.Application.Transcripts;
 
@@ -32,8 +33,13 @@ public sealed class TranscriptProjectService
     private readonly IAudioTranscriptionEngine transcriptionEngine;
     private readonly ITranslationLanguageRouter translationLanguageRouter;
     private readonly ITranslationEngine translationEngine;
+    private readonly IVoiceAssignmentRepository voiceAssignmentRepository;
+    private readonly ITtsTakeRepository ttsTakeRepository;
+    private readonly ITtsEngine ttsEngine;
+    private readonly IVoiceCatalog voiceCatalog;
     private readonly RenameSpeakerHandler renameSpeakerHandler;
     private readonly MergeSpeakersHandler mergeSpeakersHandler;
+    private readonly StartTtsStageHandler startTtsStageHandler;
 
     public TranscriptProjectService(
         ProjectMediaIngestService projectMediaIngestService,
@@ -49,7 +55,11 @@ public sealed class TranscriptProjectService
         ISpeakerDiarizationEngine diarizationEngine,
         IAudioTranscriptionEngine transcriptionEngine,
         ITranslationLanguageRouter translationLanguageRouter,
-        ITranslationEngine translationEngine)
+        ITranslationEngine translationEngine,
+        IVoiceAssignmentRepository voiceAssignmentRepository,
+        ITtsTakeRepository ttsTakeRepository,
+        ITtsEngine ttsEngine,
+        IVoiceCatalog voiceCatalog)
     {
         this.projectMediaIngestService = projectMediaIngestService;
         this.transcriptRepository = transcriptRepository;
@@ -65,8 +75,20 @@ public sealed class TranscriptProjectService
         this.transcriptionEngine = transcriptionEngine;
         this.translationLanguageRouter = translationLanguageRouter;
         this.translationEngine = translationEngine;
+        this.voiceAssignmentRepository = voiceAssignmentRepository;
+        this.ttsTakeRepository = ttsTakeRepository;
+        this.ttsEngine = ttsEngine;
+        this.voiceCatalog = voiceCatalog;
         renameSpeakerHandler = new RenameSpeakerHandler(speakerRepository);
         mergeSpeakersHandler = new MergeSpeakersHandler(transcriptRepository);
+        startTtsStageHandler = new StartTtsStageHandler(
+            ttsEngine,
+            voiceCatalog,
+            artifactStore,
+            fileFingerprintService,
+            mediaAssetRepository,
+            ttsTakeRepository,
+            stageRunStore);
     }
 
     public async Task<TranscriptProjectState> CreateAsync(
@@ -153,6 +175,21 @@ public sealed class TranscriptProjectService
             currentTranslationRevision,
             translatedSegments);
         bool isTranslationStale = staleTranslatedSegmentIndices.Count > 0;
+        IReadOnlyList<VoiceAssignment> voiceAssignments = await voiceAssignmentRepository
+            .GetAllAsync(openResult.Project.Id, cancellationToken)
+            .ConfigureAwait(false);
+        IReadOnlyList<VoiceCatalogEntry> availableVoices = voiceCatalog.GetVoices();
+        IReadOnlyList<TtsTake> ttsTakes = await ttsTakeRepository
+            .GetByProjectAsync(openResult.Project.Id, cancellationToken)
+            .ConfigureAwait(false);
+        IReadOnlyList<TtsSegmentState> ttsSegmentStates = BuildTtsSegmentStates(
+            translatedSegments,
+            ttsTakes,
+            openResult.Artifacts);
+        IReadOnlyList<VoiceAssignmentWarning> voiceAssignmentWarnings = BuildVoiceAssignmentWarnings(
+            voiceAssignments,
+            availableVoices,
+            selectedTranslationTargetLanguage);
 
         return new TranscriptProjectState(
             openResult,
@@ -168,7 +205,12 @@ public sealed class TranscriptProjectService
             supportedTargetLanguages,
             selectedTranslationTargetLanguage,
             staleTranslatedSegmentIndices,
-            await ReadWaveformSummaryAsync(cancellationToken).ConfigureAwait(false));
+            await ReadWaveformSummaryAsync(cancellationToken).ConfigureAwait(false),
+            availableVoices,
+            voiceAssignments,
+            ttsTakes,
+            ttsSegmentStates,
+            voiceAssignmentWarnings);
     }
 
     public async Task<TranscriptProjectState> RelocateSourceAsync(
@@ -600,6 +642,11 @@ public sealed class TranscriptProjectService
             currentTranslationRevision.ExecutionProvider);
         Dictionary<int, string?> sourceHashesByIndex = currentState.TranslatedSegments
             .ToDictionary(segment => segment.SegmentIndex, segment => segment.SourceSegmentHash);
+        HashSet<int> changedSegmentIndices = currentState.TranslatedSegments
+            .Where(segment => replacements.TryGetValue(segment.SegmentIndex, out string? replacement) &&
+                              !string.Equals(segment.Text, replacement, StringComparison.Ordinal))
+            .Select(segment => segment.SegmentIndex)
+            .ToHashSet();
 
         TranslatedSegment[] editedSegments = currentState.TranslatedSegments
             .OrderBy(segment => segment.SegmentIndex)
@@ -617,6 +664,14 @@ public sealed class TranscriptProjectService
             .ToArray();
 
         await translationRepository.SaveRevisionAsync(editedRevision, editedSegments, cancellationToken).ConfigureAwait(false);
+        if (changedSegmentIndices.Count > 0)
+        {
+            await ttsTakeRepository.MarkBySegmentIndicesStaleAsync(
+                currentState.ProjectState.Project.Id,
+                changedSegmentIndices,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         await WriteTranslationArtifactAsync(
             currentState.ProjectState.Project.Id,
             GetRequiredMediaAsset(currentState),
@@ -652,6 +707,84 @@ public sealed class TranscriptProjectService
             request.SourceSpeakerId,
             request.TargetSpeakerId,
             cancellationToken).ConfigureAwait(false);
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> AssignVoiceToSpeakerAsync(
+        AssignVoiceToSpeakerRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        if (!currentState.Speakers.Any(speaker => speaker.Id == request.SpeakerId))
+        {
+            throw new InvalidOperationException("The selected speaker was not found.");
+        }
+
+        if (!voiceCatalog.TryGetVoice(request.VoiceId, out VoiceCatalogEntry? voice))
+        {
+            throw new InvalidOperationException($"Voicepack '{request.VoiceId}' is not available.");
+        }
+
+        VoiceAssignment? existing = await voiceAssignmentRepository.GetAsync(
+            currentState.ProjectState.Project.Id,
+            request.SpeakerId,
+            cancellationToken).ConfigureAwait(false);
+        string voiceModelId = string.IsNullOrWhiteSpace(request.VoiceModelId)
+            ? "kokoro-onnx"
+            : request.VoiceModelId.Trim();
+        VoiceAssignment assignment = existing is null
+            ? VoiceAssignment.Create(
+                currentState.ProjectState.Project.Id,
+                request.SpeakerId,
+                voiceModelId,
+                voice.VoiceId)
+            : existing.AssignVoice(voiceModelId, voice.VoiceId);
+        bool voiceChanged = existing is not null &&
+                            (!string.Equals(existing.VoiceModelId, assignment.VoiceModelId, StringComparison.Ordinal) ||
+                             !string.Equals(existing.VoiceVariant, assignment.VoiceVariant, StringComparison.Ordinal));
+
+        await voiceAssignmentRepository.SaveAsync(assignment, cancellationToken).ConfigureAwait(false);
+        if (voiceChanged)
+        {
+            await ttsTakeRepository.MarkByVoiceAssignmentStaleAsync(
+                currentState.ProjectState.Project.Id,
+                assignment.Id,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> GenerateTtsForSpeakerAsync(
+        GenerateTtsForSpeakerRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await RunTtsForSpeakerAsync(currentState, request.SpeakerId, segmentIndices: null, cancellationToken)
+            .ConfigureAwait(false);
+        return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TranscriptProjectState> RegenerateStaleTtsForSpeakerAsync(
+        RegenerateStaleTtsForSpeakerRequest request,
+        CancellationToken cancellationToken)
+    {
+        TranscriptProjectState currentState = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        HashSet<int> speakerSegmentIndices = currentState.TranscriptSegments
+            .Where(segment => segment.SpeakerId == request.SpeakerId)
+            .Select(segment => segment.SegmentIndex)
+            .ToHashSet();
+        HashSet<int> staleSegmentIndices = currentState.TtsSegmentStates
+            .Where(state => state.IsStale && speakerSegmentIndices.Contains(state.SegmentIndex))
+            .Select(state => state.SegmentIndex)
+            .ToHashSet();
+        if (staleSegmentIndices.Count == 0)
+        {
+            return currentState;
+        }
+
+        await RunTtsForSpeakerAsync(currentState, request.SpeakerId, staleSegmentIndices, cancellationToken)
+            .ConfigureAwait(false);
         return await OpenAsyncCore(currentState.SelectedTranslationTargetLanguage, cancellationToken).ConfigureAwait(false);
     }
 
@@ -1114,6 +1247,144 @@ public sealed class TranscriptProjectService
     private static MediaAsset GetRequiredMediaAsset(TranscriptProjectState state) =>
         state.ProjectState.MediaAsset
             ?? throw new InvalidOperationException("The project does not contain a primary media asset.");
+
+    private async Task RunTtsForSpeakerAsync(
+        TranscriptProjectState currentState,
+        Guid speakerId,
+        IReadOnlySet<int>? segmentIndices,
+        CancellationToken cancellationToken)
+    {
+        if (!currentState.Speakers.Any(speaker => speaker.Id == speakerId))
+        {
+            throw new InvalidOperationException("The selected speaker was not found.");
+        }
+
+        TranslationRevision translationRevision = currentState.CurrentTranslationRevision
+            ?? throw new InvalidOperationException("Generate or load a translation before starting TTS.");
+        VoiceAssignment assignment = currentState.VoiceAssignments.FirstOrDefault(candidate => candidate.SpeakerId == speakerId)
+            ?? throw new InvalidOperationException("Assign a Kokoro voicepack to the speaker before starting TTS.");
+
+        await startTtsStageHandler.HandleAsync(
+            new StartTtsStageRequest(
+                currentState.ProjectState.Project.Id,
+                GetRequiredMediaAsset(currentState),
+                speakerId,
+                translationRevision.TargetLanguage,
+                assignment,
+                currentState.TranscriptSegments,
+                currentState.TranslatedSegments,
+                segmentIndices),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static IReadOnlyList<TtsSegmentState> BuildTtsSegmentStates(
+        IReadOnlyList<TranslatedSegment> translatedSegments,
+        IReadOnlyList<TtsTake> ttsTakes,
+        IReadOnlyList<ProjectArtifact> artifacts)
+    {
+        Dictionary<Guid, ProjectArtifact> artifactsById = artifacts
+            .Where(artifact => artifact.Kind == ArtifactKind.TtsTake)
+            .ToDictionary(artifact => artifact.Id);
+        Dictionary<int, TtsTake> latestTakesBySegmentIndex = ttsTakes
+            .GroupBy(take => take.SegmentIndex)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(take => take.CreatedAtUtc)
+                    .First());
+
+        return translatedSegments
+            .OrderBy(segment => segment.SegmentIndex)
+            .Select(segment =>
+            {
+                if (!latestTakesBySegmentIndex.TryGetValue(segment.SegmentIndex, out TtsTake? take))
+                {
+                    return new TtsSegmentState(
+                        segment.SegmentIndex,
+                        TakeId: null,
+                        ArtifactRelativePath: null,
+                        Status: null,
+                        IsStale: false,
+                        DurationSeconds: null,
+                        DurationOverrunRatio: null,
+                        HasDurationWarning: false,
+                        WarningMessage: null);
+                }
+
+                bool textChanged = !string.IsNullOrWhiteSpace(take.TranslatedTextHash) &&
+                                   !string.Equals(
+                                       take.TranslatedTextHash,
+                                       TtsTextHash.Compute(segment.SegmentIndex, segment.Text),
+                                       StringComparison.Ordinal);
+                bool isStale = take.IsStale || textChanged;
+                ProjectArtifact? artifact = take.ArtifactId is Guid artifactId &&
+                                            artifactsById.TryGetValue(artifactId, out ProjectArtifact? storedArtifact)
+                    ? storedArtifact
+                    : null;
+                double? durationSeconds = take.DurationSamples is int durationSamples && take.SampleRate is int sampleRate && sampleRate > 0
+                    ? (double)durationSamples / sampleRate
+                    : artifact?.DurationSeconds;
+                bool hasDurationWarning = StartTtsStageHandler.HasDurationWarning(take);
+                return new TtsSegmentState(
+                    segment.SegmentIndex,
+                    take.Id,
+                    artifact?.RelativePath,
+                    take.Status,
+                    isStale,
+                    durationSeconds,
+                    take.DurationOverrunRatio,
+                    hasDurationWarning,
+                    hasDurationWarning
+                        ? "TTS duration exceeds the source segment by more than 10%."
+                        : null);
+            })
+            .ToArray();
+    }
+
+    private static IReadOnlyList<VoiceAssignmentWarning> BuildVoiceAssignmentWarnings(
+        IReadOnlyList<VoiceAssignment> voiceAssignments,
+        IReadOnlyList<VoiceCatalogEntry> availableVoices,
+        string? selectedTranslationTargetLanguage)
+    {
+        if (string.IsNullOrWhiteSpace(selectedTranslationTargetLanguage))
+        {
+            return [];
+        }
+
+        Dictionary<string, VoiceCatalogEntry> voicesById = availableVoices.ToDictionary(
+            voice => voice.VoiceId,
+            StringComparer.OrdinalIgnoreCase);
+        string targetLanguage = selectedTranslationTargetLanguage.Trim().ToLowerInvariant();
+        var warnings = new List<VoiceAssignmentWarning>();
+        foreach (VoiceAssignment assignment in voiceAssignments)
+        {
+            string voiceId = string.IsNullOrWhiteSpace(assignment.VoiceVariant)
+                ? assignment.VoiceModelId
+                : assignment.VoiceVariant;
+            if (!voicesById.TryGetValue(voiceId, out VoiceCatalogEntry? voice))
+            {
+                continue;
+            }
+
+            string voiceLanguage = NormalizeVoiceLanguageForComparison(voice.LanguageCode);
+            if (!string.Equals(voiceLanguage, targetLanguage, StringComparison.Ordinal))
+            {
+                warnings.Add(new VoiceAssignmentWarning(
+                    assignment.SpeakerId,
+                    voice.VoiceId,
+                    $"Voicepack language {voice.LanguageCode} does not match target {targetLanguage}."));
+            }
+        }
+
+        return warnings;
+    }
+
+    private static string NormalizeVoiceLanguageForComparison(string languageCode)
+    {
+        string normalized = languageCode.Trim().ToLowerInvariant();
+        int separatorIndex = normalized.IndexOfAny(['-', '_']);
+        return separatorIndex <= 0 ? normalized : normalized[..separatorIndex];
+    }
 
     private async Task<SpeakerAssignmentResult> CreateSpeakerAssignmentAsync(
         Guid projectId,

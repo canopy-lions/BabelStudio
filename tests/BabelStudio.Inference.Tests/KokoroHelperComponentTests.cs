@@ -291,6 +291,31 @@ public sealed class KokoroHelperComponentTests : IDisposable
         Assert.False(catalog.TryGetVoice("af_heart", out _));
     }
 
+    // ─── EspeakNgPathResolver ──────────────────────────────────────────────────
+
+    [Fact]
+    public void EspeakNgPathResolver_Resolve_PrefersBundledInstallerPath()
+    {
+        string dir = CreateTempDir();
+        string bundledPath = Path.Combine(dir, "runtimes", "win-x64", "native", "espeak-ng", "espeak-ng.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(bundledPath)!);
+        File.WriteAllBytes(bundledPath, []);
+
+        string resolved = EspeakNgPathResolver.Resolve(baseDirectory: dir);
+
+        Assert.Equal(bundledPath, resolved);
+    }
+
+    [Fact]
+    public void EspeakNgPathResolver_Resolve_FallsBackToPathCommand()
+    {
+        string dir = CreateTempDir();
+
+        string resolved = EspeakNgPathResolver.Resolve(baseDirectory: dir);
+
+        Assert.Equal("espeak-ng", resolved);
+    }
+
     // ─── Helpers ────────────────────────────────────────────────────────────────
 
     private string CreateTempDir()

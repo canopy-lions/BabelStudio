@@ -40,4 +40,22 @@ public sealed record VoiceAssignment(
             requiresConsent,
             DateTimeOffset.UtcNow);
     }
+
+    public VoiceAssignment AssignVoice(
+        string voiceModelId,
+        string? voiceVariant = null,
+        bool requiresConsent = false)
+    {
+        if (string.IsNullOrWhiteSpace(voiceModelId))
+        {
+            throw new ArgumentException("Voice model id is required.", nameof(voiceModelId));
+        }
+
+        return this with
+        {
+            VoiceModelId = voiceModelId.Trim(),
+            VoiceVariant = string.IsNullOrWhiteSpace(voiceVariant) ? null : voiceVariant.Trim(),
+            RequiresConsent = requiresConsent
+        };
+    }
 }

@@ -9,10 +9,9 @@ public sealed partial class EspeakNgPhonemizer : IGraphemeToPhoneme
 {
     private readonly string executablePath;
 
-    public EspeakNgPhonemizer(string executablePath = "espeak-ng")
+    public EspeakNgPhonemizer(string? executablePath = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
-        this.executablePath = executablePath;
+        this.executablePath = EspeakNgPathResolver.Resolve(executablePath);
     }
 
     public string Phonemize(string text, string languageCode)

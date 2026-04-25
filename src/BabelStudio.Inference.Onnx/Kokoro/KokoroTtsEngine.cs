@@ -6,7 +6,7 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace BabelStudio.Inference.Onnx.Kokoro;
 
-public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter
+public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter, IDisposable
 {
     private const string ModelAlias = "kokoro-onnx";
     private const int SampleRate = 24_000;
@@ -14,6 +14,9 @@ public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter
     private readonly IRuntimePlanner runtimePlanner;
     private readonly BenchmarkModelPathResolver modelPathResolver;
     private readonly IGraphemeToPhoneme phonemizer;
+    private readonly SemaphoreSlim sessionGate = new(1, 1);
+    private PinnedSession? pinnedSession;
+    private bool disposed;
 
     public KokoroTtsEngine(
         IRuntimePlanner runtimePlanner,
@@ -69,28 +72,84 @@ public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter
         int phonemeTokenCount = Math.Max(0, inputIds.Length - 2);
         float[] styleVector = KokoroVoicepackLoader.LoadStyleVector(binPath, phonemeTokenCount);
 
-        using OnnxExecutionSessionFactory.SingleSessionLease sessionLease = await OnnxExecutionSessionFactory
-            .CreateSingleAsync(candidate.ModelPath, plan.ExecutionProvider!.Value, cancellationToken)
+        await sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            OnnxExecutionSessionFactory.SingleSessionLease sessionLease = await GetOrCreatePinnedSessionAsync(
+                candidate.ModelPath,
+                plan.ExecutionProvider!.Value,
+                cancellationToken).ConfigureAwait(false);
+
+            float[] audioSamples = RunInference(sessionLease.Session, inputIds, styleVector, request.Speed);
+            byte[] wavBytes = KokoroPcmConverter.EncodePcm16Wav(audioSamples, SampleRate);
+
+            LastExecutionSummary = new StageRuntimeExecutionSummary(
+                sessionLease.RequestedProvider,
+                sessionLease.SelectedProvider,
+                plan.ModelId,
+                plan.ModelAlias,
+                plan.Variant,
+                sessionLease.BootstrapDetail);
+
+            return new TtsSynthesisResult(
+                wavBytes,
+                DurationSamples: audioSamples.Length,
+                SampleRate: SampleRate,
+                ModelId: plan.ModelId ?? ModelAlias,
+                VoiceId: request.Voice.VoiceId,
+                Provider: sessionLease.SelectedProvider);
+        }
+        finally
+        {
+            sessionGate.Release();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        sessionGate.Wait();
+        try
+        {
+            pinnedSession?.Lease.Dispose();
+            pinnedSession = null;
+            disposed = true;
+        }
+        finally
+        {
+            sessionGate.Release();
+            sessionGate.Dispose();
+        }
+    }
+
+    private async Task<OnnxExecutionSessionFactory.SingleSessionLease> GetOrCreatePinnedSessionAsync(
+        string modelPath,
+        ExecutionProviderKind provider,
+        CancellationToken cancellationToken)
+    {
+        if (pinnedSession is not null &&
+            string.Equals(pinnedSession.ModelPath, modelPath, StringComparison.OrdinalIgnoreCase) &&
+            pinnedSession.Provider == provider)
+        {
+            return pinnedSession.Lease;
+        }
+
+        pinnedSession?.Lease.Dispose();
+        OnnxExecutionSessionFactory.SingleSessionLease lease = await OnnxExecutionSessionFactory
+            .CreateSingleAsync(modelPath, provider, cancellationToken)
             .ConfigureAwait(false);
+        pinnedSession = new PinnedSession(modelPath, provider, lease);
+        return lease;
+    }
 
-        float[] audioSamples = RunInference(sessionLease.Session, inputIds, styleVector, request.Speed);
-        byte[] wavBytes = KokoroPcmConverter.EncodePcm16Wav(audioSamples, SampleRate);
-
-        LastExecutionSummary = new StageRuntimeExecutionSummary(
-            sessionLease.RequestedProvider,
-            sessionLease.SelectedProvider,
-            plan.ModelId,
-            plan.ModelAlias,
-            plan.Variant,
-            sessionLease.BootstrapDetail);
-
-        return new TtsSynthesisResult(
-            wavBytes,
-            DurationSamples: audioSamples.Length,
-            SampleRate: SampleRate,
-            ModelId: plan.ModelId ?? ModelAlias,
-            VoiceId: request.Voice.VoiceId,
-            Provider: sessionLease.SelectedProvider);
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
     }
 
     private static float[] RunInference(
@@ -142,4 +201,9 @@ public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter
         throw new InvalidOperationException(
             plan.Fallback?.Detail ?? "Runtime planner did not produce a ready TTS plan.");
     }
+
+    private sealed record PinnedSession(
+        string ModelPath,
+        ExecutionProviderKind Provider,
+        OnnxExecutionSessionFactory.SingleSessionLease Lease);
 }

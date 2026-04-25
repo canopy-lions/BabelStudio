@@ -9,6 +9,7 @@ using BabelStudio.Domain.Projects;
 using BabelStudio.Domain.Speakers;
 using BabelStudio.Domain.Transcript;
 using BabelStudio.Domain.Translation;
+using BabelStudio.Domain.Tts;
 using BabelStudio.TestDoubles;
 
 namespace BabelStudio.Application.Tests;
@@ -239,6 +240,137 @@ public sealed class TranscriptProjectServiceTests : IDisposable
 
         IReadOnlyList<TranslatedSegment> generatedSegments = scope.TranslationRepository.SegmentsByRevisionId[generatedRevision.Id];
         Assert.Equal("Segmento generado 1.", generatedSegments[0].Text);
+    }
+
+    [Fact]
+    public async Task AssignVoiceToSpeakerAsync_persists_assignment_and_reports_language_mismatch()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(new CreateTranscriptProjectRequest("Transcript Demo", sourcePath), CancellationToken.None);
+        await scope.Service.SetTranscriptLanguageAsync(new SetTranscriptLanguageRequest("en"), CancellationToken.None);
+        TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
+            new GenerateTranslationRequest("en", "es", CommercialSafeMode: false),
+            CancellationToken.None);
+
+        TranscriptProjectState assigned = await scope.Service.AssignVoiceToSpeakerAsync(
+            new AssignVoiceToSpeakerRequest(translated.Speakers[0].Id, "af_heart"),
+            CancellationToken.None);
+
+        VoiceAssignment assignment = Assert.Single(scope.VoiceAssignmentRepository.Assignments);
+        Assert.Equal(translated.Speakers[0].Id, assignment.SpeakerId);
+        Assert.Equal("kokoro-onnx", assignment.VoiceModelId);
+        Assert.Equal("af_heart", assignment.VoiceVariant);
+        VoiceAssignmentWarning warning = Assert.Single(assigned.VoiceAssignmentWarnings);
+        Assert.Equal(translated.Speakers[0].Id, warning.SpeakerId);
+    }
+
+    [Fact]
+    public async Task GenerateTtsForSpeakerAsync_writes_take_artifact_metadata_and_duration_warning()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        var ttsEngine = new FakeTtsEngine { DurationSamples = 168000 };
+        FakeServiceScope scope = CreateScope(tempDirectory, ttsEngine: ttsEngine);
+        await scope.Service.CreateAsync(new CreateTranscriptProjectRequest("Transcript Demo", sourcePath), CancellationToken.None);
+        await scope.Service.SetTranscriptLanguageAsync(new SetTranscriptLanguageRequest("en"), CancellationToken.None);
+        TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
+            new GenerateTranslationRequest("en", "es", CommercialSafeMode: false),
+            CancellationToken.None);
+        await scope.Service.AssignVoiceToSpeakerAsync(
+            new AssignVoiceToSpeakerRequest(translated.Speakers[0].Id, "af_heart"),
+            CancellationToken.None);
+
+        TranscriptProjectState tts = await scope.Service.GenerateTtsForSpeakerAsync(
+            new GenerateTtsForSpeakerRequest(translated.Speakers[0].Id),
+            CancellationToken.None);
+
+        TtsTake take = Assert.Single(scope.TtsTakeRepository.Takes);
+        Assert.Equal(TtsTakeStatus.Completed, take.Status);
+        Assert.Equal("fake", take.ModelId);
+        Assert.Equal("af_heart", take.VoiceId);
+        Assert.Equal(24000, take.SampleRate);
+        Assert.True(take.DurationOverrunRatio > 0.10d);
+        ProjectArtifact artifact = Assert.Single(tts.ProjectState.Artifacts, artifact => artifact.Kind == ArtifactKind.TtsTake);
+        Assert.Equal(ArtifactKind.TtsTake, artifact.Kind);
+        Assert.True(scope.ArtifactStore.Exists(artifact.RelativePath));
+        TtsSegmentState segmentState = Assert.Single(tts.TtsSegmentStates, state => state.SegmentIndex == 0);
+        Assert.True(segmentState.HasDurationWarning);
+    }
+
+    [Fact]
+    public async Task SaveTranslationEditsAsync_marks_existing_tts_take_stale()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(new CreateTranscriptProjectRequest("Transcript Demo", sourcePath), CancellationToken.None);
+        await scope.Service.SetTranscriptLanguageAsync(new SetTranscriptLanguageRequest("en"), CancellationToken.None);
+        TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
+            new GenerateTranslationRequest("en", "es", CommercialSafeMode: false),
+            CancellationToken.None);
+        await scope.Service.AssignVoiceToSpeakerAsync(
+            new AssignVoiceToSpeakerRequest(translated.Speakers[0].Id, "af_heart"),
+            CancellationToken.None);
+        await scope.Service.GenerateTtsForSpeakerAsync(
+            new GenerateTtsForSpeakerRequest(translated.Speakers[0].Id),
+            CancellationToken.None);
+
+        TranscriptProjectState edited = await scope.Service.SaveTranslationEditsAsync(
+            new SaveTranslationEditsRequest(
+                translated.CurrentTranslationRevision!.Id,
+                "es",
+                [new EditedTranslatedSegment(0, "Traduccion editada.")]),
+            CancellationToken.None);
+
+        TtsTake take = Assert.Single(scope.TtsTakeRepository.Takes);
+        Assert.True(take.IsStale);
+        Assert.Equal(TtsTakeStatus.Stale, take.Status);
+        TtsSegmentState segmentState = Assert.Single(edited.TtsSegmentStates, state => state.SegmentIndex == 0);
+        Assert.True(segmentState.IsStale);
+    }
+
+    [Fact]
+    public async Task Voice_assignment_change_marks_existing_takes_stale_and_batch_regeneration_creates_fresh_take()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string sourcePath = Path.Combine(tempDirectory, "sample.mp4");
+        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
+
+        FakeServiceScope scope = CreateScope(tempDirectory);
+        await scope.Service.CreateAsync(new CreateTranscriptProjectRequest("Transcript Demo", sourcePath), CancellationToken.None);
+        await scope.Service.SetTranscriptLanguageAsync(new SetTranscriptLanguageRequest("en"), CancellationToken.None);
+        TranscriptProjectState translated = await scope.Service.GenerateTranslationAsync(
+            new GenerateTranslationRequest("en", "es", CommercialSafeMode: false),
+            CancellationToken.None);
+        Guid speakerId = translated.Speakers[0].Id;
+        await scope.Service.AssignVoiceToSpeakerAsync(new AssignVoiceToSpeakerRequest(speakerId, "af_heart"), CancellationToken.None);
+        await scope.Service.GenerateTtsForSpeakerAsync(new GenerateTtsForSpeakerRequest(speakerId), CancellationToken.None);
+
+        TranscriptProjectState reassigned = await scope.Service.AssignVoiceToSpeakerAsync(
+            new AssignVoiceToSpeakerRequest(speakerId, "am_adam"),
+            CancellationToken.None);
+
+        TtsTake staleTake = Assert.Single(scope.TtsTakeRepository.Takes);
+        Assert.True(staleTake.IsStale);
+        Assert.Contains(reassigned.TtsSegmentStates, state => state.SegmentIndex == 0 && state.IsStale);
+
+        TranscriptProjectState regenerated = await scope.Service.RegenerateStaleTtsForSpeakerAsync(
+            new RegenerateStaleTtsForSpeakerRequest(speakerId),
+            CancellationToken.None);
+
+        Assert.Equal(2, scope.TtsTakeRepository.Takes.Count);
+        Assert.Equal(2, scope.TtsEngine.SynthesizeCallCount);
+        TtsSegmentState currentSegment = Assert.Single(regenerated.TtsSegmentStates, state => state.SegmentIndex == 0);
+        Assert.False(currentSegment.IsStale);
+        Assert.Equal("am_adam", scope.TtsTakeRepository.Takes.OrderBy(take => take.CreatedAtUtc).Last().VoiceId);
     }
 
     [Fact]
@@ -491,16 +623,22 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         }
     }
 
-    private FakeServiceScope CreateScope(string tempDirectory, ISpeakerDiarizationEngine? diarizationEngine = null)
+    private FakeServiceScope CreateScope(
+        string tempDirectory,
+        ISpeakerDiarizationEngine? diarizationEngine = null,
+        FakeTtsEngine? ttsEngine = null)
     {
         var mediaRepository = new FakeMediaAssetRepository();
         var speakerRepository = new FakeSpeakerRepository();
         var artifactStore = new FakeArtifactStore(Path.Combine(tempDirectory, "project"));
         var transcriptRepository = new FakeTranscriptRepository(speakerRepository);
         var translationRepository = new FakeTranslationRepository();
+        var voiceAssignmentRepository = new FakeVoiceAssignmentRepository();
+        var ttsTakeRepository = new FakeTtsTakeRepository();
         var stageRunStore = new FakeProjectStageRunStore();
         var translationLanguageRouter = new FakeTranslationLanguageRouter();
         var translationEngine = new FakeTranslationEngine();
+        ttsEngine ??= new FakeTtsEngine();
         var service = new TranscriptProjectService(
             new ProjectMediaIngestService(
                 new FakeProjectRepository(),
@@ -522,9 +660,22 @@ public sealed class TranscriptProjectServiceTests : IDisposable
             diarizationEngine ?? new FakeDiarizationEngine(),
             new FakeAudioTranscriptionEngine(),
             translationLanguageRouter,
-            translationEngine);
+            translationEngine,
+            voiceAssignmentRepository,
+            ttsTakeRepository,
+            ttsEngine,
+            new FakeVoiceCatalog());
 
-        return new FakeServiceScope(service, artifactStore, transcriptRepository, translationRepository, translationLanguageRouter, speakerRepository);
+        return new FakeServiceScope(
+            service,
+            artifactStore,
+            transcriptRepository,
+            translationRepository,
+            translationLanguageRouter,
+            speakerRepository,
+            voiceAssignmentRepository,
+            ttsTakeRepository,
+            ttsEngine);
     }
 
     private string CreateTempDirectory()
@@ -541,7 +692,10 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         FakeTranscriptRepository TranscriptRepository,
         FakeTranslationRepository TranslationRepository,
         FakeTranslationLanguageRouter TranslationLanguageRouter,
-        FakeSpeakerRepository SpeakerRepository);
+        FakeSpeakerRepository SpeakerRepository,
+        FakeVoiceAssignmentRepository VoiceAssignmentRepository,
+        FakeTtsTakeRepository TtsTakeRepository,
+        FakeTtsEngine TtsEngine);
 
     private sealed class FakeProjectRepository : IProjectRepository
     {
@@ -874,6 +1028,128 @@ public sealed class TranscriptProjectServiceTests : IDisposable
         {
             Revisions.Add(revision);
             SegmentsByRevisionId[revision.Id] = segments;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeVoiceAssignmentRepository : IVoiceAssignmentRepository
+    {
+        public List<VoiceAssignment> Assignments { get; } = [];
+
+        public Task<VoiceAssignment?> GetAsync(Guid projectId, Guid speakerId, CancellationToken cancellationToken) =>
+            Task.FromResult(Assignments.FirstOrDefault(assignment =>
+                assignment.ProjectId == projectId &&
+                assignment.SpeakerId == speakerId));
+
+        public Task<IReadOnlyList<VoiceAssignment>> GetAllAsync(Guid projectId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<VoiceAssignment>>(Assignments
+                .Where(assignment => assignment.ProjectId == projectId)
+                .OrderBy(assignment => assignment.CreatedAtUtc)
+                .ToArray());
+
+        public Task SaveAsync(VoiceAssignment assignment, CancellationToken cancellationToken)
+        {
+            int index = Assignments.FindIndex(candidate => candidate.Id == assignment.Id);
+            if (index >= 0)
+            {
+                Assignments[index] = assignment;
+                return Task.CompletedTask;
+            }
+
+            index = Assignments.FindIndex(candidate =>
+                candidate.ProjectId == assignment.ProjectId &&
+                candidate.SpeakerId == assignment.SpeakerId);
+            if (index >= 0)
+            {
+                Assignments[index] = assignment;
+                return Task.CompletedTask;
+            }
+
+            Assignments.Add(assignment);
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+        {
+            Assignments.RemoveAll(assignment => assignment.Id == id);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeTtsTakeRepository : ITtsTakeRepository
+    {
+        public List<TtsTake> Takes { get; } = [];
+
+        public Task<TtsTake?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(Takes.FirstOrDefault(take => take.Id == id));
+
+        public Task<IReadOnlyList<TtsTake>> GetByProjectAsync(Guid projectId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TtsTake>>(Takes
+                .Where(take => take.ProjectId == projectId)
+                .OrderBy(take => take.CreatedAtUtc)
+                .ToArray());
+
+        public Task<IReadOnlyList<TtsTake>> GetBySegmentAsync(Guid translatedSegmentId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TtsTake>>(Takes
+                .Where(take => take.TranslatedSegmentId == translatedSegmentId)
+                .OrderBy(take => take.CreatedAtUtc)
+                .ToArray());
+
+        public Task<IReadOnlyList<TtsTake>> GetStaleBySpeakerAsync(
+            Guid projectId,
+            Guid voiceAssignmentId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TtsTake>>(Takes
+                .Where(take => take.ProjectId == projectId &&
+                               take.VoiceAssignmentId == voiceAssignmentId &&
+                               take.IsStale)
+                .OrderBy(take => take.SegmentIndex)
+                .ToArray());
+
+        public Task MarkBySegmentIndicesStaleAsync(
+            Guid projectId,
+            IReadOnlySet<int> segmentIndices,
+            CancellationToken cancellationToken)
+        {
+            for (int i = 0; i < Takes.Count; i++)
+            {
+                if (Takes[i].ProjectId == projectId && segmentIndices.Contains(Takes[i].SegmentIndex))
+                {
+                    Takes[i] = Takes[i].MarkStale();
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task MarkByVoiceAssignmentStaleAsync(
+            Guid projectId,
+            Guid voiceAssignmentId,
+            CancellationToken cancellationToken)
+        {
+            for (int i = 0; i < Takes.Count; i++)
+            {
+                if (Takes[i].ProjectId == projectId && Takes[i].VoiceAssignmentId == voiceAssignmentId)
+                {
+                    Takes[i] = Takes[i].MarkStale();
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task SaveAsync(TtsTake take, CancellationToken cancellationToken)
+        {
+            int index = Takes.FindIndex(candidate => candidate.Id == take.Id);
+            if (index >= 0)
+            {
+                Takes[index] = take;
+            }
+            else
+            {
+                Takes.Add(take);
+            }
+
             return Task.CompletedTask;
         }
     }
