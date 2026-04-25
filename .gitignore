@@ -33,6 +33,10 @@ model-cache/
 src/BabelStudio.Inference.Onnx/bin/
 src/BabelStudio.Inference.Onnx/obj/
 
+# Mono runtime telemetry (never commit; contains machine-identifying PII)
+.mono/
+src/BabelStudio.Inference.Onnx/.mono/
+
 # Media/artifacts
 *.mp4
 *.mkv
