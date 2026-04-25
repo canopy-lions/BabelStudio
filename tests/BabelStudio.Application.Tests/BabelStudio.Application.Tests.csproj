@@ -27,6 +27,9 @@
     <Compile Include="..\BabelStudio.TestDoubles\FakeDiarizationEngine.cs" Link="TestDoubles\FakeDiarizationEngine.cs" />
     <Compile Include="..\BabelStudio.TestDoubles\FakeTranslationEngine.cs" Link="TestDoubles\FakeTranslationEngine.cs" />
     <Compile Include="..\BabelStudio.TestDoubles\FakeTranslationLanguageRouter.cs" Link="TestDoubles\FakeTranslationLanguageRouter.cs" />
+    <Compile Include="..\BabelStudio.TestDoubles\FakeTtsEngine.cs" Link="TestDoubles\FakeTtsEngine.cs" />
+    <Compile Include="..\BabelStudio.TestDoubles\FakePhonemizer.cs" Link="TestDoubles\FakePhonemizer.cs" />
+    <Compile Include="..\BabelStudio.TestDoubles\FakeVoiceCatalog.cs" Link="TestDoubles\FakeVoiceCatalog.cs" />
   </ItemGroup>
 
 </Project>

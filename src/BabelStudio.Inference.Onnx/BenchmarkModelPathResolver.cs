@@ -210,7 +210,8 @@ public sealed class BenchmarkModelPathResolver
                 DisplayName: $"{alias} (default)",
                 ModelPath: defaultResolution.Entry.DefaultBenchmarkEntryPath,
                 VariantAlias: "default",
-                ResolutionNote: $"Resolved model alias '{reference}' using manifest '{manifestRegistry.ManifestPath}'."));
+                ResolutionNote: $"Resolved model alias '{reference}' using manifest '{manifestRegistry.ManifestPath}'.",
+                RootDirectory: defaultResolution.Entry.RootDirectory));
         }
 
         foreach (BundledModelManifestVariant variant in defaultResolution.Entry.Variants)
@@ -225,7 +226,8 @@ public sealed class BenchmarkModelPathResolver
                 DisplayName: $"{alias}@{variant.Alias}",
                 ModelPath: variant.EntryPath,
                 VariantAlias: variant.Alias,
-                ResolutionNote: $"Resolved model alias '{reference}' using manifest '{manifestRegistry.ManifestPath}'."));
+                ResolutionNote: $"Resolved model alias '{reference}' using manifest '{manifestRegistry.ManifestPath}'.",
+                RootDirectory: defaultResolution.Entry.RootDirectory));
         }
 
         if (candidates.Count == 0)
@@ -283,7 +285,8 @@ public sealed class BenchmarkModelPathResolver
                     DisplayName: displayName,
                     ModelPath: file.FullPath,
                     VariantAlias: variantAlias,
-                    ResolutionNote: $"Resolved model directory '{requestedReference}' to '{file.FullPath}'.");
+                    ResolutionNote: $"Resolved model directory '{requestedReference}' to '{file.FullPath}'.",
+                    RootDirectory: fullDirectoryPath);
             })
             .ToArray();
 
@@ -461,4 +464,5 @@ public sealed record BenchmarkModelCandidate(
     string DisplayName,
     string ModelPath,
     string? VariantAlias,
-    string ResolutionNote);
+    string ResolutionNote,
+    string? RootDirectory = null);
