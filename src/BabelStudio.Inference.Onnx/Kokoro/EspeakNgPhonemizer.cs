@@ -23,9 +23,7 @@ public sealed partial class EspeakNgPhonemizer : IGraphemeToPhoneme
         if (!LanguageCodePattern().IsMatch(languageCode))
         {
             throw new ArgumentException(
-            RedirectStandardOutput = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            UseShellExecute = false,
+                "Language code may only contain letters, digits, underscores, and hyphens.",
                 nameof(languageCode));
         }
 
