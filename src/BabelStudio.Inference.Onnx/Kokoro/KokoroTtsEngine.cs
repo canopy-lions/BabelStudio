@@ -64,7 +64,10 @@ public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter
                 $"Voicepack '{request.Voice.VoiceId}' not found under '{modelRootPath}/voices/'.",
                 request.Voice.VoiceId);
 
-        float[] styleVector = KokoroVoicepackLoader.LoadStyleVector(binPath, inputIds.Length);
+        // Upstream Kokoro indexes the style matrix by the raw phoneme count (pre-padding),
+        // i.e. ref_s = voices[len(phoneme_tokens)]. Our `inputIds` wraps BOS/EOS, so subtract 2.
+        int phonemeTokenCount = Math.Max(0, inputIds.Length - 2);
+        float[] styleVector = KokoroVoicepackLoader.LoadStyleVector(binPath, phonemeTokenCount);
 
         using OnnxExecutionSessionFactory.SingleSessionLease sessionLease = await OnnxExecutionSessionFactory
             .CreateSingleAsync(candidate.ModelPath, plan.ExecutionProvider!.Value, cancellationToken)

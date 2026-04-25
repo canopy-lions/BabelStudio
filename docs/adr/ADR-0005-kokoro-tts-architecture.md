@@ -32,6 +32,13 @@ pre-converted `model.onnx` / `model_quantized.onnx` with three inputs
 (`input_ids`, `style`, `speed`) and one `audio` output. This is the correct
 source for ONNX Runtime inference.
 
+The upstream model ID is preserved in the manifest (`model_id`) and cited in
+logs. The local manifest alias used by code and tests is `kokoro-onnx` (with
+`kokoro` as a shorter fallback); the on-disk directory is `models/kokoro-onnx/`.
+Versioned aliases (e.g. `kokoro-v2`) may be added alongside the existing alias
+when a new Kokoro revision is adopted, rather than rewriting existing alias
+references.
+
 ## Decision 2 — DirectML excluded (CPU only for M11)
 
 During the M11 spike the DirectML execution provider returned `0x80070057` for
@@ -69,8 +76,11 @@ configurable executable path to support bundled or PATH-resolved installations.
 Kokoro ships 56 voicepack `.bin` files (e.g. `af_heart.bin`) under a `voices/`
 subdirectory. Each file stores a matrix of shape `(N, 256)` as raw little-endian
 float32. At inference, the style tensor `[1, 256]` is the row at index
-`tokenCount`, where `tokenCount` equals the full `input_ids` sequence length
-(including BOS/EOS `$` tokens). `KokoroVoicepackLoader` implements this slice.
+`phonemeTokenCount` — the raw phoneme token count **before** BOS/EOS padding,
+matching upstream `ref_s = voices[len(tokens)]` in `hexgrad/Kokoro-82M/kokoro.py`.
+Because `KokoroTokenizer.Encode` wraps the sequence as `[BOS, …phonemes…, EOS]`,
+the engine slices with `inputIds.Length - 2`. `KokoroVoicepackLoader` implements
+the row read given this pre-padding token count.
 
 ## Decision 5 — Tokenizer: character-level from `tokenizer.json`
 
