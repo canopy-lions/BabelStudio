@@ -60,6 +60,6 @@ internal static class Milestone5StageRuntimeRequirementsCatalog
                 [ "kokoro-v1.0", "kokoro" ],
                 [ ExecutionProviderKind.Cpu ],
                 [],
-                [ "model_quantized", "model" ])
+                [ "quantized" ])
         };
 }
