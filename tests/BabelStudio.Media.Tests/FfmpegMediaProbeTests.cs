@@ -4,7 +4,7 @@ namespace BabelStudio.Media.Tests;
 
 public sealed class FfmpegMediaProbeTests
 {
-    [Fact]
+    [RequiresFfmpegAndFfprobeFact]
     public async Task ProbeAsync_reads_fixture_media_metadata()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), "BabelStudio.Media.Tests", Guid.NewGuid().ToString("N"));

@@ -10,6 +10,7 @@ public static class ProjectArtifactPaths
     public const string SpeechRegionsRelativePath = "artifacts/audio/speech-regions.json";
     public const string ReferenceClipDirectoryRelativePath = "artifacts/reference-clips";
     public const string TranslationDirectoryRelativePath = "artifacts/translation";
+    public const string TtsDirectoryRelativePath = "artifacts/tts";
 
     public static readonly string[] RequiredDirectories =
     [
@@ -21,6 +22,7 @@ public static class ProjectArtifactPaths
         "artifacts/translation",
         "artifacts/translation/es",
         "artifacts/transcript",
+        "artifacts/tts",
         "artifacts/waveform",
         "logs",
         "temp"
@@ -68,5 +70,25 @@ public static class ProjectArtifactPaths
     {
         DateTimeOffset utcTimestamp = createdAtUtc.ToUniversalTime();
         return $"{GetReferenceClipDirectoryRelativePath(speakerId)}/reference-clip-{utcTimestamp:yyyyMMddHHmmssfff}.wav";
+    }
+
+    public static string GetTtsTakeRelativePath(Guid speakerId, Guid segmentId, int takeNumber)
+    {
+        if (speakerId == Guid.Empty)
+        {
+            throw new ArgumentException("Speaker id is required.", nameof(speakerId));
+        }
+
+        if (segmentId == Guid.Empty)
+        {
+            throw new ArgumentException("Segment id is required.", nameof(segmentId));
+        }
+
+        if (takeNumber <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(takeNumber), "Take number must be positive.");
+        }
+
+        return $"{TtsDirectoryRelativePath}/{speakerId:D}/{segmentId:D}-take-{takeNumber:D4}.wav";
     }
 }

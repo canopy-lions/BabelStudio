@@ -4,6 +4,16 @@ namespace BabelStudio.Media.Tests;
 
 internal static class MediaFixtureFactory
 {
+    public static string? FfmpegSkipReason =>
+        ResolveExecutable("BABELSTUDIO_FFMPEG_PATH", ["ffmpeg.exe", "ffmpeg"]) is null
+            ? "ffmpeg is not available on PATH or through BABELSTUDIO_FFMPEG_PATH."
+            : null;
+
+    public static string? FfprobeSkipReason =>
+        ResolveExecutable("BABELSTUDIO_FFPROBE_PATH", ["ffprobe.exe", "ffprobe"]) is null
+            ? "ffprobe is not available on PATH or through BABELSTUDIO_FFPROBE_PATH."
+            : null;
+
     public static async Task<string> CreateSampleVideoAsync(
         string directoryPath,
         CancellationToken cancellationToken = default)
@@ -17,7 +27,8 @@ internal static class MediaFixtureFactory
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = "ffmpeg",
+            FileName = ResolveExecutable("BABELSTUDIO_FFMPEG_PATH", ["ffmpeg.exe", "ffmpeg"])
+                ?? throw new InvalidOperationException("ffmpeg is not available on PATH or through BABELSTUDIO_FFMPEG_PATH."),
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
@@ -88,5 +99,67 @@ internal static class MediaFixtureFactory
         }
 
         return outputPath;
+    }
+
+    private static string? ResolveExecutable(string environmentVariable, IReadOnlyList<string> fallbackNames)
+    {
+        string? configuredPath = Environment.GetEnvironmentVariable(environmentVariable);
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            if (File.Exists(configuredPath))
+            {
+                return Path.GetFullPath(configuredPath);
+            }
+
+            throw new FileNotFoundException(
+                $"The environment variable '{environmentVariable}' is set to '{configuredPath}', but the file does not exist. " +
+                "Either correct the path or unset the environment variable to use PATH lookup.",
+                configuredPath);
+        }
+
+        string? pathEnvironment = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathEnvironment))
+        {
+            return null;
+        }
+
+        foreach (string pathSegment in pathEnvironment.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            foreach (string executableName in fallbackNames)
+            {
+                string candidate = Path.Combine(pathSegment.Trim(), executableName);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+internal sealed class RequiresFfmpegFactAttribute : FactAttribute
+{
+    public RequiresFfmpegFactAttribute()
+    {
+        Skip = MediaFixtureFactory.FfmpegSkipReason;
+    }
+}
+
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+internal sealed class RequiresFfmpegAndFfprobeFactAttribute : FactAttribute
+{
+    public RequiresFfmpegAndFfprobeFactAttribute()
+    {
+        string? ffmpeg = MediaFixtureFactory.FfmpegSkipReason;
+        string? ffprobe = MediaFixtureFactory.FfprobeSkipReason;
+        Skip = (ffmpeg, ffprobe) switch
+        {
+            (null, null) => null,
+            (not null, not null) => $"{ffmpeg} {ffprobe}",
+            _ => ffmpeg ?? ffprobe,
+        };
     }
 }

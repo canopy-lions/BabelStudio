@@ -236,6 +236,16 @@ internal static class SqliteMigrations
             ALTER TABLE StageRuns ADD COLUMN RuntimeModelAlias TEXT NULL;
             ALTER TABLE StageRuns ADD COLUMN RuntimeModelVariant TEXT NULL;
             ALTER TABLE StageRuns ADD COLUMN BootstrapDetail TEXT NULL;
+            """),
+        new(
+            5,
+            "tts-columns",
+            """
+            ALTER TABLE TtsTakes ADD COLUMN TranslatedSegmentId TEXT NULL REFERENCES TranslatedSegments(Id) ON DELETE SET NULL;
+            ALTER TABLE TtsTakes ADD COLUMN IsStale INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE TtsTakes ADD COLUMN DurationSamples INTEGER NULL;
+            ALTER TABLE TtsTakes ADD COLUMN SampleRate INTEGER NULL;
+            ALTER TABLE TtsTakes ADD COLUMN Provider TEXT NULL;
             """)
     ];
 }
