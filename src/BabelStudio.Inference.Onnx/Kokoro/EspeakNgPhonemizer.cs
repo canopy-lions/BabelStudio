@@ -23,7 +23,9 @@ public sealed partial class EspeakNgPhonemizer : IGraphemeToPhoneme
         if (!LanguageCodePattern().IsMatch(languageCode))
         {
             throw new ArgumentException(
-                $"Invalid language code: '{languageCode}'. Expected pattern [A-Za-z0-9_-]+.",
+            RedirectStandardOutput = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            UseShellExecute = false,
                 nameof(languageCode));
         }
 
