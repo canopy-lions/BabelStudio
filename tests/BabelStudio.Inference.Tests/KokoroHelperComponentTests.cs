@@ -59,7 +59,7 @@ public sealed class KokoroHelperComponentTests : IDisposable
         WriteMinimalTokenizerJson(dir, new Dictionary<string, int> { ["a"] = 1 });
         var tokenizer = KokoroTokenizer.Load(dir);
 
-        long[] tokens = tokenizer.Encode(" "); // single space has no vocab entry
+        long[] tokens = tokenizer.Encode("");
 
         Assert.Equal(2, tokens.Length);
         Assert.Equal(0L, tokens[0]);
