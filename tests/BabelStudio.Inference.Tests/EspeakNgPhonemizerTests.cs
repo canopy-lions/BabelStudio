@@ -111,7 +111,7 @@ public sealed class EspeakNgPhonemizerTests
         ArgumentException ex = Assert.Throws<ArgumentException>(
             () => phonemizer.Phonemize("Hello", languageCode));
 
-        Assert.Contains(languageCode, ex.Message, StringComparison.Ordinal);
+        Assert.Equal("languageCode", ex.ParamName);
     }
 
     [Fact]
