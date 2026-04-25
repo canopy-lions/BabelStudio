@@ -30,7 +30,6 @@ public sealed partial class EspeakNgPhonemizer : IGraphemeToPhoneme
         var psi = new ProcessStartInfo
         {
             FileName = executablePath,
-            Arguments = $"-v {languageCode} --ipa=3 -q",
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             UseShellExecute = false,
@@ -38,6 +37,10 @@ public sealed partial class EspeakNgPhonemizer : IGraphemeToPhoneme
             StandardOutputEncoding = Encoding.UTF8,
             StandardInputEncoding = Encoding.UTF8
         };
+        psi.ArgumentList.Add("-v");
+        psi.ArgumentList.Add(languageCode);
+        psi.ArgumentList.Add("--ipa=3");
+        psi.ArgumentList.Add("-q");
 
         using Process process = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start espeak-ng at '{executablePath}'.");
@@ -45,6 +48,8 @@ public sealed partial class EspeakNgPhonemizer : IGraphemeToPhoneme
         process.StandardInput.Write(text.Trim());
         process.StandardInput.Close();
 
+        // Start reading stdout asynchronously before WaitForExit so the timeout is actually enforced.
+        // Calling ReadToEnd() before WaitForExit would block indefinitely if the process hangs.
         Task<string> readTask = process.StandardOutput.ReadToEndAsync();
 
         if (!process.WaitForExit(TimeSpan.FromSeconds(10)))
