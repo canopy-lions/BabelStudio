@@ -1,0 +1,64 @@
+using BabelStudio.Contracts.Pipeline;
+
+namespace BabelStudio.TestDoubles;
+
+public sealed class FakeTtsEngine : ITtsEngine
+{
+    private const int DefaultSampleRate = 24000;
+    private const int DefaultDurationSamples = 240; // 10 ms
+
+    public string? LastInputText { get; private set; }
+    public VoiceCatalogEntry? LastVoicepack { get; private set; }
+
+    public Task<TtsSynthesisResult> SynthesizeAsync(TtsSynthesisRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        LastInputText = request.Text;
+        LastVoicepack = request.Voice;
+
+        byte[] wav = BuildMinimalSilentWav(DefaultSampleRate, DefaultDurationSamples);
+        return Task.FromResult(new TtsSynthesisResult(
+            wav,
+            DefaultDurationSamples,
+            DefaultSampleRate,
+            ModelId: "fake",
+            request.Voice.VoiceId,
+            Provider: "fake"));
+    }
+
+    private static byte[] BuildMinimalSilentWav(int sampleRate, int durationSamples)
+    {
+        // PCM 16-bit mono WAV
+        const int bitsPerSample = 16;
+        const int channels = 1;
+        int byteRate = sampleRate * channels * (bitsPerSample / 8);
+        int blockAlign = channels * (bitsPerSample / 8);
+        int dataBytes = durationSamples * blockAlign;
+
+        byte[] wav = new byte[44 + dataBytes];
+        int pos = 0;
+
+        void WriteBytes(byte[] src) { Array.Copy(src, 0, wav, pos, src.Length); pos += src.Length; }
+        void WriteAscii(string s) { WriteBytes(System.Text.Encoding.ASCII.GetBytes(s)); }
+        void WriteInt32(int v) { WriteBytes(BitConverter.GetBytes(v)); }
+        void WriteInt16(short v) { WriteBytes(BitConverter.GetBytes(v)); }
+
+        WriteAscii("RIFF");
+        WriteInt32(36 + dataBytes);
+        WriteAscii("WAVE");
+        WriteAscii("fmt ");
+        WriteInt32(16);              // chunk size
+        WriteInt16(1);               // PCM
+        WriteInt16((short)channels);
+        WriteInt32(sampleRate);
+        WriteInt32(byteRate);
+        WriteInt16((short)blockAlign);
+        WriteInt16(bitsPerSample);
+        WriteAscii("data");
+        WriteInt32(dataBytes);
+        // remaining bytes are zero (silence)
+
+        return wav;
+    }
+}
