@@ -58,6 +58,8 @@ public sealed record TtsTake(
             IsStale = false
         };
 
+    // Failed is a terminal status; clearing IsStale avoids the ambiguous
+    // "Failed but also stale" combination and matches how Complete() behaves.
     public TtsTake Fail() =>
-        this with { Status = TtsTakeStatus.Failed };
+        this with { Status = TtsTakeStatus.Failed, IsStale = false };
 }

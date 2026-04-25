@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using BabelStudio.Contracts.Pipeline;
 
 namespace BabelStudio.TestDoubles;
@@ -16,7 +17,7 @@ public sealed class FakeVoiceCatalog : IVoiceCatalog
             ? voices
             : voices.Where(v => v.LanguageCode == languageCode).ToList();
 
-    public bool TryGetVoice(string voiceId, out VoiceCatalogEntry? entry)
+    public bool TryGetVoice(string voiceId, [NotNullWhen(true)] out VoiceCatalogEntry? entry)
     {
         entry = voices.FirstOrDefault(v => v.VoiceId == voiceId);
         return entry is not null;
