@@ -52,6 +52,14 @@ internal static class Milestone5StageRuntimeRequirementsCatalog
                 [ "sortformer-diarizer-4spk-v1", "sortformer-4spk", "nvidia-sortformer-diarizer-4spk-v1" ],
                 [ ExecutionProviderKind.DirectMl, ExecutionProviderKind.Cpu ],
                 [ "default" ],
-                [ "default" ])
+                [ "default" ]),
+            // DirectML excluded: Kokoro ConvTranspose op is incompatible with DirectML EP (upstream ONNX issue, unresolved)
+            [RuntimeStage.Tts] = new(
+                RuntimeStage.Tts,
+                ModelTask.Tts,
+                [ "kokoro-v1.0", "kokoro" ],
+                [ ExecutionProviderKind.Cpu ],
+                [],
+                [ "model_quantized", "model" ])
         };
 }
