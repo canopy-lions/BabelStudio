@@ -145,6 +145,14 @@ internal sealed class RequiresFfmpegAndFfprobeFactAttribute : FactAttribute
 {
     public RequiresFfmpegAndFfprobeFactAttribute()
     {
-        Skip = MediaFixtureFactory.FfmpegSkipReason ?? MediaFixtureFactory.FfprobeSkipReason;
+        string? ffmpeg = MediaFixtureFactory.FfmpegSkipReason;
+        string? ffprobe = MediaFixtureFactory.FfprobeSkipReason;
+        Skip = (ffmpeg, ffprobe) switch
+        {
+            (null, null) => null,
+            (not null, not null) => $"{ffmpeg} {ffprobe}",
+            _ => ffmpeg ?? ffprobe,
+        };
     }
+}
 }
