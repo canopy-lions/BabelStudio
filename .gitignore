@@ -75,3 +75,4 @@ benchmark-report*.json
 *.lscache
 *.csproj.lscache
 .claude/settings.local.json
+.mono/

@@ -95,4 +95,106 @@ public sealed class FakeTtsEngineTests
 
         Assert.Equal("t@st", result);
     }
+
+    [Fact]
+    public async Task FakeTtsEngine_NullRequest_ThrowsArgumentNullException()
+    {
+        var engine = new FakeTtsEngine();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => engine.SynthesizeAsync(null!, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task FakeTtsEngine_SecondCall_UpdatesLastInputText()
+    {
+        var engine = new FakeTtsEngine();
+        var firstRequest = new TtsSynthesisRequest("First", "en-us", TestVoice);
+        var secondRequest = new TtsSynthesisRequest("Second", "en-us", TestVoice);
+
+        await engine.SynthesizeAsync(firstRequest, CancellationToken.None);
+        await engine.SynthesizeAsync(secondRequest, CancellationToken.None);
+
+        Assert.Equal("Second", engine.LastInputText);
+    }
+
+    [Fact]
+    public async Task FakeTtsEngine_WavBytesLengthConsistentWithMetadata()
+    {
+        var engine = new FakeTtsEngine();
+        var request = new TtsSynthesisRequest("Test", "en-us", TestVoice);
+
+        TtsSynthesisResult result = await engine.SynthesizeAsync(request, CancellationToken.None);
+
+        // WAV data section = DurationSamples * 2 (16-bit mono) + 44 header
+        int expectedLength = 44 + result.DurationSamples * 2;
+        Assert.Equal(expectedLength, result.WavBytes.Length);
+    }
+
+    [Fact]
+    public async Task FakeTtsEngine_ModelIdIsFake()
+    {
+        var engine = new FakeTtsEngine();
+        var request = new TtsSynthesisRequest("Test", "en-us", TestVoice);
+
+        TtsSynthesisResult result = await engine.SynthesizeAsync(request, CancellationToken.None);
+
+        Assert.Equal("fake", result.ModelId);
+    }
+
+    [Fact]
+    public void FakeVoiceCatalog_TryGetVoice_ReturnsFalseForUnknownVoice()
+    {
+        var catalog = new FakeVoiceCatalog();
+
+        bool found = catalog.TryGetVoice("nonexistent_voice", out VoiceCatalogEntry? entry);
+
+        Assert.False(found);
+        Assert.Null(entry);
+    }
+
+    [Fact]
+    public void FakeVoiceCatalog_WithCustomVoices_ReturnsCustomVoices()
+    {
+        var customVoices = new List<VoiceCatalogEntry>
+        {
+            new("custom_voice", "en-us", "male", "Custom")
+        };
+        var catalog = new FakeVoiceCatalog(customVoices);
+
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices();
+
+        Assert.Single(voices);
+        Assert.Equal("custom_voice", voices[0].VoiceId);
+    }
+
+    [Fact]
+    public void FakeVoiceCatalog_GetVoices_ReturnsEmpty_WhenNoMatchingLanguage()
+    {
+        var catalog = new FakeVoiceCatalog();
+
+        IReadOnlyList<VoiceCatalogEntry> voices = catalog.GetVoices("zh");
+
+        Assert.Empty(voices);
+    }
+
+    [Fact]
+    public void FakePhonemizer_DefaultPhonemes_ReturnExpectedDefault()
+    {
+        var phonemizer = new FakePhonemizer();
+
+        string result = phonemizer.Phonemize("anything", "en-us");
+
+        Assert.Equal("h@l@U", result);
+    }
+
+    [Fact]
+    public void FakePhonemizer_IgnoresInputText_AlwaysReturnsFixed()
+    {
+        var phonemizer = new FakePhonemizer("fixed");
+
+        Assert.Equal("fixed", phonemizer.Phonemize("hello", "en-us"));
+        Assert.Equal("fixed", phonemizer.Phonemize("goodbye", "fr"));
+        Assert.Equal("fixed", phonemizer.Phonemize("", "de"));
+    }
 }

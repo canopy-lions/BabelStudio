@@ -30,7 +30,7 @@ internal sealed class KokoroTokenizer
         var vocab = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (JsonProperty entry in vocabElement.EnumerateObject())
         {
-            if (entry.Value.TryGetInt32(out int tokenId))
+            if (entry.Value.ValueKind == JsonValueKind.Number && entry.Value.TryGetInt32(out int tokenId))
             {
                 vocab[entry.Name] = tokenId;
             }
