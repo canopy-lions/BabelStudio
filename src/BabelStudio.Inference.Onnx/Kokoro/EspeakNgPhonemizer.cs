@@ -45,12 +45,12 @@ public sealed partial class EspeakNgPhonemizer : IGraphemeToPhoneme
         using Process process = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start espeak-ng at '{executablePath}'.");
 
+        // Start reading stdout asynchronously before writing to stdin to avoid potential pipe deadlock.
+        // If the process fills its stdout buffer before we start reading, it would block on write.
+        Task<string> readTask = process.StandardOutput.ReadToEndAsync();
+
         process.StandardInput.Write(text.Trim());
         process.StandardInput.Close();
-
-        // Start reading stdout asynchronously before WaitForExit so the timeout is actually enforced.
-        // Calling ReadToEnd() before WaitForExit would block indefinitely if the process hangs.
-        Task<string> readTask = process.StandardOutput.ReadToEndAsync();
 
         if (!process.WaitForExit(TimeSpan.FromSeconds(10)))
         {

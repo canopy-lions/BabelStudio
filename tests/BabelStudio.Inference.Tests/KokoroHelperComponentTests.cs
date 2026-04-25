@@ -74,6 +74,34 @@ public sealed class KokoroHelperComponentTests : IDisposable
         Assert.Throws<FileNotFoundException>(() => KokoroTokenizer.Load(dir));
     }
 
+    [Fact]
+    public void KokoroTokenizer_Encode_TruncatesToMaxSequenceLength()
+    {
+        // Build a vocab with >512 distinct characters to ensure we can exceed MaxSequenceLength
+        var vocab = new Dictionary<string, int>();
+        for (int i = 0; i < 600; i++)
+        {
+            // Use characters starting from a safe Unicode range
+            vocab[char.ConvertFromUtf32(0x4E00 + i)] = i + 1; // CJK Unified Ideographs
+        }
+
+        string dir = CreateTempDir();
+        WriteMinimalTokenizerJson(dir, vocab);
+        var tokenizer = KokoroTokenizer.Load(dir);
+
+        // Create a string with >512 in-vocab characters to trigger truncation
+        string longText = string.Concat(Enumerable.Range(0, 600).Select(i => char.ConvertFromUtf32(0x4E00 + i)));
+
+        long[] tokens = tokenizer.Encode(longText);
+
+        // Should be exactly MaxSequenceLength (512) with BOS and EOS
+        Assert.Equal(512, tokens.Length);
+        // First token should be BOS (0)
+        Assert.Equal(0L, tokens[0]);
+        // Last token should be EOS (0)
+        Assert.Equal(0L, tokens[^1]);
+    }
+
     // ─── KokoroPcmConverter ─────────────────────────────────────────────────────
 
     [Fact]

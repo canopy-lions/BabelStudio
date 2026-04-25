@@ -104,9 +104,17 @@ internal static class MediaFixtureFactory
     private static string? ResolveExecutable(string environmentVariable, IReadOnlyList<string> fallbackNames)
     {
         string? configuredPath = Environment.GetEnvironmentVariable(environmentVariable);
-        if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
+        if (!string.IsNullOrWhiteSpace(configuredPath))
         {
-            return Path.GetFullPath(configuredPath);
+            if (File.Exists(configuredPath))
+            {
+                return Path.GetFullPath(configuredPath);
+            }
+
+            throw new FileNotFoundException(
+                $"The environment variable '{environmentVariable}' is set to '{configuredPath}', but the file does not exist. " +
+                "Either correct the path or unset the environment variable to use PATH lookup.",
+                configuredPath);
         }
 
         string? pathEnvironment = Environment.GetEnvironmentVariable("PATH");

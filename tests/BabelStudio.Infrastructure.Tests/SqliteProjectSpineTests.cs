@@ -39,13 +39,22 @@ public sealed class SqliteProjectSpineTests
         IReadOnlyList<SchemaVersionRecord> versions = await database.Migrator.GetAppliedVersionsAsync();
 
         int[] appliedVersions = versions.Select(version => version.Version).ToArray();
-        int[] expectedVersions = SqliteMigrations.All
+        int[] declaredVersions = SqliteMigrations.All
             .Select(migration => migration.Version)
-            .Order()
             .ToArray();
 
-        Assert.Equal(expectedVersions, appliedVersions);
-        Assert.Equal(appliedVersions.Distinct().Count(), versions.Count);
+        // Ensure the declared migration list is monotonically increasing
+        for (int i = 1; i < declaredVersions.Length; i++)
+        {
+            Assert.True(declaredVersions[i] > declaredVersions[i - 1],
+                $"Migration versions must be strictly increasing: version {declaredVersions[i]} at index {i} is not greater than {declaredVersions[i - 1]}");
+        }
+
+        // Ensure no duplicate versions in the declared migrations
+        Assert.Equal(declaredVersions.Length, declaredVersions.Distinct().Count());
+
+        // Verify applied versions match declared versions (in order)
+        Assert.Equal(declaredVersions, appliedVersions);
     }
 
     [Fact]
