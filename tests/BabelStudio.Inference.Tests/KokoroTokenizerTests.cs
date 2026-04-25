@@ -147,7 +147,7 @@ public sealed class KokoroTokenizerTests : IDisposable
         KokoroTokenizer tokenizer = KokoroTokenizer.Load(tempDir);
 
         // Input of 600 characters — all known, exceeds max of 512
-        string input = new string(vocabEntries.Select(e => e.ch).ToArray().Take(600).ToArray());
+        string input = new string(Enumerable.Range(0, 600).Select(i => vocabEntries[i % vocabEntries.Count].ch).ToArray());
         long[] tokens = tokenizer.Encode(input);
 
         // Must be capped: [BOS, ...510 tokens..., EOS] = 512
