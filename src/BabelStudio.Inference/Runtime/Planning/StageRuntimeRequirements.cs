@@ -57,7 +57,7 @@ internal static class Milestone5StageRuntimeRequirementsCatalog
             [RuntimeStage.Tts] = new(
                 RuntimeStage.Tts,
                 ModelTask.Tts,
-                [ "kokoro-v1.0", "kokoro" ],
+                [ "kokoro-onnx", "kokoro" ],
                 [ ExecutionProviderKind.Cpu ],
                 [],
                 [ "quantized" ])

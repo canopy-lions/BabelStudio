@@ -8,7 +8,7 @@ namespace BabelStudio.Inference.Onnx.Kokoro;
 
 public sealed class KokoroTtsEngine : ITtsEngine, IStageRuntimeExecutionReporter
 {
-    private const string ModelAlias = "kokoro-v1.0";
+    private const string ModelAlias = "kokoro-onnx";
     private const int SampleRate = 24_000;
 
     private readonly IRuntimePlanner runtimePlanner;

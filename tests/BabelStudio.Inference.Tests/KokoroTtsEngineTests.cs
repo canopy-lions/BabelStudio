@@ -11,7 +11,7 @@ public sealed class KokoroTtsEngineTests
 {
     private static VoiceCatalogEntry TestVoice => new("af_heart", "en-us", "female", "Heart");
 
-    [RequiresBundledModelFact("kokoro-v1.0")]
+    [RequiresBundledModelFact("kokoro-onnx")]
     public async Task KokoroTtsEngine_SynthesizesWithBundledModel()
     {
         var engine = new KokoroTtsEngine(
@@ -20,7 +20,7 @@ public sealed class KokoroTtsEngineTests
                 Stage = RuntimeStage.Tts,
                 Status = StageRuntimePlanStatus.Ready,
                 ModelId = "onnx-community/Kokoro-82M-v1.0-ONNX",
-                ModelAlias = "kokoro-v1.0",
+                ModelAlias = "kokoro-onnx",
                 ExecutionProvider = ExecutionProviderKind.Cpu
             }),
             BenchmarkModelPathResolver.CreateDefault(),
@@ -43,7 +43,7 @@ public sealed class KokoroTtsEngineTests
         Assert.Equal("cpu", engine.LastExecutionSummary!.SelectedProvider);
     }
 
-    [RequiresBundledModelFact("kokoro-v1.0")]
+    [RequiresBundledModelFact("kokoro-onnx")]
     public async Task KokoroTtsEngine_PhonemeOverride_SkipsG2P()
     {
         var phonemizerThatMustNotBeCalled = new StubPhonemizer(
@@ -54,7 +54,7 @@ public sealed class KokoroTtsEngineTests
                 Stage = RuntimeStage.Tts,
                 Status = StageRuntimePlanStatus.Ready,
                 ModelId = "onnx-community/Kokoro-82M-v1.0-ONNX",
-                ModelAlias = "kokoro-v1.0",
+                ModelAlias = "kokoro-onnx",
                 ExecutionProvider = ExecutionProviderKind.Cpu
             }),
             BenchmarkModelPathResolver.CreateDefault(),
