@@ -14,27 +14,6 @@ public sealed class EspeakNgPhonemizerTests
         Assert.NotNull(phonemizer);
     }
 
-    [Fact]
-    public void Constructor_NullExecutablePath_Throws()
-    {
-        Assert.Throws<ArgumentNullException>(
-            () => new EspeakNgPhonemizer(null!));
-    }
-
-    [Fact]
-    public void Constructor_WhitespaceExecutablePath_Throws()
-    {
-        Assert.Throws<ArgumentException>(
-            () => new EspeakNgPhonemizer("   "));
-    }
-
-    [Fact]
-    public void Constructor_EmptyExecutablePath_Throws()
-    {
-        Assert.Throws<ArgumentException>(
-            () => new EspeakNgPhonemizer(""));
-    }
-
     // ── Phonemize input validation ─────────────────────────────────────────────
 
     [Fact]

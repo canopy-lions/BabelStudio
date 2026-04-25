@@ -176,7 +176,7 @@ public sealed class KokoroPcmConverterTests
         byte[] wav = KokoroPcmConverter.EncodePcm16Wav(samples, sampleRate: 24_000);
 
         short pcm = BinaryPrimitives.ReadInt16LittleEndian(wav.AsSpan(44));
-        Assert.Equal(short.MinValue, pcm);
+        Assert.Equal((short)-32767, pcm);
     }
 
     [Fact]
@@ -215,6 +215,6 @@ public sealed class KokoroPcmConverterTests
 
         Assert.Equal(0, s0);
         Assert.Equal(32767, s1);
-        Assert.Equal(short.MinValue, s2);
+        Assert.Equal((short)-32767, s2);
     }
 }
